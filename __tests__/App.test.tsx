@@ -3,11 +3,18 @@
  */
 
 import React from 'react';
-import ReactTestRenderer from 'react-test-renderer';
-import App from '../App';
+import { render } from '@testing-library/react-native';
+import App from '../src/App';
 
-test('renders correctly', async () => {
-  await ReactTestRenderer.act(() => {
-    ReactTestRenderer.create(<App />);
-  });
+jest.mock('react-native-screens', () => {
+  const actualScreens = jest.requireActual('react-native-screens');
+  return {
+    ...actualScreens,
+    enableScreens: jest.fn(),
+  };
+});
+
+test('renders correctly', () => {
+  const { getByText } = render(<App />);
+  expect(getByText('Guiñote+')).toBeTruthy();
 });
