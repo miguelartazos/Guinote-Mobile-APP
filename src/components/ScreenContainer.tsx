@@ -7,7 +7,11 @@ type ScreenContainerProps = ViewProps & {
   children: React.ReactNode;
 };
 
-export function ScreenContainer({ children, style, ...props }: ScreenContainerProps) {
+export function ScreenContainer({
+  children,
+  style,
+  ...props
+}: ScreenContainerProps) {
   return (
     <SafeAreaView style={[styles.container, style]} {...props}>
       {children}

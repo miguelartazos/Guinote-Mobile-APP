@@ -1,14 +1,14 @@
 export type Brand<K, T> = K & { __brand: T };
 
-export type ColorName = 
-  | 'primary' 
-  | 'accent' 
-  | 'secondary' 
-  | 'text' 
-  | 'background' 
-  | 'surface' 
-  | 'error' 
-  | 'white' 
+export type ColorName =
+  | 'primary'
+  | 'accent'
+  | 'secondary'
+  | 'text'
+  | 'background'
+  | 'surface'
+  | 'error'
+  | 'white'
   | 'black';
 
 export type HexColor = Brand<string, 'HexColor'>;

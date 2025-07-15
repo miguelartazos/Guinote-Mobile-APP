@@ -1,6 +1,9 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import { MainGameHubScreen } from '../screens/MainGameHubScreen';
+import { JugarHomeScreen } from '../screens/JugarHomeScreen';
+import { QuickMatchScreen } from '../screens/QuickMatchScreen';
+import { CreateRoomScreen } from '../screens/CreateRoomScreen';
+import { OfflineModeScreen } from '../screens/OfflineModeScreen';
 import { GameScreen } from '../screens/GameScreen';
 import { RoomScreen } from '../screens/RoomScreen';
 import { colors } from '../constants/colors';
@@ -27,9 +30,24 @@ export function JugarStackNavigator() {
       }}
     >
       <Stack.Screen
-        name="MainGameHub"
-        component={MainGameHubScreen}
+        name="JugarHome"
+        component={JugarHomeScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="QuickMatch"
+        component={QuickMatchScreen}
+        options={{ title: 'Partida Rápida' }}
+      />
+      <Stack.Screen
+        name="CreateRoom"
+        component={CreateRoomScreen}
+        options={{ title: 'Crear Sala' }}
+      />
+      <Stack.Screen
+        name="OfflineMode"
+        component={OfflineModeScreen}
+        options={{ title: 'Modo Offline' }}
       />
       <Stack.Screen
         name="Game"

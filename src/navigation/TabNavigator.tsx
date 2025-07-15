@@ -36,7 +36,9 @@ export function TabNavigator() {
         component={JugarStackNavigator}
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>🎮</Text>
+            <Text style={{ color: focused ? colors.accent : colors.text }}>
+              🎮
+            </Text>
           ),
         }}
       />
@@ -45,7 +47,9 @@ export function TabNavigator() {
         component={AmigosScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>👥</Text>
+            <Text style={{ color: focused ? colors.accent : colors.text }}>
+              👥
+            </Text>
           ),
         }}
       />
@@ -54,7 +58,9 @@ export function TabNavigator() {
         component={RankingScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>📈</Text>
+            <Text style={{ color: focused ? colors.accent : colors.text }}>
+              📈
+            </Text>
           ),
         }}
       />
@@ -63,7 +69,9 @@ export function TabNavigator() {
         component={TiendaScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>🛍️</Text>
+            <Text style={{ color: focused ? colors.accent : colors.text }}>
+              🛍️
+            </Text>
           ),
         }}
       />
@@ -72,7 +80,9 @@ export function TabNavigator() {
         component={ComunidadScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>📰</Text>
+            <Text style={{ color: focused ? colors.accent : colors.text }}>
+              📰
+            </Text>
           ),
         }}
       />
@@ -81,7 +91,9 @@ export function TabNavigator() {
         component={SettingsScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>⚙️</Text>
+            <Text style={{ color: focused ? colors.accent : colors.text }}>
+              ⚙️
+            </Text>
           ),
         }}
       />

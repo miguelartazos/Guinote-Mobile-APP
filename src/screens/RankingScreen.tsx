@@ -6,7 +6,9 @@ import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
 import type { MainTabScreenProps } from '../types/navigation';
 
-export function RankingScreen({ navigation: _ }: MainTabScreenProps<'Ranking'>) {
+export function RankingScreen({
+  navigation: _,
+}: MainTabScreenProps<'Ranking'>) {
   return (
     <ScreenContainer>
       <View style={styles.container}>

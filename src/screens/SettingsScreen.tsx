@@ -6,7 +6,9 @@ import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
 import type { MainTabScreenProps } from '../types/navigation';
 
-export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>) {
+export function SettingsScreen({
+  navigation: _,
+}: MainTabScreenProps<'Ajustes'>) {
   return (
     <ScreenContainer>
       <View style={styles.container}>

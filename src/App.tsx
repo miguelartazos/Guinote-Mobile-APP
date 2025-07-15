@@ -6,10 +6,7 @@ import { colors } from './constants/colors';
 function App() {
   return (
     <>
-      <StatusBar 
-        barStyle="light-content" 
-        backgroundColor={colors.primary}
-      />
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
       <RootNavigator />
     </>
   );

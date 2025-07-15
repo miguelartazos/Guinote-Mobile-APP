@@ -23,7 +23,13 @@ export function RoomScreen({ navigation }: JugarStackScreenProps<'Room'>) {
         </View>
 
         <View style={styles.buttonContainer}>
-          <Button onPress={() => navigation.navigate('Game')}>
+          <Button
+            onPress={() =>
+              navigation.navigate('Game', {
+                gameMode: 'private',
+              })
+            }
+          >
             Comenzar Partida
           </Button>
 

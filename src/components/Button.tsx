@@ -35,7 +35,12 @@ export function Button({
       activeOpacity={0.8}
       {...props}
     >
-      <Text style={[styles.buttonText, variant === 'secondary' && styles.secondaryButtonText]}>
+      <Text
+        style={[
+          styles.buttonText,
+          variant === 'secondary' && styles.secondaryButtonText,
+        ]}
+      >
         {children}
       </Text>
     </TouchableOpacity>

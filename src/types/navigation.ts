@@ -11,8 +11,15 @@ export type MainTabParamList = {
 };
 
 export type JugarStackParamList = {
-  MainGameHub: undefined;
-  Game: undefined;
+  JugarHome: undefined;
+  QuickMatch: undefined;
+  CreateRoom: undefined;
+  OfflineMode: undefined;
+  Game: {
+    gameMode: 'quick' | 'private' | 'offline';
+    difficulty?: 'easy' | 'medium' | 'hard' | 'expert';
+    playerName?: string;
+  };
   Room: undefined;
 };
 
