@@ -86,6 +86,10 @@ You've successfully run and modified your React Native App. :partying_face:
 
 If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
 
+# Documentation
+
+For project-specific documentation, see the [`docs/`](./docs) folder.
+
 # Learn More
 
 To learn more about React Native, take a look at the following resources:
