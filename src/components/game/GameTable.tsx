@@ -146,9 +146,10 @@ export function GameTable({
           </View>
         </View>
 
-        {/* Playing Area */}
+        {/* Playing Area - Show current trick cards */}
         <View style={styles.playingArea}>
-          <Text style={styles.playingAreaText}>Área de juego</Text>
+          {/* This would show cards played in current trick */}
+          <Text style={styles.playingAreaText}>Mesa</Text>
         </View>
       </View>
 
