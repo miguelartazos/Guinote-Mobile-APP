@@ -118,12 +118,23 @@ export function GameScreen({
     <View style={styles.container}>
       <StatusBar hidden />
       <GameTable
-        players={players as [typeof players[0], typeof players[1], typeof players[2], typeof players[3]]}
+        players={
+          players as [
+            (typeof players)[0],
+            (typeof players)[1],
+            (typeof players)[2],
+            (typeof players)[3],
+          ]
+        }
         currentPlayerIndex={gameState.currentPlayerIndex}
         trumpCard={{
           suit: gameState.trumpSuit,
           value: gameState.trumpCard.value,
         }}
+        currentTrick={gameState.currentTrick.map(tc => ({
+          playerId: tc.playerId,
+          card: { suit: tc.card.suit, value: tc.card.value },
+        }))}
         onCardPlay={handleCardPlay}
         onCantar={handleCantar}
         onCambiar7={handleCambiar7}

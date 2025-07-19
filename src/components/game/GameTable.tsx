@@ -1,7 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ViewStyle,
+} from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
 import { PlayerPanel } from './PlayerPanel';
+import { TrumpIndicator } from './TrumpIndicator';
 import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
@@ -22,6 +29,7 @@ type GameTableProps = {
   players: [Player, Player, Player, Player]; // [bottom, left, top, right]
   currentPlayerIndex: number;
   trumpCard?: SpanishCardData;
+  currentTrick?: Array<{ playerId: string; card: SpanishCardData }>;
   onCardPlay: (cardIndex: number) => void;
   onCantar: () => void;
   onCambiar7: () => void;
@@ -32,6 +40,7 @@ export function GameTable({
   players,
   currentPlayerIndex,
   trumpCard,
+  currentTrick = [],
   onCardPlay,
   onCantar,
   onCambiar7,
@@ -89,7 +98,7 @@ export function GameTable({
 
       {/* Top Player Cards */}
       <View style={styles.topPlayerCards}>
-        {Array.from({ length: 6 }).map((_, index) => (
+        {topPlayer.cards.map((_, index) => (
           <SpanishCard
             key={`top-${index}`}
             faceDown
@@ -101,7 +110,7 @@ export function GameTable({
 
       {/* Left Player Cards */}
       <View style={styles.leftPlayerCards}>
-        {Array.from({ length: 6 }).map((_, index) => (
+        {leftPlayer.cards.map((_, index) => (
           <SpanishCard
             key={`left-${index}`}
             faceDown
@@ -113,7 +122,7 @@ export function GameTable({
 
       {/* Right Player Cards */}
       <View style={styles.rightPlayerCards}>
-        {Array.from({ length: 6 }).map((_, index) => (
+        {rightPlayer.cards.map((_, index) => (
           <SpanishCard
             key={`right-${index}`}
             faceDown
@@ -125,13 +134,12 @@ export function GameTable({
 
       {/* Central Game Area */}
       <View style={styles.centralArea}>
-        {/* Trump Card and Deck */}
+        {/* Trump Indicator and Deck */}
         <View style={styles.trumpArea}>
           {trumpCard && (
-            <SpanishCard
-              card={trumpCard}
-              size="medium"
-              style={styles.trumpCard}
+            <TrumpIndicator
+              trumpCard={trumpCard}
+              style={styles.trumpIndicator}
             />
           )}
           <View style={styles.deckPile}>
@@ -148,22 +156,52 @@ export function GameTable({
 
         {/* Playing Area - Show current trick cards */}
         <View style={styles.playingArea}>
-          {/* This would show cards played in current trick */}
-          <Text style={styles.playingAreaText}>Mesa</Text>
+          {currentTrick.length === 0 ? (
+            <Text style={styles.playingAreaText}>Mesa</Text>
+          ) : (
+            <View style={styles.trickCards}>
+              {currentTrick.map((play, index) => (
+                <SpanishCard
+                  key={`trick-${index}`}
+                  card={play.card}
+                  size="medium"
+                  style={[styles.trickCard, getTrickCardPosition(index)]}
+                />
+              ))}
+            </View>
+          )}
         </View>
       </View>
 
       {/* Bottom Player Hand */}
       <View style={styles.bottomPlayerHand}>
-        {bottomPlayer.cards.map((card, index) => (
-          <TouchableOpacity
-            key={`hand-${index}`}
-            onPress={() => onCardPlay(index)}
-            style={styles.handCardContainer}
-          >
-            <SpanishCard card={card} size="large" style={styles.handCard} />
-          </TouchableOpacity>
-        ))}
+        {bottomPlayer.cards.map((card, index) => {
+          const totalCards = bottomPlayer.cards.length;
+          const fanAngle = Math.min(30, totalCards * 5); // Max 30 degrees spread
+          const angleStep = totalCards > 1 ? fanAngle / (totalCards - 1) : 0;
+          const rotation = -(fanAngle / 2) + index * angleStep;
+          const middleIndex = (totalCards - 1) / 2;
+          const offset = Math.abs(index - middleIndex) * 2; // Raise middle cards
+          return (
+            <TouchableOpacity
+              key={`hand-${index}`}
+              onPress={() => onCardPlay(index)}
+              style={[
+                styles.handCardContainer,
+                {
+                  transform: [
+                    { rotate: `${rotation}deg` },
+                    { translateY: offset },
+                  ],
+                  zIndex: index,
+                },
+              ]}
+              activeOpacity={0.8}
+            >
+              <SpanishCard card={card} size="large" style={styles.handCard} />
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Action Buttons - Redesigned */}
@@ -300,19 +338,24 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: getResponsiveValue(110, 130, 100),
     left: '50%',
-    transform: [{ translateX: scaleWidth(-195) }],
+    transform: [{ translateX: scaleWidth(-150) }],
     flexDirection: 'row',
     zIndex: 20,
+    height: 120,
+    width: 300,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   handCardContainer: {
-    marginRight: 4,
+    position: 'absolute',
+    marginLeft: -20,
   },
   handCard: {
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
   },
   actionBar: {
     position: 'absolute',
@@ -363,4 +406,26 @@ const styles = StyleSheet.create({
   exitButtonText: {
     color: colors.white,
   },
+  trumpIndicator: {
+    marginRight: 20,
+  },
+  trickCards: {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+  },
+  trickCard: {
+    position: 'absolute',
+  },
 });
+
+// Helper function to position trick cards
+function getTrickCardPosition(index: number): ViewStyle {
+  const positions: ViewStyle[] = [
+    { bottom: 5, left: '40%' }, // First player (bottom)
+    { left: 5, top: '35%' }, // Second player (left)
+    { top: 5, left: '40%' }, // Third player (top)
+    { right: 5, top: '35%' }, // Fourth player (right)
+  ];
+  return positions[index] || {};
+}

@@ -116,8 +116,13 @@ const styles = StyleSheet.create({
   },
   currentPlayerPanel: {
     borderColor: colors.accent,
-    borderWidth: 2,
+    borderWidth: 3,
     backgroundColor: colors.primary,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 10,
   },
   avatarContainer: {
     position: 'relative',
