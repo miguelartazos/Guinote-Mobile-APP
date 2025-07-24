@@ -8,7 +8,7 @@ import type {
   Team,
   TeamId,
 } from '../types/game.types';
-import type { SpanishSuit } from '../components/game/SpanishCard';
+import type { SpanishSuit, CardValue } from '../components/game/SpanishCard';
 import {
   createDeck,
   shuffleDeck,
@@ -23,19 +23,117 @@ import {
   findPlayerTeam,
   isGameOver,
 } from '../utils/gameLogic';
+import { playAICard } from '../utils/aiPlayer';
 
 type UseGameStateProps = {
   playerName: string;
   gameId?: GameId;
+  mockData?: {
+    players: Array<{
+      id: number;
+      name: string;
+      cards: number;
+    }>;
+    myCards: Array<{
+      suit: SpanishSuit;
+      value: CardValue;
+    }>;
+    trumpCard: {
+      suit: SpanishSuit;
+      value: CardValue;
+    };
+    currentPlayer: number;
+  };
 };
 
-export function useGameState({ playerName, gameId }: UseGameStateProps) {
+export function useGameState({
+  playerName,
+  gameId,
+  mockData,
+}: UseGameStateProps) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
 
   // Initialize game
   useEffect(() => {
     const initializeGame = () => {
+      if (mockData) {
+        // Use mock data
+        const players = mockData.players.map((p, index) => ({
+          id: (index === 0 ? 'player' : `bot${index}`) as PlayerId,
+          name: p.name,
+          avatar: index === 0 ? '👤' : ['🧔', '👨', '👴'][index - 1],
+          ranking: 1000 + index * 100,
+          teamId: (index % 2 === 0 ? 'team1' : 'team2') as TeamId,
+          isBot: index !== 0,
+        }));
+
+        const teams: [Team, Team] = [
+          {
+            id: 'team1' as TeamId,
+            playerIds: ['player' as PlayerId, 'bot2' as PlayerId],
+            score: 0,
+            cantes: [],
+          },
+          {
+            id: 'team2' as TeamId,
+            playerIds: ['bot1' as PlayerId, 'bot3' as PlayerId],
+            score: 0,
+            cantes: [],
+          },
+        ];
+
+        // Create hands map
+        const hands = new Map<PlayerId, Card[]>();
+
+        // Player's hand from mock data
+        const playerCards = mockData.myCards.map((card, index) => ({
+          id: `card_player_${index}` as CardId,
+          suit: card.suit,
+          value: card.value,
+        }));
+        hands.set('player' as PlayerId, playerCards);
+
+        // Other players get dummy cards
+        for (let i = 1; i < 4; i++) {
+          const botCards = Array.from(
+            { length: mockData.players[i].cards },
+            (_, j) => ({
+              id: `card_bot${i}_${j}` as CardId,
+              suit: 'oros' as SpanishSuit,
+              value: 1 as CardValue,
+            }),
+          );
+          hands.set(`bot${i}` as PlayerId, botCards);
+        }
+
+        const trumpCard = {
+          id: 'trump_card' as CardId,
+          suit: mockData.trumpCard.suit,
+          value: mockData.trumpCard.value,
+        };
+
+        const newGameState: GameState = {
+          id: (gameId || `game_${Date.now()}`) as GameId,
+          phase: 'playing',
+          players,
+          teams,
+          deck: [], // Empty deck for mock
+          hands: hands as ReadonlyMap<PlayerId, ReadonlyArray<Card>>,
+          trumpSuit: mockData.trumpCard.suit,
+          trumpCard,
+          currentTrick: [],
+          currentPlayerIndex: mockData.currentPlayer,
+          trickWins: new Map(),
+          canCambiar7: true,
+          gameHistory: [],
+        };
+
+        setGameState(newGameState);
+        return;
+      }
+
+      // Original initialization logic
       const players = [
         {
           id: 'player' as PlayerId,
@@ -114,7 +212,7 @@ export function useGameState({ playerName, gameId }: UseGameStateProps) {
     };
 
     initializeGame();
-  }, [playerName, gameId]);
+  }, [playerName, gameId, mockData]);
 
   // Play a card
   const playCard = useCallback(
@@ -135,6 +233,7 @@ export function useGameState({ playerName, gameId }: UseGameStateProps) {
           playerHand,
           gameState.currentTrick,
           gameState.trumpSuit,
+          gameState.phase,
         )
       ) {
         console.warn('Invalid play!');
@@ -177,6 +276,8 @@ export function useGameState({ playerName, gameId }: UseGameStateProps) {
 
           // Deal new cards if deck has cards
           let newDeck = [...prevState.deck];
+          let newPhase = prevState.phase;
+
           if (newDeck.length >= 4) {
             // Winner draws first, then in order
             const drawOrder = [winnerId];
@@ -194,6 +295,9 @@ export function useGameState({ playerName, gameId }: UseGameStateProps) {
                 newHands.set(playerId, playerCards);
               }
             });
+          } else if (newDeck.length === 0 && prevState.phase === 'playing') {
+            // Transition to arrastre phase when deck is empty
+            newPhase = 'arrastre';
           }
 
           // Winner starts next trick
@@ -209,9 +313,10 @@ export function useGameState({ playerName, gameId }: UseGameStateProps) {
             currentPlayerIndex: winnerIndex,
             teams: newTeams,
             lastTrickWinner: winnerId,
+            lastTrick: newTrick,
             phase: isGameOver({ ...prevState, teams: newTeams })
               ? 'gameOver'
-              : 'playing',
+              : newPhase,
           };
         }
 
@@ -236,6 +341,16 @@ export function useGameState({ playerName, gameId }: UseGameStateProps) {
       if (!gameState || gameState.phase !== 'playing') return;
 
       const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+
+      // Can only cantar after winning the previous trick
+      if (
+        gameState.currentTrick.length !== 0 ||
+        gameState.lastTrickWinner !== currentPlayer.id
+      ) {
+        console.warn('Can only cantar after winning a trick!');
+        return;
+      }
+
       const playerHand = gameState.hands.get(currentPlayer.id);
       const playerTeam = findPlayerTeam(currentPlayer.id, gameState);
       if (!playerHand || !playerTeam) return;
@@ -286,6 +401,16 @@ export function useGameState({ playerName, gameId }: UseGameStateProps) {
       return;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+
+    // Can only cambiar 7 after winning the previous trick
+    if (
+      gameState.currentTrick.length !== 0 ||
+      gameState.lastTrickWinner !== currentPlayer.id
+    ) {
+      console.warn('Can only exchange 7 after winning a trick!');
+      return;
+    }
+
     const playerHand = gameState.hands.get(currentPlayer.id);
     if (!playerHand) return;
 
@@ -336,33 +461,29 @@ export function useGameState({ playerName, gameId }: UseGameStateProps) {
 
   // Bot play simulation
   useEffect(() => {
-    if (!gameState || gameState.phase !== 'playing') return;
+    if (
+      !gameState ||
+      (gameState.phase !== 'playing' && gameState.phase !== 'arrastre') ||
+      mockData
+    )
+      return;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     if (!currentPlayer.isBot) return;
 
-    // Simple bot logic - play first valid card
+    // Smart AI logic
     const timer = setTimeout(() => {
       const botHand = gameState.hands.get(currentPlayer.id);
       if (!botHand || botHand.length === 0) return;
 
-      for (const card of botHand) {
-        if (
-          isValidPlay(
-            card,
-            botHand,
-            gameState.currentTrick,
-            gameState.trumpSuit,
-          )
-        ) {
-          playCard(card.id);
-          break;
-        }
+      const cardToPlay = playAICard(botHand, gameState);
+      if (cardToPlay) {
+        playCard(cardToPlay.id);
       }
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [gameState, playCard]);
+  }, [gameState, playCard, mockData]);
 
   return {
     gameState,

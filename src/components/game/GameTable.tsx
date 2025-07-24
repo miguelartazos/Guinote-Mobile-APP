@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
+import { DraggableCard } from './DraggableCard';
 import { PlayerPanel } from './PlayerPanel';
 import { TrumpIndicator } from './TrumpIndicator';
 import { colors } from '../../constants/colors';
@@ -47,6 +48,13 @@ export function GameTable({
   onSalir,
 }: GameTableProps) {
   const [bottomPlayer, leftPlayer, topPlayer, rightPlayer] = players;
+  const playAreaRef = useRef<View>(null);
+  const [dropZoneBounds, setDropZoneBounds] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   return (
     <View style={styles.table}>
@@ -73,6 +81,7 @@ export function GameTable({
         position="top"
         avatar={topPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 2}
+        teamId="team1"
       />
       <PlayerPanel
         playerName={leftPlayer.name}
@@ -80,6 +89,7 @@ export function GameTable({
         position="left"
         avatar={leftPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 1}
+        teamId="team2"
       />
       <PlayerPanel
         playerName={rightPlayer.name}
@@ -87,6 +97,7 @@ export function GameTable({
         position="right"
         avatar={rightPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 3}
+        teamId="team2"
       />
       <PlayerPanel
         playerName={bottomPlayer.name}
@@ -94,6 +105,7 @@ export function GameTable({
         position="bottom"
         avatar={bottomPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 0}
+        teamId="team1"
       />
 
       {/* Top Player Cards */}
@@ -103,7 +115,7 @@ export function GameTable({
             key={`top-${index}`}
             faceDown
             size="small"
-            style={[styles.topCard, { left: index * 15 }]}
+            style={[styles.topCard, { left: index * 8 }]}
           />
         ))}
       </View>
@@ -115,7 +127,7 @@ export function GameTable({
             key={`left-${index}`}
             faceDown
             size="small"
-            style={[styles.leftCard, { top: index * 15 }]}
+            style={[styles.leftCard, { left: index * 8 }]}
           />
         ))}
       </View>
@@ -127,9 +139,23 @@ export function GameTable({
             key={`right-${index}`}
             faceDown
             size="small"
-            style={[styles.rightCard, { top: index * 15 }]}
+            style={[styles.rightCard, { left: index * 8 }]}
           />
         ))}
+      </View>
+
+      {/* Bottom Right Player Cards (near bottom panel) */}
+      <View style={styles.bottomRightPlayerCards}>
+        {Array.from({ length: Math.min(bottomPlayer.cards.length, 3) }).map(
+          (_, index) => (
+            <SpanishCard
+              key={`bottom-right-${index}`}
+              faceDown
+              size="small"
+              style={[styles.bottomRightCard, { left: index * 8 }]}
+            />
+          ),
+        )}
       </View>
 
       {/* Central Game Area */}
@@ -155,7 +181,15 @@ export function GameTable({
         </View>
 
         {/* Playing Area - Show current trick cards */}
-        <View style={styles.playingArea}>
+        <View
+          ref={playAreaRef}
+          style={styles.playingArea}
+          onLayout={() => {
+            playAreaRef.current?.measureInWindow((x, y, width, height) => {
+              setDropZoneBounds({ x, y, width, height });
+            });
+          }}
+        >
           {currentTrick.length === 0 ? (
             <Text style={styles.playingAreaText}>Mesa</Text>
           ) : (
@@ -176,30 +210,22 @@ export function GameTable({
       {/* Bottom Player Hand */}
       <View style={styles.bottomPlayerHand}>
         {bottomPlayer.cards.map((card, index) => {
-          const totalCards = bottomPlayer.cards.length;
-          const fanAngle = Math.min(30, totalCards * 5); // Max 30 degrees spread
-          const angleStep = totalCards > 1 ? fanAngle / (totalCards - 1) : 0;
-          const rotation = -(fanAngle / 2) + index * angleStep;
-          const middleIndex = (totalCards - 1) / 2;
-          const offset = Math.abs(index - middleIndex) * 2; // Raise middle cards
           return (
-            <TouchableOpacity
+            <DraggableCard
               key={`hand-${index}`}
-              onPress={() => onCardPlay(index)}
+              card={card}
+              index={index}
+              onCardPlay={onCardPlay}
+              dropZoneBounds={dropZoneBounds || undefined}
               style={[
                 styles.handCardContainer,
                 {
-                  transform: [
-                    { rotate: `${rotation}deg` },
-                    { translateY: offset },
-                  ],
+                  marginLeft: index === 0 ? 0 : 5, // Small gap between cards
                   zIndex: index,
                 },
+                styles.handCard,
               ]}
-              activeOpacity={0.8}
-            >
-              <SpanishCard card={card} size="large" style={styles.handCard} />
-            </TouchableOpacity>
+            />
           );
         })}
       </View>
@@ -265,9 +291,8 @@ const styles = StyleSheet.create({
   },
   topPlayerCards: {
     position: 'absolute',
-    top: scaleHeight(50),
-    left: '50%',
-    transform: [{ translateX: scaleWidth(-40) }],
+    top: scaleHeight(130),
+    left: scaleWidth(30),
     flexDirection: 'row',
     zIndex: 10,
   },
@@ -276,33 +301,41 @@ const styles = StyleSheet.create({
   },
   leftPlayerCards: {
     position: 'absolute',
-    left: scaleWidth(10),
-    top: '50%',
-    transform: [{ translateY: scaleHeight(-45) }],
+    left: scaleWidth(30),
+    bottom: scaleHeight(270),
+    flexDirection: 'row',
     zIndex: 10,
   },
   leftCard: {
     position: 'absolute',
-    transform: [{ rotate: '90deg' }],
   },
   rightPlayerCards: {
     position: 'absolute',
-    right: scaleWidth(10),
-    top: '50%',
-    transform: [{ translateY: scaleHeight(-45) }],
+    right: scaleWidth(30),
+    top: scaleHeight(130),
+    flexDirection: 'row',
     zIndex: 10,
   },
   rightCard: {
     position: 'absolute',
-    transform: [{ rotate: '-90deg' }],
+  },
+  bottomRightPlayerCards: {
+    position: 'absolute',
+    right: scaleWidth(30),
+    bottom: scaleHeight(270),
+    flexDirection: 'row',
+    zIndex: 10,
+  },
+  bottomRightCard: {
+    position: 'absolute',
   },
   centralArea: {
     position: 'absolute',
-    top: '50%',
+    top: '45%',
     left: '50%',
-    transform: [{ translateX: -80 }, { translateY: -60 }],
-    width: 160,
-    height: 120,
+    transform: [{ translateX: -100 }, { translateY: -80 }],
+    width: 200,
+    height: 160,
   },
   trumpArea: {
     flexDirection: 'row',
@@ -336,19 +369,18 @@ const styles = StyleSheet.create({
   },
   bottomPlayerHand: {
     position: 'absolute',
-    bottom: getResponsiveValue(110, 130, 100),
+    bottom: getResponsiveValue(80, 100, 70),
     left: '50%',
-    transform: [{ translateX: scaleWidth(-150) }],
+    transform: [{ translateX: scaleWidth(-250) }], // Center 6 cards
     flexDirection: 'row',
     zIndex: 20,
-    height: 120,
-    width: 300,
+    height: 140,
+    width: 500,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   handCardContainer: {
-    position: 'absolute',
-    marginLeft: -20,
+    position: 'relative', // Changed from absolute
   },
   handCard: {
     shadowColor: colors.black,
@@ -370,7 +402,7 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     marginHorizontal: 5,
-    minHeight: dimensions.touchTarget.large,
+    minHeight: dimensions.touchTarget.senior,
     borderRadius: dimensions.borderRadius.xl,
     overflow: 'hidden',
     elevation: 4,
@@ -392,12 +424,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: dimensions.spacing.md,
+    paddingVertical: dimensions.spacing.lg,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   actionButtonText: {
     color: colors.white,
-    fontSize: typography.fontSize.md,
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },

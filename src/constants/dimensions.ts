@@ -3,6 +3,7 @@ export const dimensions = {
     minimum: 48,
     comfortable: 56,
     large: 64,
+    senior: 80,
   },
   spacing: {
     xs: 4,
@@ -22,4 +23,5 @@ export const dimensions = {
     paddingHorizontal: 16,
     paddingVertical: 24,
   },
+  seniorScaleFactor: 1.3,
 } as const;

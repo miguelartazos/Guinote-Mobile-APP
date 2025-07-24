@@ -203,6 +203,7 @@ Guiñote+ offers:
 **Rationale**: Build and test the entire user experience before backend complexity
 
 **Week 1-2: Core Screen Development**
+
 - Navigation structure with all screens
 - MainGameHub with smart cards
 - GameScreen with complete layout
@@ -210,6 +211,7 @@ Guiñote+ offers:
 - All UI components (cards, buttons, modals)
 
 **Week 3-4: Polish & Animations**
+
 - Card animations (flip, deal, play)
 - Screen transitions
 - Haptic feedback
@@ -217,6 +219,7 @@ Guiñote+ offers:
 - Error states UI
 
 **Week 5-6: Frontend Game Logic**
+
 - Local game state management
 - Game rules implementation (client-side)
 - AI opponents (running locally)
@@ -224,6 +227,7 @@ Guiñote+ offers:
 - Win/lose conditions
 
 **Week 7-8: User Testing & Iteration**
+
 - Beta testing with 50 users
 - UI/UX refinements
 - Performance optimization
@@ -233,6 +237,7 @@ Guiñote+ offers:
 ### Phase 2: Backend Infrastructure (Months 3-4)
 
 **Week 9-10: Core Backend Setup**
+
 - Node.js server initialization
 - Firebase project configuration
 - Database schema design
@@ -240,6 +245,7 @@ Guiñote+ offers:
 - Security rules implementation
 
 **Week 11-12: Authentication & User Management**
+
 - Firebase Auth integration
 - User profile creation/management
 - Session handling
@@ -247,6 +253,7 @@ Guiñote+ offers:
 - Data privacy compliance
 
 **Week 13-14: Real-time Multiplayer**
+
 - Socket.IO server setup
 - Room management system
 - Game state synchronization
@@ -254,6 +261,7 @@ Guiñote+ offers:
 - Anti-cheat measures
 
 **Week 15-16: Data & Analytics**
+
 - Statistics tracking system
 - Achievement engine
 - Leaderboards implementation
@@ -263,6 +271,7 @@ Guiñote+ offers:
 ### Phase 3: Integration & Polish (Months 5-6)
 
 **Week 17-18: Feature Integration**
+
 - Connect frontend to backend
 - Liga Familiar system
 - Voice messaging implementation
@@ -270,6 +279,7 @@ Guiñote+ offers:
 - Push notifications
 
 **Week 19-20: Monetization & Testing**
+
 - Payment integration
 - Ad network setup
 - Premium features activation
@@ -277,6 +287,7 @@ Guiñote+ offers:
 - Load testing
 
 **Week 21-22: Beta Launch**
+
 - Closed beta (500 users)
 - Bug fixing sprint
 - Performance optimization
@@ -284,6 +295,7 @@ Guiñote+ offers:
 - Stability improvements
 
 **Week 23-24: Production Launch**
+
 - App store submission
 - Marketing campaign launch
 - Support system activation
@@ -295,9 +307,11 @@ Guiñote+ offers:
 ### Technical Risks
 
 - **Risk**: React Native performance issues
+
   - **Mitigation**: Native modules for critical paths
 
 - **Risk**: Multiplayer synchronization bugs
+
   - **Mitigation**: Extensive testing, gradual rollout
 
 - **Risk**: Server scaling challenges
@@ -306,9 +320,11 @@ Guiñote+ offers:
 ### Market Risks
 
 - **Risk**: Low user adoption
+
   - **Mitigation**: Guerrilla marketing in Aragón
 
 - **Risk**: GuiñotePro improvements
+
   - **Mitigation**: Faster feature development
 
 - **Risk**: High user acquisition costs
@@ -317,9 +333,11 @@ Guiñote+ offers:
 ### Operational Risks
 
 - **Risk**: Support overwhelm
+
   - **Mitigation**: Comprehensive FAQ, community moderators
 
 - **Risk**: Content moderation (voice messages)
+
   - **Mitigation**: Report system, automatic filtering
 
 - **Risk**: Compliance issues
@@ -435,4 +453,4 @@ Guiñote+ succeeds when:
 
 ---
 
-*"We're not just building an app. We're preserving and enhancing a beloved Spanish tradition for the digital age."*
+_"We're not just building an app. We're preserving and enhancing a beloved Spanish tradition for the digital age."_

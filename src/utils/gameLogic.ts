@@ -6,17 +6,26 @@ import type {
   TrickCard,
   TeamId,
   Cante,
+  GamePhase,
 } from '../types/game.types';
 import type { SpanishSuit, CardValue } from '../components/game/SpanishCard';
 import { CARD_POINTS } from '../types/game.types';
 
+// Export constants for reuse
+export const SPANISH_SUITS: SpanishSuit[] = [
+  'espadas',
+  'bastos',
+  'oros',
+  'copas',
+];
+export const CARD_VALUES: CardValue[] = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];
+export const CARD_POWER: CardValue[] = [1, 3, 12, 11, 10, 7, 6, 5, 4, 2];
+
 export function createDeck(): Card[] {
-  const suits: SpanishSuit[] = ['espadas', 'bastos', 'oros', 'copas'];
-  const values: CardValue[] = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];
   const deck: Card[] = [];
 
-  suits.forEach(suit => {
-    values.forEach(value => {
+  SPANISH_SUITS.forEach(suit => {
+    CARD_VALUES.forEach(value => {
       deck.push({
         id: `${suit}_${value}` as CardId,
         suit,
@@ -57,11 +66,27 @@ export function dealInitialCards(
   return { hands, remainingDeck: mutableDeck };
 }
 
+function canBeatTrick(
+  card: Card,
+  currentTrick: readonly TrickCard[],
+  trumpSuit: SpanishSuit,
+): boolean {
+  if (currentTrick.length === 0) return true;
+
+  // Simulate adding this card to the trick
+  const tempTrick = [...currentTrick, { playerId: 'temp' as PlayerId, card }];
+  const winner = calculateTrickWinner(tempTrick, trumpSuit);
+
+  // Check if the temporary player would win
+  return winner === ('temp' as PlayerId);
+}
+
 export function isValidPlay(
   card: Card,
   hand: readonly Card[],
   currentTrick: readonly TrickCard[],
   trumpSuit: SpanishSuit,
+  gamePhase: GamePhase = 'playing',
 ): boolean {
   // First card of trick is always valid
   if (currentTrick.length === 0) return true;
@@ -73,7 +98,43 @@ export function isValidPlay(
   const hasSuit = hand.some(c => c.suit === leadSuit);
   if (hasSuit && card.suit !== leadSuit) return false;
 
-  // If can't follow suit, must play trump if possible
+  // In arrastre phase, additional rules apply
+  if (gamePhase === 'arrastre') {
+    // If following suit, must beat if possible
+    if (card.suit === leadSuit) {
+      const suitCards = hand.filter(c => c.suit === leadSuit);
+      const canBeat = suitCards.some(c =>
+        canBeatTrick(c, currentTrick, trumpSuit),
+      );
+
+      if (canBeat && !canBeatTrick(card, currentTrick, trumpSuit)) {
+        // Has a card that can beat but playing one that doesn't
+        return false;
+      }
+    }
+
+    // If can't follow suit, must trump if possible
+    if (!hasSuit && card.suit !== trumpSuit) {
+      const hasTrump = hand.some(c => c.suit === trumpSuit);
+      if (hasTrump) return false;
+    }
+
+    // If trumping, must beat other trumps if possible
+    if (!hasSuit && card.suit === trumpSuit) {
+      const trumpCards = hand.filter(c => c.suit === trumpSuit);
+      const canBeatWithTrump = trumpCards.some(c =>
+        canBeatTrick(c, currentTrick, trumpSuit),
+      );
+
+      if (canBeatWithTrump && !canBeatTrick(card, currentTrick, trumpSuit)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  // Normal playing phase: If can't follow suit, must play trump if possible
   if (!hasSuit && card.suit !== trumpSuit) {
     const hasTrump = hand.some(c => c.suit === trumpSuit);
     if (hasTrump) return false;
@@ -154,11 +215,11 @@ export function canCantar(
   const suits: SpanishSuit[] = ['espadas', 'bastos', 'oros', 'copas'];
 
   suits.forEach(suit => {
-    // Check if player has both Rey and Caballo of the same suit
+    // Check if player has both Rey and Sota of the same suit
     const hasRey = hand.some(c => c.suit === suit && c.value === 12);
-    const hasCaballo = hand.some(c => c.suit === suit && c.value === 11);
+    const hasSota = hand.some(c => c.suit === suit && c.value === 10);
 
-    if (hasRey && hasCaballo) {
+    if (hasRey && hasSota) {
       // Check if this cante hasn't been done yet by the team
       const alreadyCanted = teamCantes.some(cante => cante.suit === suit);
       if (!alreadyCanted) {
@@ -230,5 +291,38 @@ export function calculateFinalPoints(
     finalPoints.set(team.id, points);
   });
 
+  // Check for 30 malas rule
+  const [team1Points, team2Points] = [
+    finalPoints.get(gameState.teams[0].id) || 0,
+    finalPoints.get(gameState.teams[1].id) || 0,
+  ];
+
+  // If a team has less than 30 points, opponent wins with 101
+  if (team1Points < 30) {
+    finalPoints.set(gameState.teams[1].id, 101);
+  } else if (team2Points < 30) {
+    finalPoints.set(gameState.teams[0].id, 101);
+  }
+
   return finalPoints;
+}
+
+// Utility function for drop zone detection
+export function isPointInBounds(
+  point: { x: number; y: number },
+  bounds: { x: number; y: number; width: number; height: number },
+): boolean {
+  return (
+    point.x >= bounds.x &&
+    point.x <= bounds.x + bounds.width &&
+    point.y >= bounds.y &&
+    point.y <= bounds.y + bounds.height
+  );
+}
+
+// Generate a random Spanish card (for demo/testing)
+export function generateRandomCard(): { suit: SpanishSuit; value: CardValue } {
+  const suit = SPANISH_SUITS[Math.floor(Math.random() * SPANISH_SUITS.length)];
+  const value = CARD_VALUES[Math.floor(Math.random() * CARD_VALUES.length)];
+  return { suit, value };
 }

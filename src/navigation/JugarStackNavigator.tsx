@@ -52,7 +52,10 @@ export function JugarStackNavigator() {
       <Stack.Screen
         name="Game"
         component={GameScreen}
-        options={{ title: 'Juego' }}
+        options={{
+          title: 'Juego',
+          headerShown: false,
+        }}
       />
       <Stack.Screen
         name="Room"

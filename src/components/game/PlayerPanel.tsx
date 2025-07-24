@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
@@ -10,6 +10,7 @@ type PlayerPanelProps = {
   isCurrentPlayer?: boolean;
   position: 'top' | 'left' | 'right' | 'bottom';
   avatar?: string;
+  teamId?: 'team1' | 'team2';
 };
 
 export function PlayerPanel({
@@ -18,11 +19,40 @@ export function PlayerPanel({
   isCurrentPlayer = false,
   position,
   avatar = '👤',
+  teamId,
 }: PlayerPanelProps) {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (isCurrentPlayer) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    }
+  }, [isCurrentPlayer, pulseAnim]);
+
+  const getTeamColor = () => {
+    if (teamId === 'team1') return '#3498DB'; // Blue
+    if (teamId === 'team2') return '#E74C3C'; // Red
+    return colors.accent;
+  };
+
   const panelStyles = [
     styles.panel,
     styles[`${position}Panel`],
     isCurrentPlayer && styles.currentPlayerPanel,
+    teamId && { borderColor: getTeamColor() },
   ];
 
   const getPlayerDisplayName = (name: string) => {
@@ -32,25 +62,31 @@ export function PlayerPanel({
     return name;
   };
 
-  const isVertical = position === 'left' || position === 'right';
+  const AnimatedViewWrapper = isCurrentPlayer ? Animated.View : View;
 
   return (
-    <View style={panelStyles}>
-      <View
-        style={[
-          styles.avatarContainer,
-          isVertical && styles.verticalAvatarContainer,
-        ]}
-      >
-        <View style={[styles.avatar, isCurrentPlayer && styles.currentAvatar]}>
+    <AnimatedViewWrapper
+      style={[
+        panelStyles,
+        isCurrentPlayer && {
+          transform: [{ scale: pulseAnim }],
+        },
+      ]}
+    >
+      <View style={styles.avatarContainer}>
+        <View
+          style={[
+            styles.avatar,
+            isCurrentPlayer && styles.currentAvatar,
+            teamId && { borderColor: getTeamColor() },
+          ]}
+        >
           <Text style={styles.avatarIcon}>{avatar}</Text>
         </View>
         {isCurrentPlayer && <View style={styles.currentIndicator} />}
       </View>
 
-      <View
-        style={[styles.playerInfo, isVertical && styles.verticalPlayerInfo]}
-      >
+      <View style={styles.playerInfo}>
         <Text
           style={[
             styles.playerName,
@@ -65,7 +101,7 @@ export function PlayerPanel({
           Ranking: {ranking.toLocaleString()}
         </Text>
       </View>
-    </View>
+    </AnimatedViewWrapper>
   );
 }
 
@@ -85,34 +121,36 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   topPanel: {
-    top: 90,
-    left: '50%',
-    transform: [{ translateX: -55 }],
-    flexDirection: 'row',
+    top: 60,
+    left: 10,
+    flexDirection: 'column',
     alignItems: 'center',
+    width: 100,
+    padding: 8,
   },
   leftPanel: {
-    left: 60,
-    top: '50%',
-    transform: [{ translateY: -30 }],
+    bottom: 200,
+    left: 10,
     flexDirection: 'column',
     alignItems: 'center',
-    minWidth: 90,
+    width: 100,
+    padding: 8,
   },
   rightPanel: {
-    right: 60,
-    top: '50%',
-    transform: [{ translateY: -30 }],
+    top: 60,
+    right: 10,
     flexDirection: 'column',
     alignItems: 'center',
-    minWidth: 90,
+    width: 100,
+    padding: 8,
   },
   bottomPanel: {
-    bottom: 70,
-    left: '50%',
-    transform: [{ translateX: -55 }],
-    flexDirection: 'row',
+    bottom: 200,
+    right: 10,
+    flexDirection: 'column',
     alignItems: 'center',
+    width: 100,
+    padding: 8,
   },
   currentPlayerPanel: {
     borderColor: colors.accent,
@@ -126,12 +164,12 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: 6,
+    marginBottom: 8,
   },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.secondary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -139,17 +177,22 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
   },
   currentAvatar: {
-    borderColor: colors.accent,
+    borderColor: '#FFD700',
     borderWidth: 3,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 8,
   },
   currentIndicator: {
     position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#00FF00',
+    top: -3,
+    right: -3,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#00FF88',
     borderWidth: 2,
     borderColor: colors.white,
   },
@@ -157,27 +200,22 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
   },
   playerInfo: {
-    flex: 1,
+    alignItems: 'center',
   },
   playerName: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.bold,
     color: colors.text,
-    marginBottom: 2,
+    marginBottom: 1,
+    textAlign: 'center',
   },
   ranking: {
-    fontSize: typography.fontSize.xs,
+    fontSize: 10,
     color: colors.accent,
     fontWeight: typography.fontWeight.medium,
+    textAlign: 'center',
   },
   currentPlayerText: {
     color: colors.accent,
-  },
-  verticalAvatarContainer: {
-    marginRight: 0,
-    marginBottom: 4,
-  },
-  verticalPlayerInfo: {
-    alignItems: 'center',
   },
 });

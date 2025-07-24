@@ -31,21 +31,21 @@ export const isTablet = (): boolean => {
 export const getCardDimensions = () => {
   if (isTablet()) {
     return {
-      small: { width: 45, height: 67 },
-      medium: { width: 65, height: 97 },
-      large: { width: 85, height: 127 },
+      small: { width: 54, height: 80 }, // 20% larger
+      medium: { width: 78, height: 116 }, // 20% larger
+      large: { width: 102, height: 152 }, // 20% larger
     };
   } else if (isSmallScreen()) {
     return {
-      small: { width: 30, height: 45 },
-      medium: { width: 45, height: 67 },
-      large: { width: 60, height: 90 },
+      small: { width: 36, height: 54 }, // 20% larger
+      medium: { width: 54, height: 80 }, // 20% larger
+      large: { width: 72, height: 108 }, // 20% larger
     };
   } else {
     return {
-      small: { width: 35, height: 52 },
-      medium: { width: 50, height: 75 },
-      large: { width: 65, height: 95 },
+      small: { width: 42, height: 62 }, // 20% larger
+      medium: { width: 60, height: 90 }, // 20% larger
+      large: { width: 78, height: 114 }, // 20% larger
     };
   }
 };

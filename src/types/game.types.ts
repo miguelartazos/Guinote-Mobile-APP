@@ -25,6 +25,7 @@ export type Player = {
 export type GamePhase =
   | 'dealing'
   | 'playing'
+  | 'arrastre'
   | 'cantar'
   | 'scoring'
   | 'gameOver';
@@ -60,6 +61,7 @@ export type GameState = Readonly<{
   currentPlayerIndex: number;
   trickWins: ReadonlyMap<TeamId, number>;
   lastTrickWinner?: PlayerId;
+  lastTrick?: ReadonlyArray<TrickCard>;
   canCambiar7: boolean;
   gameHistory: ReadonlyArray<GameAction>;
 }>;

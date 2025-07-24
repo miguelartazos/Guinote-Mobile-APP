@@ -11,6 +11,8 @@ import {
   calculateCantePoints,
   canCambiar7,
   getNextPlayerIndex,
+  calculateFinalPoints,
+  CARD_POWER,
 } from './gameLogic';
 
 describe('createDeck', () => {
@@ -55,19 +57,19 @@ describe('shuffleDeck', () => {
   test('preserves all cards without duplication', () => {
     const originalDeck = createDeck();
     const shuffled = shuffleDeck(originalDeck);
-    
+
     // Create frequency maps
     const originalFreq = new Map<string, number>();
     const shuffledFreq = new Map<string, number>();
-    
+
     originalDeck.forEach(card => {
       originalFreq.set(card.id, (originalFreq.get(card.id) || 0) + 1);
     });
-    
+
     shuffled.forEach(card => {
       shuffledFreq.set(card.id, (shuffledFreq.get(card.id) || 0) + 1);
     });
-    
+
     expect(shuffledFreq).toEqual(originalFreq);
   });
 });
@@ -140,6 +142,69 @@ describe('isValidPlay', () => {
 
     // Invalid: not playing trump when must
     expect(isValidPlay(hand[1], hand, currentTrick, trumpSuit)).toBe(false);
+  });
+
+  test('arrastre phase must beat trick if possible when following suit', () => {
+    const leadCard: TrickCard = {
+      playerId: 'p1' as PlayerId,
+      card: { id: 'espadas_10' as CardId, suit: 'espadas', value: 10 }, // Sota
+    };
+    const currentTrick = [leadCard];
+
+    const hand: Card[] = [
+      { id: 'espadas_1' as CardId, suit: 'espadas', value: 1 }, // As - can beat
+      { id: 'espadas_2' as CardId, suit: 'espadas', value: 2 }, // 2 - cannot beat
+    ];
+
+    // Must play As to beat the Sota
+    expect(
+      isValidPlay(hand[0], hand, currentTrick, trumpSuit, 'arrastre'),
+    ).toBe(true);
+    expect(
+      isValidPlay(hand[1], hand, currentTrick, trumpSuit, 'arrastre'),
+    ).toBe(false);
+  });
+
+  test('arrastre phase must trump if cannot follow suit', () => {
+    const leadCard: TrickCard = {
+      playerId: 'p1' as PlayerId,
+      card: { id: 'espadas_1' as CardId, suit: 'espadas', value: 1 },
+    };
+    const currentTrick = [leadCard];
+
+    const hand: Card[] = [
+      { id: 'oros_7' as CardId, suit: 'oros', value: 7 }, // trump
+      { id: 'bastos_3' as CardId, suit: 'bastos', value: 3 }, // non-trump
+    ];
+
+    // Must play trump when cannot follow suit
+    expect(
+      isValidPlay(hand[0], hand, currentTrick, trumpSuit, 'arrastre'),
+    ).toBe(true);
+    expect(
+      isValidPlay(hand[1], hand, currentTrick, trumpSuit, 'arrastre'),
+    ).toBe(false);
+  });
+
+  test('arrastre phase still requires following suit if possible', () => {
+    const leadCard: TrickCard = {
+      playerId: 'p1' as PlayerId,
+      card: { id: 'espadas_1' as CardId, suit: 'espadas', value: 1 },
+    };
+    const currentTrick = [leadCard];
+
+    const hand: Card[] = [
+      { id: 'espadas_7' as CardId, suit: 'espadas', value: 7 },
+      { id: 'bastos_3' as CardId, suit: 'bastos', value: 3 },
+    ];
+
+    // Must still follow suit if possible, even in arrastre
+    expect(
+      isValidPlay(hand[0], hand, currentTrick, trumpSuit, 'arrastre'),
+    ).toBe(true);
+    expect(
+      isValidPlay(hand[1], hand, currentTrick, trumpSuit, 'arrastre'),
+    ).toBe(false);
   });
 });
 
@@ -245,9 +310,9 @@ describe('canCantar', () => {
   test('detects valid cantes in hand', () => {
     const hand: Card[] = [
       { id: 'espadas_12' as CardId, suit: 'espadas', value: 12 }, // Rey
-      { id: 'espadas_11' as CardId, suit: 'espadas', value: 11 }, // Caballo
+      { id: 'espadas_10' as CardId, suit: 'espadas', value: 10 }, // Sota
       { id: 'oros_12' as CardId, suit: 'oros', value: 12 },
-      { id: 'oros_11' as CardId, suit: 'oros', value: 11 },
+      { id: 'oros_10' as CardId, suit: 'oros', value: 10 },
       { id: 'bastos_12' as CardId, suit: 'bastos', value: 12 },
       { id: 'copas_7' as CardId, suit: 'copas', value: 7 },
     ];
@@ -262,7 +327,7 @@ describe('canCantar', () => {
   test('excludes already canted suits', () => {
     const hand: Card[] = [
       { id: 'espadas_12' as CardId, suit: 'espadas', value: 12 },
-      { id: 'espadas_11' as CardId, suit: 'espadas', value: 11 },
+      { id: 'espadas_10' as CardId, suit: 'espadas', value: 10 },
     ];
 
     const teamCantes = [
@@ -316,5 +381,67 @@ describe('getNextPlayerIndex', () => {
     expect(getNextPlayerIndex(1, 4)).toBe(2);
     expect(getNextPlayerIndex(2, 4)).toBe(3);
     expect(getNextPlayerIndex(3, 4)).toBe(0);
+  });
+});
+
+describe('calculateFinalPoints', () => {
+  test('adds 10 points for last trick winner', () => {
+    const gameState = {
+      teams: [
+        { id: 'team1' as any, score: 50, playerIds: ['p1', 'p2'] as any },
+        { id: 'team2' as any, score: 45, playerIds: ['p3', 'p4'] as any },
+      ],
+      lastTrickWinner: 'p1' as any,
+    } as any;
+
+    const finalPoints = calculateFinalPoints(gameState);
+
+    expect(finalPoints.get('team1' as any)).toBe(60); // 50 + 10
+    expect(finalPoints.get('team2' as any)).toBe(45);
+  });
+
+  test('applies 30 malas rule when team has less than 30 points', () => {
+    const gameState = {
+      teams: [
+        { id: 'team1' as any, score: 25, playerIds: ['p1', 'p2'] as any },
+        { id: 'team2' as any, score: 75, playerIds: ['p3', 'p4'] as any },
+      ],
+    } as any;
+
+    const finalPoints = calculateFinalPoints(gameState);
+
+    expect(finalPoints.get('team1' as any)).toBe(25);
+    expect(finalPoints.get('team2' as any)).toBe(101); // Auto-win for opponent
+  });
+
+  test('30 malas rule with últimas bonus', () => {
+    const gameState = {
+      teams: [
+        { id: 'team1' as any, score: 28, playerIds: ['p1', 'p2'] as any },
+        { id: 'team2' as any, score: 60, playerIds: ['p3', 'p4'] as any },
+      ],
+      lastTrickWinner: 'p1' as any,
+    } as any;
+
+    const finalPoints = calculateFinalPoints(gameState);
+
+    // Team1 gets 10 últimas, bringing them to 38, so no malas
+    expect(finalPoints.get('team1' as any)).toBe(38); // 28 + 10
+    expect(finalPoints.get('team2' as any)).toBe(60);
+  });
+});
+
+describe('CARD_POWER', () => {
+  test('exports correct card power ranking', () => {
+    expect(CARD_POWER).toEqual([1, 3, 12, 11, 10, 7, 6, 5, 4, 2]);
+  });
+
+  test('power ranking matches getCardRank internal logic', () => {
+    // Verify that As (1) is highest power
+    expect(CARD_POWER.indexOf(1)).toBe(0);
+    // Verify that 3 is second highest
+    expect(CARD_POWER.indexOf(3)).toBe(1);
+    // Verify that 2 is lowest power
+    expect(CARD_POWER.indexOf(2)).toBe(CARD_POWER.length - 1);
   });
 });
