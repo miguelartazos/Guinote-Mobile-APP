@@ -7,6 +7,9 @@ import type {
   Card,
   Team,
   TeamId,
+  Player,
+  DifficultyLevel,
+  AIPersonality,
 } from '../types/game.types';
 import type { SpanishSuit, CardValue } from '../components/game/SpanishCard';
 import {
@@ -23,11 +26,18 @@ import {
   findPlayerTeam,
   isGameOver,
 } from '../utils/gameLogic';
-import { playAICard } from '../utils/aiPlayer';
+import {
+  playAICard,
+  shouldAICante,
+  getAIThinkingTime,
+} from '../utils/aiPlayer';
+import { createMemory, updateMemory } from '../utils/aiMemory';
+import type { CardMemory } from '../utils/aiMemory';
 
 type UseGameStateProps = {
   playerName: string;
   gameId?: GameId;
+  difficulty?: DifficultyLevel;
   mockData?: {
     players: Array<{
       id: number;
@@ -49,10 +59,13 @@ type UseGameStateProps = {
 export function useGameState({
   playerName,
   gameId,
+  difficulty = 'medium',
   mockData,
 }: UseGameStateProps) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
+  const [aiMemory, setAIMemory] = useState<CardMemory>(createMemory());
+  const [thinkingPlayer, setThinkingPlayer] = useState<PlayerId | null>(null);
 
   // Initialize game
   useEffect(() => {
@@ -134,7 +147,14 @@ export function useGameState({
       }
 
       // Original initialization logic
-      const players = [
+      // Define AI personalities for the three bots
+      const aiPersonalities: [AIPersonality, AIPersonality, AIPersonality] = [
+        'prudent', // Ana la Prudente (Jorge A.)
+        'aggressive', // Carlos el Valiente (Juancelotti)
+        'tricky', // María la Astuta (Miguel A..N.)
+      ];
+
+      const players: Player[] = [
         {
           id: 'player' as PlayerId,
           name: playerName,
@@ -145,27 +165,33 @@ export function useGameState({
         },
         {
           id: 'bot1' as PlayerId,
-          name: 'Jorge A.',
-          avatar: '🧔',
+          name: 'Ana la Prudente',
+          avatar: '👩',
           ranking: 6780,
           teamId: 'team2' as TeamId,
           isBot: true,
+          personality: aiPersonalities[0],
+          difficulty,
         },
         {
           id: 'bot2' as PlayerId,
-          name: 'Juancelotti',
+          name: 'Carlos el Valiente',
           avatar: '👨',
           ranking: 255,
           teamId: 'team1' as TeamId,
           isBot: true,
+          personality: aiPersonalities[1],
+          difficulty,
         },
         {
           id: 'bot3' as PlayerId,
-          name: 'Miguel A..N.',
-          avatar: '👴',
+          name: 'María la Astuta',
+          avatar: '👩‍🦰',
           ranking: 16163,
           teamId: 'team2' as TeamId,
           isBot: true,
+          personality: aiPersonalities[2],
+          difficulty,
         },
       ];
 
@@ -212,7 +238,7 @@ export function useGameState({
     };
 
     initializeGame();
-  }, [playerName, gameId, mockData]);
+  }, [playerName, gameId, mockData, difficulty]);
 
   // Play a card
   const playCard = useCallback(
@@ -256,6 +282,9 @@ export function useGameState({
           ...prevState.currentTrick,
           { playerId: currentPlayer.id, card },
         ];
+
+        // Update AI memory for all played cards
+        setAIMemory(prev => updateMemory(prev, currentPlayer.id, card));
 
         // Check if trick is complete
         if (newTrick.length === 4) {
@@ -471,19 +500,52 @@ export function useGameState({
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     if (!currentPlayer.isBot) return;
 
-    // Smart AI logic
+    // Set thinking indicator
+    setThinkingPlayer(currentPlayer.id);
+
+    // Calculate thinking time based on AI difficulty and complexity
+    const isComplexDecision =
+      gameState.currentTrick.length > 0 ||
+      gameState.phase === 'arrastre' ||
+      botHand.length < 5;
+    const thinkingTime = getAIThinkingTime(currentPlayer, isComplexDecision);
+
+    // Smart AI logic with memory
     const timer = setTimeout(() => {
       const botHand = gameState.hands.get(currentPlayer.id);
-      if (!botHand || botHand.length === 0) return;
+      if (!botHand || botHand.length === 0) {
+        setThinkingPlayer(null);
+        return;
+      }
 
-      const cardToPlay = playAICard(botHand, gameState);
+      // Check for cante opportunities
+      const cantesuit = shouldAICante(currentPlayer, botHand, gameState);
+      if (cantesuit) {
+        cantar(cantesuit);
+        setThinkingPlayer(null);
+        return;
+      }
+
+      // Play card with AI memory
+      const cardToPlay = playAICard(
+        botHand,
+        gameState,
+        currentPlayer,
+        aiMemory,
+      );
       if (cardToPlay) {
         playCard(cardToPlay.id);
+        // Update AI memory with played card
+        setAIMemory(prev => updateMemory(prev, currentPlayer.id, cardToPlay));
       }
-    }, 1500);
+      setThinkingPlayer(null);
+    }, thinkingTime);
 
-    return () => clearTimeout(timer);
-  }, [gameState, playCard, mockData]);
+    return () => {
+      clearTimeout(timer);
+      setThinkingPlayer(null);
+    };
+  }, [gameState, playCard, cantar, mockData, aiMemory]);
 
   return {
     gameState,
@@ -494,5 +556,6 @@ export function useGameState({
     setSelectedCard,
     getCurrentPlayerHand,
     isPlayerTurn,
+    thinkingPlayer,
   };
 }

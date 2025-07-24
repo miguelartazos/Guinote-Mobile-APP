@@ -13,6 +13,10 @@ export type Card = {
   value: CardValue;
 };
 
+export type DifficultyLevel = 'easy' | 'medium' | 'hard';
+
+export type AIPersonality = 'prudent' | 'aggressive' | 'tricky';
+
 export type Player = {
   id: PlayerId;
   name: string;
@@ -20,6 +24,8 @@ export type Player = {
   ranking: number;
   teamId: TeamId;
   isBot: boolean;
+  personality?: AIPersonality;
+  difficulty?: DifficultyLevel;
 };
 
 export type GamePhase =

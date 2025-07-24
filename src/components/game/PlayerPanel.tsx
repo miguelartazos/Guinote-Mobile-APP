@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated } from 'react-native';
 import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
+import { ThinkingIndicator } from './ThinkingIndicator';
 
 type PlayerPanelProps = {
   playerName: string;
@@ -11,6 +12,7 @@ type PlayerPanelProps = {
   position: 'top' | 'left' | 'right' | 'bottom';
   avatar?: string;
   teamId?: 'team1' | 'team2';
+  isThinking?: boolean;
 };
 
 export function PlayerPanel({
@@ -20,6 +22,7 @@ export function PlayerPanel({
   position,
   avatar = '👤',
   teamId,
+  isThinking = false,
 }: PlayerPanelProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -73,6 +76,7 @@ export function PlayerPanel({
         },
       ]}
     >
+      <ThinkingIndicator playerName={playerName} visible={isThinking} />
       <View style={styles.avatarContainer}>
         <View
           style={[

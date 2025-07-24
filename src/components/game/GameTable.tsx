@@ -35,6 +35,7 @@ type GameTableProps = {
   onCantar: () => void;
   onCambiar7: () => void;
   onSalir: () => void;
+  thinkingPlayerId?: string | null;
 };
 
 export function GameTable({
@@ -46,6 +47,7 @@ export function GameTable({
   onCantar,
   onCambiar7,
   onSalir,
+  thinkingPlayerId,
 }: GameTableProps) {
   const [bottomPlayer, leftPlayer, topPlayer, rightPlayer] = players;
   const playAreaRef = useRef<View>(null);
@@ -82,6 +84,7 @@ export function GameTable({
         avatar={topPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 2}
         teamId="team1"
+        isThinking={thinkingPlayerId === 'bot2'}
       />
       <PlayerPanel
         playerName={leftPlayer.name}
@@ -90,6 +93,7 @@ export function GameTable({
         avatar={leftPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 1}
         teamId="team2"
+        isThinking={thinkingPlayerId === 'bot1'}
       />
       <PlayerPanel
         playerName={rightPlayer.name}
@@ -98,6 +102,7 @@ export function GameTable({
         avatar={rightPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 3}
         teamId="team2"
+        isThinking={thinkingPlayerId === 'bot3'}
       />
       <PlayerPanel
         playerName={bottomPlayer.name}
@@ -106,6 +111,7 @@ export function GameTable({
         avatar={bottomPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 0}
         teamId="team1"
+        isThinking={thinkingPlayerId === 'player'}
       />
 
       {/* Top Player Cards */}

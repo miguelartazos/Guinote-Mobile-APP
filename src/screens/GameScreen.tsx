@@ -22,7 +22,7 @@ export function GameScreen({
   navigation,
   route,
 }: JugarStackScreenProps<'Game'>) {
-  const { playerName } = route.params;
+  const { playerName, difficulty } = route.params;
 
   const {
     gameState,
@@ -31,7 +31,12 @@ export function GameScreen({
     cambiar7,
     getCurrentPlayerHand,
     isPlayerTurn,
-  } = useGameState({ playerName: playerName || 'Tú' });
+    thinkingPlayer,
+  } = useGameState({
+    playerName: playerName || 'Tú',
+    difficulty:
+      difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
+  });
 
   const [showLastTrick, setShowLastTrick] = useState(false);
   const { playCardSound, playTurnSound, playVictorySound, playDefeatSound } =
@@ -235,6 +240,7 @@ export function GameScreen({
         onCantar={handleCantar}
         onCambiar7={handleCambiar7}
         onSalir={handleSalir}
+        thinkingPlayerId={thinkingPlayer}
       />
       {/* Score display */}
       <View style={styles.scoreContainer}>
