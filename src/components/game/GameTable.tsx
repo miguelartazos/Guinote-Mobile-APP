@@ -10,9 +10,12 @@ import { SpanishCard, type SpanishCardData } from './SpanishCard';
 import { DraggableCard } from './DraggableCard';
 import { PlayerPanel } from './PlayerPanel';
 import { TrumpIndicator } from './TrumpIndicator';
+import { VoiceButton } from './VoiceButton';
+import { VoiceBubble } from './VoiceBubble';
 import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
+import type { VoiceRecordingId } from '../../utils/voiceStorage';
 import {
   scaleWidth,
   scaleHeight,
@@ -38,6 +41,14 @@ type GameTableProps = {
   thinkingPlayerId?: string | null;
 };
 
+type VoiceMessage = {
+  recordingId: VoiceRecordingId;
+  playerId: string;
+  playerName: string;
+  playerAvatar: string;
+  position: 'top' | 'left' | 'right' | 'bottom';
+};
+
 export function GameTable({
   players,
   currentPlayerIndex,
@@ -51,12 +62,31 @@ export function GameTable({
 }: GameTableProps) {
   const [bottomPlayer, leftPlayer, topPlayer, rightPlayer] = players;
   const playAreaRef = useRef<View>(null);
+  const [voiceMessages, setVoiceMessages] = useState<VoiceMessage[]>([]);
   const [dropZoneBounds, setDropZoneBounds] = useState<{
     x: number;
     y: number;
     width: number;
     height: number;
   } | null>(null);
+
+  const handleVoiceRecording = (recordingId: VoiceRecordingId) => {
+    // Add voice message to state
+    const newMessage: VoiceMessage = {
+      recordingId,
+      playerId: 'player',
+      playerName: bottomPlayer.name,
+      playerAvatar: bottomPlayer.avatar,
+      position: 'bottom',
+    };
+    setVoiceMessages(prev => [...prev, newMessage]);
+  };
+
+  const handleVoiceExpire = (recordingId: VoiceRecordingId) => {
+    setVoiceMessages(prev =>
+      prev.filter(msg => msg.recordingId !== recordingId),
+    );
+  };
 
   return (
     <View style={styles.table}>
@@ -236,6 +266,18 @@ export function GameTable({
         })}
       </View>
 
+      {/* Voice Messages */}
+      {voiceMessages.map(msg => (
+        <VoiceBubble
+          key={msg.recordingId}
+          recordingId={msg.recordingId}
+          playerName={msg.playerName}
+          playerAvatar={msg.playerAvatar}
+          position={msg.position}
+          onExpire={() => handleVoiceExpire(msg.recordingId)}
+        />
+      ))}
+
       {/* Action Buttons - Redesigned */}
       <View style={styles.actionBar}>
         <TouchableOpacity
@@ -264,6 +306,11 @@ export function GameTable({
             </Text>
           </View>
         </TouchableOpacity>
+        <VoiceButton
+          playerId="player"
+          onRecordingComplete={handleVoiceRecording}
+          disabled={currentPlayerIndex !== 0}
+        />
       </View>
     </View>
   );
