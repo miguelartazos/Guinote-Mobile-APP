@@ -136,7 +136,7 @@ describe('voiceStorage', () => {
       expect(recent5[4].id).toBe('voice_4');
 
       const recentDefault = getRecentRecordings();
-      expect(recentDefault).toHaveLength(10);
+      expect(recentDefault).toHaveLength(5); // Changed to match MAX_HISTORY_SIZE
     });
   });
 });

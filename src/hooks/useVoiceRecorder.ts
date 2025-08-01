@@ -6,12 +6,16 @@ import AudioRecorderPlayer, {
 } from 'react-native-audio-recorder-player';
 import {
   generateRecordingId,
-  getRecordingPath,
   saveRecording,
   getRecording,
   clearAllRecordings,
 } from '../utils/voiceStorage';
 import type { VoiceRecordingId, VoiceRecording } from '../utils/voiceStorage';
+import {
+  getVolumeMultiplier,
+  getFadeMultiplier,
+  PlaybackSpeed,
+} from '../utils/audioProcessing';
 
 const MAX_RECORDING_DURATION = 5000; // 5 seconds in milliseconds
 
@@ -33,6 +37,11 @@ export function useVoiceRecorder() {
   const [playbackDuration, setPlaybackDuration] = useState(0);
   const [currentRecordingId, setCurrentRecordingId] =
     useState<VoiceRecordingId | null>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState<PlaybackSpeed>(
+    PlaybackSpeed.NORMAL,
+  );
+  const [volume, setVolume] = useState(1.0); // 0 to 1
+  const [error, setError] = useState<string | null>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isStoppingRef = useRef(false);
 
@@ -88,9 +97,11 @@ export function useVoiceRecorder() {
         saveRecording(recording);
 
         return recordingId;
-      } catch (error) {
-        console.error('Failed to start recording:', error);
+      } catch (err) {
+        console.error('Failed to start recording:', err);
+        setError('No se pudo iniciar la grabación');
         setIsRecording(false);
+        setCurrentRecordingId(null);
         return null;
       }
     },
@@ -125,12 +136,12 @@ export function useVoiceRecorder() {
       try {
         const result = await audioRecorderPlayer.stopRecorder();
         console.log('Recording stopped:', result);
-      } catch (error: any) {
+      } catch (err: any) {
         // If it's just "no recorder instance", that's OK - already stopped
-        if (error.message?.includes('No recorder instance')) {
+        if (err.message?.includes('No recorder instance')) {
           console.log('Recorder already stopped - this is OK');
         } else {
-          throw error; // Re-throw other errors
+          throw err; // Re-throw other errors
         }
       }
 
@@ -156,8 +167,9 @@ export function useVoiceRecorder() {
       setCurrentRecordingId(null);
       isStoppingRef.current = false;
       return true;
-    } catch (error) {
-      console.error('Failed to stop recording:', error);
+    } catch (err) {
+      console.error('Failed to stop recording:', err);
+      setError('Error al detener la grabación');
       setIsRecording(false);
       isStoppingRef.current = false;
       return false;
@@ -165,7 +177,10 @@ export function useVoiceRecorder() {
   }, [isRecording, currentRecordingId, recordingDuration]);
 
   const playRecording = useCallback(
-    async (recordingId: VoiceRecordingId): Promise<boolean> => {
+    async (
+      recordingId: VoiceRecordingId,
+      options?: { speed?: PlaybackSpeed; volume?: number },
+    ): Promise<boolean> => {
       const recording = getRecording(recordingId);
       if (!recording) {
         console.error('Recording not found:', recordingId);
@@ -179,6 +194,22 @@ export function useVoiceRecorder() {
 
         console.log('Playing recording with path:', recording.filePath);
 
+        // Set playback speed if provided
+        if (options?.speed) {
+          setPlaybackSpeed(options.speed);
+          // Note: react-native-audio-recorder-player doesn't support speed adjustment
+          console.warn(
+            'Playback speed adjustment is not supported by the audio library',
+          );
+        }
+
+        // Set volume if provided
+        if (options?.volume !== undefined) {
+          setVolume(options.volume);
+          const normalizedVolume = getVolumeMultiplier(options.volume);
+          await audioRecorderPlayer.setVolume(normalizedVolume);
+        }
+
         // Play with the stored path directly
         const msg = await audioRecorderPlayer.startPlayer(recording.filePath);
         console.log('Playback started:', msg);
@@ -186,9 +217,17 @@ export function useVoiceRecorder() {
         setIsPlaying(true);
         setPlaybackDuration(0);
 
-        // Update playback duration
+        // Update playback duration with fade effects
         audioRecorderPlayer.addPlayBackListener((e: any) => {
           setPlaybackDuration(e.currentPosition);
+
+          // Apply fade in/out
+          const fadeMultiplier = getFadeMultiplier(
+            e.currentPosition,
+            e.duration,
+          );
+          const volumeWithFade = volume * fadeMultiplier;
+          audioRecorderPlayer.setVolume(volumeWithFade);
 
           // Auto-stop when finished
           if (e.currentPosition >= e.duration) {
@@ -197,14 +236,15 @@ export function useVoiceRecorder() {
         });
 
         return true;
-      } catch (error) {
-        console.error('Failed to play recording:', error);
+      } catch (err) {
+        console.error('Failed to play recording:', err);
+        setError('Error al reproducir grabación');
         setIsPlaying(false);
         return false;
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [volume],
   );
 
   const stopPlayback = useCallback(async (): Promise<boolean> => {
@@ -220,8 +260,9 @@ export function useVoiceRecorder() {
       setPlaybackDuration(0);
 
       return true;
-    } catch (error) {
-      console.error('Failed to stop playback:', error);
+    } catch (err) {
+      console.error('Failed to stop playback:', err);
+      setError('Error al detener reproducción');
       setIsPlaying(false);
       return false;
     }
@@ -235,8 +276,8 @@ export function useVoiceRecorder() {
 
       await audioRecorderPlayer.pausePlayer();
       return true;
-    } catch (error) {
-      console.error('Failed to pause playback:', error);
+    } catch (err) {
+      console.error('Failed to pause playback:', err);
       return false;
     }
   }, [isPlaying]);
@@ -245,10 +286,51 @@ export function useVoiceRecorder() {
     try {
       await audioRecorderPlayer.resumePlayer();
       return true;
-    } catch (error) {
-      console.error('Failed to resume playback:', error);
+    } catch (err) {
+      console.error('Failed to resume playback:', err);
       return false;
     }
+  }, []);
+
+  const changePlaybackSpeed = useCallback(
+    async (speed: PlaybackSpeed): Promise<boolean> => {
+      try {
+        setPlaybackSpeed(speed);
+        if (isPlaying) {
+          // Note: react-native-audio-recorder-player doesn't support speed adjustment
+          console.warn(
+            'Playback speed adjustment is not supported by the audio library',
+          );
+        }
+        return true;
+      } catch (err) {
+        console.error('Failed to change playback speed:', err);
+        return false;
+      }
+    },
+    [isPlaying],
+  );
+
+  const changeVolume = useCallback(
+    async (newVolume: number): Promise<boolean> => {
+      try {
+        const clampedVolume = Math.max(0, Math.min(1, newVolume));
+        setVolume(clampedVolume);
+        if (isPlaying) {
+          const normalizedVolume = getVolumeMultiplier(clampedVolume);
+          await audioRecorderPlayer.setVolume(normalizedVolume);
+        }
+        return true;
+      } catch (err) {
+        console.error('Failed to change volume:', err);
+        return false;
+      }
+    },
+    [isPlaying],
+  );
+
+  const clearError = useCallback(() => {
+    setError(null);
   }, []);
 
   return {
@@ -260,6 +342,12 @@ export function useVoiceRecorder() {
     // Playback state
     isPlaying,
     playbackDuration,
+    playbackSpeed,
+    volume,
+
+    // Error state
+    error,
+    clearError,
 
     // Recording controls
     startRecording,
@@ -270,6 +358,8 @@ export function useVoiceRecorder() {
     stopPlayback,
     pausePlayback,
     resumePlayback,
+    changePlaybackSpeed,
+    changeVolume,
 
     // Constants
     MAX_RECORDING_DURATION,

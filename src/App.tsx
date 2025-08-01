@@ -2,6 +2,7 @@ import React from 'react';
 import { StatusBar, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootNavigator } from './navigation/RootNavigator';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { colors } from './constants/colors';
 
 const styles = StyleSheet.create({
@@ -12,10 +13,12 @@ const styles = StyleSheet.create({
 
 function App() {
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
-      <RootNavigator />
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+        <RootNavigator />
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
 

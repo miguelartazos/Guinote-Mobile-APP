@@ -15,10 +15,19 @@ export type JugarStackParamList = {
   QuickMatch: undefined;
   CreateRoom: undefined;
   OfflineMode: undefined;
+  LocalMultiplayer: undefined;
+  TutorialSetup: undefined;
+  Login: undefined;
+  Register: undefined;
   Game: {
-    gameMode: 'quick' | 'private' | 'offline';
+    gameMode: 'quick' | 'private' | 'offline' | 'local' | 'online';
     difficulty?: 'easy' | 'medium' | 'hard' | 'expert';
     playerName?: string;
+    playerNames?: string[];
+    tutorialMode?: 'complete' | 'basic' | 'cantes' | 'special';
+    practiceMode?: boolean;
+    roomId?: string;
+    players?: any[];
   };
   Room: undefined;
 };
@@ -65,3 +74,7 @@ export type ComunidadStackScreenProps<T extends keyof ComunidadStackParamList> =
 
 export type AjustesStackScreenProps<T extends keyof AjustesStackParamList> =
   StackScreenProps<AjustesStackParamList, T>;
+
+// Navigation prop types
+export type JugarStackNavigationProp =
+  StackScreenProps<JugarStackParamList>['navigation'];

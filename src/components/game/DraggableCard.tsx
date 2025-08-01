@@ -10,8 +10,11 @@ import {
   type PanGestureHandlerGestureEvent,
   State,
 } from 'react-native-gesture-handler';
-import { SpanishCard, type SpanishCardData } from './SpanishCard';
+import { SpanishCard } from './SpanishCard';
+import type { SpanishCardData } from '../../types/cardTypes';
 import { isPointInBounds } from '../../utils/gameLogic';
+import { haptics } from '../../utils/haptics';
+import { CARD_DRAG_SCALE, SPRING_CONFIG } from '../../constants/animations';
 
 type DraggableCardProps = {
   card: SpanishCardData;
@@ -25,6 +28,7 @@ type DraggableCardProps = {
     height: number;
   };
   isEnabled?: boolean;
+  cardSize?: 'small' | 'medium' | 'large';
 };
 
 export function DraggableCard({
@@ -34,6 +38,7 @@ export function DraggableCard({
   onCardPlay,
   dropZoneBounds,
   isEnabled = true,
+  cardSize = 'medium',
 }: DraggableCardProps) {
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -54,11 +59,12 @@ export function DraggableCard({
 
   const onHandlerStateChange = (event: PanGestureHandlerGestureEvent) => {
     if (event.nativeEvent.state === State.BEGAN) {
-      // Start dragging
+      // Start dragging with haptic feedback
+      haptics.light();
       Animated.parallel([
         Animated.spring(scale, {
-          toValue: 1.1,
-          useNativeDriver: true,
+          toValue: CARD_DRAG_SCALE,
+          ...SPRING_CONFIG,
         }),
         Animated.timing(opacity, {
           toValue: 0.8,
@@ -79,15 +85,17 @@ export function DraggableCard({
 
         if (inDropZone) {
           shouldPlay = true;
+          // Haptic feedback for successful drop
+          haptics.medium();
           // Snap to center of drop zone
           Animated.parallel([
             Animated.spring(translateX, {
               toValue: dropZoneBounds.x + dropZoneBounds.width / 2 - absoluteX,
-              useNativeDriver: true,
+              ...SPRING_CONFIG,
             }),
             Animated.spring(translateY, {
               toValue: dropZoneBounds.y + dropZoneBounds.height / 2 - absoluteY,
-              useNativeDriver: true,
+              ...SPRING_CONFIG,
             }),
             Animated.timing(opacity, {
               toValue: 0,
@@ -105,15 +113,15 @@ export function DraggableCard({
         Animated.parallel([
           Animated.spring(translateX, {
             toValue: 0,
-            useNativeDriver: true,
+            ...SPRING_CONFIG,
           }),
           Animated.spring(translateY, {
             toValue: 0,
-            useNativeDriver: true,
+            ...SPRING_CONFIG,
           }),
           Animated.spring(scale, {
             toValue: 1,
-            useNativeDriver: true,
+            ...SPRING_CONFIG,
           }),
           Animated.timing(opacity, {
             toValue: 1,
@@ -128,11 +136,14 @@ export function DraggableCard({
   if (!isEnabled) {
     return (
       <TouchableOpacity
-        onPress={() => onCardPlay(index)}
+        onPress={() => {
+          haptics.light();
+          onCardPlay(index);
+        }}
         style={style}
         activeOpacity={0.8}
       >
-        <SpanishCard card={card} size="large" />
+        <SpanishCard card={card} size={cardSize} />
       </TouchableOpacity>
     );
   }
@@ -158,7 +169,15 @@ export function DraggableCard({
           },
         ]}
       >
-        <SpanishCard card={card} size="large" />
+        <TouchableOpacity
+          onPress={() => {
+            haptics.light();
+            onCardPlay(index);
+          }}
+          activeOpacity={1}
+        >
+          <SpanishCard card={card} size={cardSize} />
+        </TouchableOpacity>
       </Animated.View>
     </PanGestureHandler>
   );

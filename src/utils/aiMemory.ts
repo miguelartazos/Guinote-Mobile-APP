@@ -1,5 +1,5 @@
 import type { Card, CardId, PlayerId } from '../types/game.types';
-import type { SpanishSuit } from '../components/game/SpanishCard';
+import type { SpanishSuit } from '../types/cardTypes';
 
 export type CardMemory = ReadonlyMap<PlayerId, ReadonlyArray<Card>>;
 

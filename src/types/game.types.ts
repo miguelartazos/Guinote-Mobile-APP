@@ -1,11 +1,17 @@
-import type { SpanishSuit, CardValue } from '../components/game/SpanishCard';
+import type { SpanishSuit, CardValue } from './cardTypes';
 
-type Brand<T, K> = T & { __brand: K };
+export type Brand<T, K> = T & { __brand: K };
 
 export type CardId = Brand<string, 'CardId'>;
 export type PlayerId = Brand<string, 'PlayerId'>;
 export type GameId = Brand<string, 'GameId'>;
 export type TeamId = Brand<string, 'TeamId'>;
+export type TutorialStepId = Brand<string, 'TutorialStepId'>;
+export type HelpSectionId = Brand<string, 'HelpSectionId'>;
+export type TutorialType = Brand<
+  'complete' | 'basic' | 'cantes' | 'special',
+  'TutorialType'
+>;
 
 export type Card = {
   id: CardId;
@@ -29,11 +35,12 @@ export type Player = {
 };
 
 export type GamePhase =
+  | 'waiting' // For online multiplayer - waiting for players to join
   | 'dealing'
   | 'playing'
   | 'arrastre'
-  | 'cantar'
   | 'scoring'
+  | 'vueltas'
   | 'gameOver';
 
 export type TrickCard = {
@@ -45,12 +52,14 @@ export type Cante = {
   teamId: TeamId;
   suit: SpanishSuit;
   points: 20 | 40;
+  isVisible: boolean; // True for Veinte (20), False for Las Cuarenta (40)
 };
 
 export type Team = {
   id: TeamId;
   playerIds: [PlayerId, PlayerId];
   score: number;
+  cardPoints: number; // Points from cards only (for 30 malas rule)
   cantes: Cante[];
 };
 
@@ -65,11 +74,24 @@ export type GameState = Readonly<{
   trumpCard: Card;
   currentTrick: ReadonlyArray<TrickCard>;
   currentPlayerIndex: number;
+  dealerIndex: number; // Track dealer position
+  trickCount: number; // Total tricks played
   trickWins: ReadonlyMap<TeamId, number>;
   lastTrickWinner?: PlayerId;
   lastTrick?: ReadonlyArray<TrickCard>;
   canCambiar7: boolean;
   gameHistory: ReadonlyArray<GameAction>;
+  isVueltas: boolean; // Second hand if no one reached 101
+  initialScores?: ReadonlyMap<TeamId, number>; // Scores from first hand in vueltas
+  lastTrickWinnerTeam?: TeamId; // Team that won the last trick (for vueltas declaration)
+  canDeclareVictory: boolean; // True when in vueltas and team can declare
+  lastActionTimestamp?: number; // Timestamp of last action for turn key uniqueness
+  trickAnimating?: boolean; // True when showing trick collection animation
+  pendingTrickWinner?: {
+    playerId: PlayerId;
+    points: number;
+    cards: ReadonlyArray<Card>;
+  }; // Data for trick animation
 }>;
 
 export type GameAction =
@@ -90,8 +112,8 @@ export const CARD_POINTS: Record<CardValue, number> = {
   1: 11, // As
   3: 10, // Tres
   12: 4, // Rey
-  11: 3, // Caballo
-  10: 2, // Sota
+  11: 2, // Caballo
+  10: 3, // Sota
   7: 0,
   6: 0,
   5: 0,
@@ -100,3 +122,5 @@ export const CARD_POINTS: Record<CardValue, number> = {
 };
 
 export const WINNING_SCORE = 101;
+export const MINIMUM_CARD_POINTS = 30; // 30 malas rule
+export const LAST_TRICK_BONUS = 10; // diez de últimas

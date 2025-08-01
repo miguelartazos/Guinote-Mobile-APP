@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import type {
   GameState,
+  GamePhase,
   GameId,
   PlayerId,
   CardId,
@@ -11,7 +12,8 @@ import type {
   DifficultyLevel,
   AIPersonality,
 } from '../types/game.types';
-import type { SpanishSuit, CardValue } from '../components/game/SpanishCard';
+import { WINNING_SCORE, MINIMUM_CARD_POINTS } from '../types/game.types';
+import type { SpanishSuit, CardValue } from '../types/cardTypes';
 import {
   createDeck,
   shuffleDeck,
@@ -25,19 +27,20 @@ import {
   getNextPlayerIndex,
   findPlayerTeam,
   isGameOver,
+  shouldStartVueltas,
+  canDeclareVictory,
+  getValidCards,
 } from '../utils/gameLogic';
-import {
-  playAICard,
-  shouldAICante,
-  getAIThinkingTime,
-} from '../utils/aiPlayer';
 import { createMemory, updateMemory } from '../utils/aiMemory';
 import type { CardMemory } from '../utils/aiMemory';
+import { useAITurn } from './useAITurn';
+// Game constants are available in '../constants/gameConstants' when needed
 
 type UseGameStateProps = {
   playerName: string;
   gameId?: GameId;
   difficulty?: DifficultyLevel;
+  playerNames?: string[]; // For local multiplayer
   mockData?: {
     players: Array<{
       id: number;
@@ -60,12 +63,13 @@ export function useGameState({
   playerName,
   gameId,
   difficulty = 'medium',
+  playerNames,
   mockData,
 }: UseGameStateProps) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [aiMemory, setAIMemory] = useState<CardMemory>(createMemory());
-  const [thinkingPlayer, setThinkingPlayer] = useState<PlayerId | null>(null);
+  const [isDealingComplete, setIsDealingComplete] = useState(false);
 
   // Initialize game
   useEffect(() => {
@@ -86,12 +90,14 @@ export function useGameState({
             id: 'team1' as TeamId,
             playerIds: ['player' as PlayerId, 'bot2' as PlayerId],
             score: 0,
+            cardPoints: 0,
             cantes: [],
           },
           {
             id: 'team2' as TeamId,
             playerIds: ['bot1' as PlayerId, 'bot3' as PlayerId],
             score: 0,
+            cardPoints: 0,
             cantes: [],
           },
         ];
@@ -137,9 +143,13 @@ export function useGameState({
           trumpCard,
           currentTrick: [],
           currentPlayerIndex: mockData.currentPlayer,
+          dealerIndex: 0, // Mock dealer
+          trickCount: 0,
           trickWins: new Map(),
           canCambiar7: true,
           gameHistory: [],
+          isVueltas: false,
+          canDeclareVictory: false,
         };
 
         setGameState(newGameState);
@@ -147,65 +157,110 @@ export function useGameState({
       }
 
       // Original initialization logic
-      // Define AI personalities for the three bots
-      const aiPersonalities: [AIPersonality, AIPersonality, AIPersonality] = [
-        'prudent', // Ana la Prudente (Jorge A.)
-        'aggressive', // Carlos el Valiente (Juancelotti)
-        'tricky', // María la Astuta (Miguel A..N.)
-      ];
+      let players: Player[];
 
-      const players: Player[] = [
-        {
-          id: 'player' as PlayerId,
-          name: playerName,
-          avatar: '👤',
-          ranking: 1325,
-          teamId: 'team1' as TeamId,
+      if (playerNames && playerNames.length >= 2) {
+        // Local multiplayer mode
+        const avatars = ['👤', '👧', '👨', '👴'];
+        players = playerNames.slice(0, 4).map((name, index) => ({
+          id: `player${index}` as PlayerId,
+          name: name || `Jugador ${index + 1}`,
+          avatar: avatars[index],
+          ranking: 1000 + index * 100,
+          teamId: (index % 2 === 0 ? 'team1' : 'team2') as TeamId,
           isBot: false,
-        },
-        {
-          id: 'bot1' as PlayerId,
-          name: 'Ana la Prudente',
-          avatar: '👩',
-          ranking: 6780,
-          teamId: 'team2' as TeamId,
-          isBot: true,
-          personality: aiPersonalities[0],
-          difficulty,
-        },
-        {
-          id: 'bot2' as PlayerId,
-          name: 'Carlos el Valiente',
-          avatar: '👨',
-          ranking: 255,
-          teamId: 'team1' as TeamId,
-          isBot: true,
-          personality: aiPersonalities[1],
-          difficulty,
-        },
-        {
-          id: 'bot3' as PlayerId,
-          name: 'María la Astuta',
-          avatar: '👩‍🦰',
-          ranking: 16163,
-          teamId: 'team2' as TeamId,
-          isBot: true,
-          personality: aiPersonalities[2],
-          difficulty,
-        },
-      ];
+        }));
+
+        // Fill remaining slots with bots if less than 4 players
+        if (players.length < 4) {
+          const aiPersonalities: AIPersonality[] = [
+            'prudent',
+            'aggressive',
+            'tricky',
+          ];
+          const botNames = [
+            'Ana la Prudente',
+            'Carlos el Valiente',
+            'María la Astuta',
+          ];
+          const botAvatars = ['👩', '👨', '👩‍🦰'];
+
+          for (let i = players.length; i < 4; i++) {
+            players.push({
+              id: `bot${i}` as PlayerId,
+              name: botNames[i - players.length],
+              avatar: botAvatars[i - players.length],
+              ranking: 1000 + i * 100,
+              teamId: (i % 2 === 0 ? 'team1' : 'team2') as TeamId,
+              isBot: true,
+              personality: aiPersonalities[i - players.length],
+              difficulty,
+            });
+          }
+        }
+      } else {
+        // Original AI mode
+        const aiPersonalities: [AIPersonality, AIPersonality, AIPersonality] = [
+          'prudent', // Ana la Prudente (Jorge A.)
+          'aggressive', // Carlos el Valiente (Juancelotti)
+          'tricky', // María la Astuta (Miguel A..N.)
+        ];
+
+        players = [
+          {
+            id: 'player' as PlayerId,
+            name: playerName,
+            avatar: '👤',
+            ranking: 1325,
+            teamId: 'team1' as TeamId,
+            isBot: false,
+          },
+          {
+            id: 'bot1' as PlayerId,
+            name: 'Ana la Prudente',
+            avatar: '👩',
+            ranking: 6780,
+            teamId: 'team2' as TeamId,
+            isBot: true,
+            personality: aiPersonalities[0],
+            difficulty,
+          },
+          {
+            id: 'bot2' as PlayerId,
+            name: 'Carlos el Valiente',
+            avatar: '👨',
+            ranking: 255,
+            teamId: 'team1' as TeamId,
+            isBot: true,
+            personality: aiPersonalities[1],
+            difficulty,
+          },
+          {
+            id: 'bot3' as PlayerId,
+            name: 'María la Astuta',
+            avatar: '👩‍🦰',
+            ranking: 16163,
+            teamId: 'team2' as TeamId,
+            isBot: true,
+            personality: aiPersonalities[2],
+            difficulty,
+          },
+        ];
+      }
 
       const teams: [Team, Team] = [
         {
           id: 'team1' as TeamId,
           playerIds: ['player' as PlayerId, 'bot2' as PlayerId],
           score: 0,
+          cardPoints: 0,
           cantes: [],
         },
         {
           id: 'team2' as TeamId,
           playerIds: ['bot1' as PlayerId, 'bot3' as PlayerId],
           score: 0,
+          cardPoints: 0,
           cantes: [],
         },
       ];
@@ -218,9 +273,14 @@ export function useGameState({
 
       const trumpCard = remainingDeck[remainingDeck.length - 1];
 
+      // Select dealer (randomly for first game)
+      const dealerIndex = Math.floor(Math.random() * 4);
+      // First player (mano) is to dealer's left (clockwise)
+      const firstPlayerIndex = (dealerIndex + 1) % 4;
+
       const newGameState: GameState = {
         id: (gameId || `game_${Date.now()}`) as GameId,
-        phase: 'playing',
+        phase: 'dealing',
         players,
         teams,
         deck: remainingDeck,
@@ -228,22 +288,31 @@ export function useGameState({
         trumpSuit: trumpCard.suit,
         trumpCard,
         currentTrick: [],
-        currentPlayerIndex: 0,
+        currentPlayerIndex: firstPlayerIndex,
+        dealerIndex,
+        trickCount: 0,
         trickWins: new Map(),
         canCambiar7: true,
         gameHistory: [],
+        isVueltas: false,
+        canDeclareVictory: false,
       };
 
       setGameState(newGameState);
+      setIsDealingComplete(false);
     };
 
     initializeGame();
-  }, [playerName, gameId, mockData, difficulty]);
+  }, [playerName, gameId, mockData, difficulty, playerNames]);
 
   // Play a card
   const playCard = useCallback(
     (cardId: CardId) => {
-      if (!gameState || gameState.phase !== 'playing') return;
+      if (
+        !gameState ||
+        (gameState.phase !== 'playing' && gameState.phase !== 'arrastre')
+      )
+        return;
 
       const currentPlayer = gameState.players[gameState.currentPlayerIndex];
       const playerHand = gameState.hands.get(currentPlayer.id);
@@ -260,9 +329,15 @@ export function useGameState({
           gameState.currentTrick,
           gameState.trumpSuit,
           gameState.phase,
+          currentPlayer.id,
+          gameState,
         )
       ) {
-        console.warn('Invalid play!');
+        console.warn('Invalid play!', {
+          card,
+          currentTrick: gameState.currentTrick,
+          phase: gameState.phase,
+        });
         return;
       }
 
@@ -283,6 +358,13 @@ export function useGameState({
           { playerId: currentPlayer.id, card },
         ];
 
+        console.log('🃏 CARD PLAYED:', {
+          player: currentPlayer.name,
+          card: `${card.value} de ${card.suit}`,
+          trickPosition: newTrick.length,
+          isLastCard: newTrick.length === 4,
+        });
+
         // Update AI memory for all played cards
         setAIMemory(prev => updateMemory(prev, currentPlayer.id, card));
 
@@ -293,6 +375,16 @@ export function useGameState({
           const points = calculateTrickPoints(newTrick);
           const winnerTeam = findPlayerTeam(winnerId, prevState);
 
+          console.log('🏆 TRICK COMPLETE:', {
+            winner: winnerId,
+            winnerName: prevState.players.find(p => p.id === winnerId)?.name,
+            points: points,
+            cards: newTrick.map(tc => ({
+              player: tc.playerId,
+              card: `${tc.card.value} de ${tc.card.suit}`,
+            })),
+          });
+
           // Update scores
           const newTeams = [...prevState.teams] as [Team, Team];
           const teamIndex = newTeams.findIndex(t => t.id === winnerTeam);
@@ -300,15 +392,19 @@ export function useGameState({
             newTeams[teamIndex] = {
               ...newTeams[teamIndex],
               score: newTeams[teamIndex].score + points,
+              cardPoints: newTeams[teamIndex].cardPoints + points, // Track card points separately
             };
           }
+
+          // Increment trick count
+          const newTrickCount = prevState.trickCount + 1;
 
           // Deal new cards if deck has cards
           let newDeck = [...prevState.deck];
           let newPhase = prevState.phase;
 
-          if (newDeck.length >= 4) {
-            // Winner draws first, then in order
+          if (newDeck.length > 0 && prevState.phase === 'playing') {
+            // Winner draws first, then counter-clockwise
             const drawOrder = [winnerId];
             let nextIndex = prevState.players.findIndex(p => p.id === winnerId);
             for (let i = 0; i < 3; i++) {
@@ -316,16 +412,30 @@ export function useGameState({
               drawOrder.push(prevState.players[nextIndex].id);
             }
 
+            console.log('📦 DRAWING ORDER (counter-clockwise from winner):', {
+              drawOrder: drawOrder.map(
+                id => prevState.players.find(p => p.id === id)?.name,
+              ),
+              deckSize: newDeck.length,
+            });
+
             drawOrder.forEach(playerId => {
-              const drawnCard = newDeck.pop();
-              if (drawnCard) {
-                const playerCards = [...(newHands.get(playerId) || [])];
-                playerCards.push(drawnCard);
-                newHands.set(playerId, playerCards);
+              if (newDeck.length > 0) {
+                const drawnCard = newDeck.pop();
+                if (drawnCard) {
+                  const playerCards = [...(newHands.get(playerId) || [])];
+                  playerCards.push(drawnCard);
+                  newHands.set(playerId, playerCards);
+                }
               }
             });
+
+            // If deck is now empty, transition to arrastre phase
+            if (newDeck.length === 0) {
+              newPhase = 'arrastre';
+            }
           } else if (newDeck.length === 0 && prevState.phase === 'playing') {
-            // Transition to arrastre phase when deck is empty
+            // Already in arrastre or deck was already empty
             newPhase = 'arrastre';
           }
 
@@ -334,30 +444,86 @@ export function useGameState({
             p => p.id === winnerId,
           );
 
+          console.log('🎯 NEXT PLAYER:', {
+            winnerIndex: winnerIndex,
+            nextPlayerName: prevState.players[winnerIndex]?.name,
+            nextPlayerId: prevState.players[winnerIndex]?.id,
+          });
+
+          // Check if this is the last trick of the game
+          const isLastTrick =
+            newDeck.length === 0 &&
+            Array.from(newHands.values()).every(hand => hand.length === 0);
+
+          // Award last trick bonus if applicable
+          if (isLastTrick) {
+            const teamIdx = newTeams.findIndex(t => t.id === winnerTeam);
+            if (teamIdx !== -1) {
+              newTeams[teamIdx] = {
+                ...newTeams[teamIdx],
+                score: newTeams[teamIdx].score + 10, // diez de últimas
+              };
+            }
+          }
+
+          const shouldVueltas = shouldStartVueltas({
+            ...prevState,
+            teams: newTeams,
+            deck: newDeck,
+            hands: newHands,
+          });
+
+          // Don't clear the trick immediately - show animation first
           return {
             ...prevState,
             hands: newHands,
             deck: newDeck,
-            currentTrick: [],
+            currentTrick: newTrick, // Keep the full trick visible
             currentPlayerIndex: winnerIndex,
             teams: newTeams,
+            trickCount: newTrickCount,
             lastTrickWinner: winnerId,
             lastTrick: newTrick,
-            phase: isGameOver({ ...prevState, teams: newTeams })
-              ? 'gameOver'
-              : newPhase,
+            phase: (() => {
+              if (isGameOver({ ...prevState, teams: newTeams })) {
+                return 'gameOver';
+              }
+              if (isLastTrick && !prevState.isVueltas) {
+                // Show scores before deciding on vueltas
+                return 'scoring';
+              }
+              return newPhase;
+            })(),
+            isVueltas: shouldVueltas ? true : prevState.isVueltas,
+            initialScores: shouldVueltas
+              ? new Map(newTeams.map(t => [t.id, t.score]))
+              : prevState.initialScores,
+            lastActionTimestamp: Date.now(),
+            trickAnimating: true, // Start animation
+            pendingTrickWinner: {
+              playerId: winnerId,
+              points: points,
+              cards: newTrick.map(tc => tc.card),
+            },
           };
         }
 
         // Next player's turn
+        const nextPlayerIndex = getNextPlayerIndex(
+          prevState.currentPlayerIndex,
+          4,
+        );
+        console.log('Advancing turn:', {
+          from: prevState.currentPlayerIndex,
+          to: nextPlayerIndex,
+          trickSize: newTrick.length,
+        });
         return {
           ...prevState,
           hands: newHands,
           currentTrick: newTrick,
-          currentPlayerIndex: getNextPlayerIndex(
-            prevState.currentPlayerIndex,
-            4,
-          ),
+          currentPlayerIndex: nextPlayerIndex,
+          lastActionTimestamp: Date.now(),
         };
       });
     },
@@ -407,7 +573,12 @@ export function useGameState({
             score: newTeams[teamIndex].score + points,
             cantes: [
               ...newTeams[teamIndex].cantes,
-              { teamId: playerTeam, suit, points },
+              {
+                teamId: playerTeam,
+                suit,
+                points,
+                isVisible: points === 20, // Veinte (20) is visible, Las Cuarenta (40) is hidden
+              },
             ],
           };
         }
@@ -488,74 +659,242 @@ export function useGameState({
     );
   }, [gameState]);
 
-  // Bot play simulation
+  // Create a unique key for the current turn to prevent re-triggers
+  // Include phase and last action timestamp to ensure uniqueness
+  const currentTurnKey = gameState
+    ? `${gameState.currentPlayerIndex}-${gameState.trickCount}-${
+        gameState.currentTrick.length
+      }-${gameState.phase}-${gameState.lastActionTimestamp || 0}`
+    : '';
+
+  // Use the custom AI turn hook
+  const { thinkingPlayer } = useAITurn({
+    gameState,
+    currentTurnKey,
+    mockData,
+    playCard,
+    cantar,
+    aiMemory,
+    setAIMemory,
+  });
+
+  // Handle vueltas dealing
   useEffect(() => {
     if (
-      !gameState ||
-      (gameState.phase !== 'playing' && gameState.phase !== 'arrastre') ||
-      mockData
-    )
-      return;
+      gameState?.phase === 'dealing' &&
+      gameState.isVueltas &&
+      gameState.hands.size === 0
+    ) {
+      // Need to deal cards for vueltas
+      const deck = shuffleDeck(createDeck());
+      const { hands, remainingDeck } = dealInitialCards(
+        deck,
+        gameState.players.map(p => p.id),
+      );
+
+      const trumpCard = remainingDeck[remainingDeck.length - 1];
+
+      setGameState(prev => ({
+        ...prev!,
+        deck: remainingDeck,
+        hands,
+        trumpCard,
+        trumpSuit: trumpCard.suit,
+      }));
+    }
+  }, [
+    gameState?.phase,
+    gameState?.isVueltas,
+    gameState?.hands.size,
+    gameState?.players,
+  ]);
+
+  // Complete dealing animation
+  const completeDealingAnimation = useCallback(() => {
+    setIsDealingComplete(true);
+    setGameState(prev => ({
+      ...prev!,
+      phase: 'playing' as GamePhase,
+    }));
+  }, []);
+
+  // Complete trick animation
+  const completeTrickAnimation = useCallback(() => {
+    setGameState(prev => {
+      if (!prev || !prev.trickAnimating) return prev;
+
+      // Clear the trick and animation state
+      return {
+        ...prev,
+        currentTrick: [],
+        trickAnimating: false,
+        pendingTrickWinner: undefined,
+      };
+    });
+  }, []);
+
+  // Get valid cards for current player
+  const getValidCardsForCurrentPlayer = useCallback((): Card[] => {
+    if (!gameState) return [];
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    if (!currentPlayer.isBot) return;
+    const playerHand = gameState.hands.get(currentPlayer.id);
 
-    // Set thinking indicator
-    setThinkingPlayer(currentPlayer.id);
+    if (!playerHand) return [];
 
-    // Calculate thinking time based on AI difficulty and complexity
-    const isComplexDecision =
-      gameState.currentTrick.length > 0 ||
-      gameState.phase === 'arrastre' ||
-      botHand.length < 5;
-    const thinkingTime = getAIThinkingTime(currentPlayer, isComplexDecision);
+    return getValidCards(playerHand, gameState, currentPlayer.id);
+  }, [gameState]);
 
-    // Smart AI logic with memory
-    const timer = setTimeout(() => {
-      const botHand = gameState.hands.get(currentPlayer.id);
-      if (!botHand || botHand.length === 0) {
-        setThinkingPlayer(null);
-        return;
+  // Declare victory in vueltas
+  // Continue from scoring phase (either to vueltas or game over)
+  const continueFromScoring = useCallback(() => {
+    if (!gameState || gameState.phase !== 'scoring') return;
+
+    // Check if any team has won (101+ points AND 30+ card points)
+    const winningTeam = gameState.teams.find(
+      team =>
+        team.score >= WINNING_SCORE && team.cardPoints >= MINIMUM_CARD_POINTS,
+    );
+
+    if (winningTeam) {
+      // Game over - we have a winner
+      setGameState(prev => ({
+        ...prev!,
+        phase: 'gameOver' as GamePhase,
+      }));
+    } else {
+      // No winner - start vueltas (second hand)
+      setGameState(prev => {
+        if (!prev) return null;
+
+        // Store current scores
+        const initialScores = new Map(prev.teams.map(t => [t.id, t.score]));
+
+        // Determine last trick winner team
+        const lastWinner = prev.lastTrickWinner;
+        const lastWinnerTeam = lastWinner
+          ? prev.teams.find(t => t.playerIds.includes(lastWinner))?.id
+          : undefined;
+
+        // Deal new hand for vueltas
+        const newDeck = shuffleDeck(createDeck());
+        const { hands: newHands, remainingDeck } = dealInitialCards(
+          newDeck,
+          prev.players.map(p => p.id),
+        );
+
+        const newTrumpCard = remainingDeck[remainingDeck.length - 1];
+        const newTrumpSuit = newTrumpCard.suit;
+
+        return {
+          ...prev,
+          phase: 'dealing' as GamePhase, // Start with dealing phase for vueltas
+          isVueltas: true,
+          initialScores,
+          lastTrickWinnerTeam: lastWinnerTeam,
+          canDeclareVictory: !!lastWinnerTeam,
+          deck: remainingDeck,
+          hands: newHands,
+          trumpCard: newTrumpCard,
+          trumpSuit: newTrumpSuit,
+          currentTrick: [],
+          currentPlayerIndex: (prev.dealerIndex + 1) % 4,
+          dealerIndex: (prev.dealerIndex + 1) % 4,
+          trickCount: 0,
+          lastTrickWinner: undefined,
+          lastTrick: undefined,
+          canCambiar7: true,
+        };
+      });
+    }
+  }, [gameState]);
+
+  const declareVictory = useCallback(() => {
+    if (!gameState?.isVueltas || gameState.currentTrick.length > 0)
+      return false;
+
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    const team = gameState.teams.find(t =>
+      t.playerIds.includes(currentPlayer.id),
+    );
+
+    if (!team) return false;
+
+    if (canDeclareVictory(team.id, gameState)) {
+      // Correct declaration - team wins
+      setGameState(prev => ({
+        ...prev!,
+        phase: 'gameOver' as GamePhase,
+      }));
+      return true;
+    } else {
+      // Incorrect declaration - other team wins
+      const otherTeam = gameState.teams.find(t => t.id !== team.id);
+      if (otherTeam) {
+        setGameState(prev => ({
+          ...prev!,
+          teams: prev!.teams.map(t =>
+            t.id === otherTeam.id ? { ...t, score: 101 } : t,
+          ) as [Team, Team],
+          phase: 'gameOver' as GamePhase,
+        }));
       }
+      return false;
+    }
+  }, [gameState]);
 
-      // Check for cante opportunities
-      const cantesuit = shouldAICante(currentPlayer, botHand, gameState);
-      if (cantesuit) {
-        cantar(cantesuit);
-        setThinkingPlayer(null);
-        return;
-      }
+  // Declare renuncio
+  const declareRenuncio = useCallback(
+    (reason: string) => {
+      if (!gameState) return;
 
-      // Play card with AI memory
-      const cardToPlay = playAICard(
-        botHand,
-        gameState,
-        currentPlayer,
-        aiMemory,
+      // The declaring team (player's team) loses, opponent wins
+      const playerTeam = gameState.teams.find(t =>
+        t.playerIds.includes(gameState.players[0].id),
       );
-      if (cardToPlay) {
-        playCard(cardToPlay.id);
-        // Update AI memory with played card
-        setAIMemory(prev => updateMemory(prev, currentPlayer.id, cardToPlay));
-      }
-      setThinkingPlayer(null);
-    }, thinkingTime);
+      const otherTeam = gameState.teams.find(t => t.id !== playerTeam?.id);
 
+      if (otherTeam) {
+        console.log('Renuncio declared:', reason);
+        setGameState(prev => ({
+          ...prev!,
+          teams: prev!.teams.map(t =>
+            t.id === otherTeam.id ? { ...t, score: 101 } : t,
+          ) as [Team, Team],
+          phase: 'gameOver' as GamePhase,
+        }));
+      }
+    },
+    [gameState],
+  );
+
+  // Cleanup effect - only run on unmount
+  useEffect(() => {
     return () => {
-      clearTimeout(timer);
-      setThinkingPlayer(null);
+      // Clear game state to free memory
+      setGameState(null);
+      setSelectedCard(null);
+      setAIMemory(createMemory());
     };
-  }, [gameState, playCard, cantar, mockData, aiMemory]);
+  }, []); // Empty dependency array - only cleanup on unmount
 
   return {
     gameState,
     playCard,
     cantar,
     cambiar7,
+    continueFromScoring,
+    declareVictory,
+    declareRenuncio,
     selectedCard,
     setSelectedCard,
     getCurrentPlayerHand,
+    getValidCardsForCurrentPlayer,
     isPlayerTurn,
     thinkingPlayer,
+    isDealingComplete,
+    completeDealingAnimation,
+    completeTrickAnimation,
+    setGameState,
   };
 }

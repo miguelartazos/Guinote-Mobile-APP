@@ -31,6 +31,12 @@ local.properties
 *.iml
 *.hprof
 .cxx/
+
+# Android keystore files - NEVER COMMIT THESE
+*.keystore
+*.jks
+android/app/my-upload-key.keystore
+android/gradle.properties
 *.keystore
 !debug.keystore
 .kotlin/

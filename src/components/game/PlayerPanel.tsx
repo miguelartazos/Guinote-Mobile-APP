@@ -4,6 +4,7 @@ import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
 import { ThinkingIndicator } from './ThinkingIndicator';
+import { useOrientation } from '../../hooks/useOrientation';
 
 type PlayerPanelProps = {
   playerName: string;
@@ -13,6 +14,7 @@ type PlayerPanelProps = {
   avatar?: string;
   teamId?: 'team1' | 'team2';
   isThinking?: boolean;
+  showRanking?: boolean;
 };
 
 export function PlayerPanel({
@@ -20,11 +22,14 @@ export function PlayerPanel({
   ranking,
   isCurrentPlayer = false,
   position,
-  avatar = '👤',
+  avatar,
   teamId,
   isThinking = false,
+  showRanking = false,
 }: PlayerPanelProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const orientation = useOrientation();
+  const landscape = orientation === 'landscape';
 
   useEffect(() => {
     if (isCurrentPlayer) {
@@ -71,39 +76,44 @@ export function PlayerPanel({
     <AnimatedViewWrapper
       style={[
         panelStyles,
+        landscape && styles[`${position}PanelLandscape`],
         isCurrentPlayer && {
           transform: [{ scale: pulseAnim }],
         },
       ]}
     >
-      <ThinkingIndicator playerName={playerName} visible={isThinking} />
-      <View style={styles.avatarContainer}>
-        <View
-          style={[
-            styles.avatar,
-            isCurrentPlayer && styles.currentAvatar,
-            teamId && { borderColor: getTeamColor() },
-          ]}
-        >
-          <Text style={styles.avatarIcon}>{avatar}</Text>
+      {isCurrentPlayer && (
+        <View style={styles.turnIndicator}>
+          <Text style={styles.turnIndicatorText}>ES MI TURNO</Text>
         </View>
-        {isCurrentPlayer && <View style={styles.currentIndicator} />}
-      </View>
-
-      <View style={styles.playerInfo}>
-        <Text
-          style={[
-            styles.playerName,
-            isCurrentPlayer && styles.currentPlayerText,
-          ]}
-        >
-          {getPlayerDisplayName(playerName)}
-        </Text>
-        <Text
-          style={[styles.ranking, isCurrentPlayer && styles.currentPlayerText]}
-        >
-          Ranking: {ranking.toLocaleString()}
-        </Text>
+      )}
+      <ThinkingIndicator playerName={playerName} visible={isThinking} />
+      <View style={styles.playerInfoContainer}>
+        {avatar && (
+          <View style={styles.avatarContainer}>
+            <Text style={styles.avatarEmoji}>{avatar}</Text>
+          </View>
+        )}
+        <View style={styles.playerInfo}>
+          <Text
+            style={[
+              styles.playerName,
+              isCurrentPlayer && styles.currentPlayerText,
+            ]}
+          >
+            {getPlayerDisplayName(playerName)}
+          </Text>
+          {showRanking && (
+            <Text
+              style={[
+                styles.ranking,
+                isCurrentPlayer && styles.currentPlayerText,
+              ]}
+            >
+              Ranking: {ranking.toLocaleString()}
+            </Text>
+          )}
+        </View>
       </View>
     </AnimatedViewWrapper>
   );
@@ -112,114 +122,119 @@ export function PlayerPanel({
 const styles = StyleSheet.create({
   panel: {
     position: 'absolute',
-    backgroundColor: colors.surface,
-    borderRadius: dimensions.borderRadius.lg,
-    padding: dimensions.spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.secondary,
-    minWidth: 110,
+    backgroundColor: 'rgba(15, 95, 63, 0.9)', // Semi-transparent table green
+    borderRadius: dimensions.borderRadius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 150,
+    borderWidth: 2,
+    borderColor: colors.gold,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   topPanel: {
-    top: 60,
-    left: 10,
-    flexDirection: 'column',
-    alignItems: 'center',
-    width: 100,
-    padding: 8,
+    top: 20,
+    left: 20,
   },
   leftPanel: {
-    bottom: 200,
-    left: 10,
-    flexDirection: 'column',
-    alignItems: 'center',
-    width: 100,
-    padding: 8,
+    bottom: 120,
+    left: 20,
   },
   rightPanel: {
-    top: 60,
-    right: 10,
-    flexDirection: 'column',
-    alignItems: 'center',
-    width: 100,
-    padding: 8,
+    top: 20,
+    right: 20,
   },
   bottomPanel: {
-    bottom: 200,
-    right: 10,
-    flexDirection: 'column',
-    alignItems: 'center',
-    width: 100,
-    padding: 8,
+    bottom: 120,
+    right: 20,
+  },
+  // Landscape specific positions (same as above for consistency)
+  topPanelLandscape: {
+    top: 20,
+    left: 20,
+  },
+  leftPanelLandscape: {
+    bottom: 120,
+    left: 20,
+  },
+  rightPanelLandscape: {
+    top: 20,
+    right: 20,
+  },
+  bottomPanelLandscape: {
+    bottom: 120,
+    right: 20,
   },
   currentPlayerPanel: {
-    borderColor: colors.accent,
-    borderWidth: 3,
-    backgroundColor: colors.primary,
-    shadowColor: colors.accent,
+    borderColor: colors.gold,
+    borderWidth: 2,
+    shadowColor: colors.gold,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  playerInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   avatarContainer: {
-    position: 'relative',
-    marginBottom: 8,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.secondary,
-    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.accent,
+    justifyContent: 'center',
   },
-  currentAvatar: {
-    borderColor: '#FFD700',
-    borderWidth: 3,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-    elevation: 8,
-  },
-  currentIndicator: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#00FF88',
-    borderWidth: 2,
-    borderColor: colors.white,
-  },
-  avatarIcon: {
-    fontSize: typography.fontSize.md,
+  avatarEmoji: {
+    fontSize: 24,
   },
   playerInfo: {
-    alignItems: 'center',
+    flex: 1,
   },
   playerName: {
-    fontSize: typography.fontSize.xs,
+    fontSize: 18,
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-    marginBottom: 1,
-    textAlign: 'center',
+    color: colors.yellowText,
+    fontFamily: 'System',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
   },
   ranking: {
-    fontSize: 10,
-    color: colors.accent,
-    fontWeight: typography.fontWeight.medium,
-    textAlign: 'center',
+    fontSize: 14,
+    color: colors.orangeRanking,
+    fontWeight: typography.fontWeight.bold,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   currentPlayerText: {
-    color: colors.accent,
+    color: colors.yellowText,
+  },
+  turnIndicator: {
+    position: 'absolute',
+    top: -30,
+    left: '50%',
+    transform: [{ translateX: -60 }],
+    backgroundColor: colors.gold,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    elevation: 5,
+    shadowColor: colors.gold,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+  },
+  turnIndicatorText: {
+    color: colors.black,
+    fontSize: 12,
+    fontWeight: typography.fontWeight.bold,
+    letterSpacing: 1,
   },
 });

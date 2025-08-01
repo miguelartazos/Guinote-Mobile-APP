@@ -1,101 +1,187 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Guiñote - Spanish Card Game
 
-# Getting Started
+A modern implementation of the classic Spanish card game Guiñote, built with React Native for iOS and Android.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Features
 
-## Step 1: Start Metro
+### 🎮 Game Modes
+- **Online Multiplayer** - Play with players worldwide with ELO-based matchmaking
+- **Offline vs AI** - Play against intelligent AI with different personalities and difficulty levels
+- **Local Multiplayer** - Pass & play mode for up to 4 players on the same device
+- **Tutorial Mode** - Learn the rules step by step
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### 🌐 Online Multiplayer Features
+- Real-time gameplay using WebSocket connections
+- ELO rating system for fair matchmaking
+- Player profiles and statistics tracking
+- Automatic reconnection handling
+- Voice messaging during games
+- Guest mode for quick play
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+### 🤖 AI Features
+- Three difficulty levels (Easy, Medium, Hard)
+- Unique AI personalities (Prudent, Aggressive, Tricky)
+- Memory system for realistic gameplay
+- Strategic decision making
 
-```sh
-# Using npm
-npm start
+### 🎯 Game Features
+- Authentic Guiñote rules implementation
+- Beautiful Spanish card graphics
+- Voice recording for in-game communication
+- Sound effects and background music
+- Haptic feedback
+- Landscape and portrait support
+- Comprehensive statistics tracking
 
-# OR using Yarn
-yarn start
+## Getting Started
+
+### Prerequisites
+- Node.js 18+
+- React Native development environment ([Setup Guide](https://reactnative.dev/docs/set-up-your-environment))
+- For iOS: macOS with Xcode
+- For Android: Android Studio
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/guinote2.git
+cd guinote2
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+2. Install dependencies:
+```bash
+npm install
 ```
 
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
+3. For iOS, install CocoaPods:
+```bash
+cd ios
 bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
 bundle exec pod install
+cd ..
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+### Running the App
 
-```sh
-# Using npm
+#### Development Mode
+
+Start Metro bundler:
+```bash
+npm start
+```
+
+Run on iOS:
+```bash
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+Run on Android:
+```bash
+npm run android
+```
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+### Online Multiplayer Setup
 
-## Step 3: Modify your app
+To enable online multiplayer, you need to run the backend server:
 
-Now that you have successfully run the app, let's make changes!
+1. Navigate to server directory:
+```bash
+cd server
+npm install
+```
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+2. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+3. Start the server with Docker:
+```bash
+docker-compose up -d
+```
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+Or run locally:
+```bash
+npm run dev
+```
 
-## Congratulations! :tada:
+See [server/README.md](server/README.md) for detailed server setup.
 
-You've successfully run and modified your React Native App. :partying_face:
+## Project Structure
 
-### Now what?
+```
+guinote2/
+├── src/
+│   ├── components/     # Reusable UI components
+│   ├── screens/        # Screen components
+│   ├── navigation/     # Navigation configuration
+│   ├── hooks/          # Custom React hooks
+│   ├── utils/          # Utility functions and game logic
+│   ├── services/       # External services (networking)
+│   ├── types/          # TypeScript type definitions
+│   └── constants/      # App constants
+├── server/             # Backend server for multiplayer
+├── assets/             # Images and other assets
+├── ios/                # iOS native code
+└── android/            # Android native code
+```
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## Development
 
-# Troubleshooting
+### Code Quality
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+Run linting:
+```bash
+npm run lint
+```
 
-# Documentation
+Run tests:
+```bash
+npm test
+```
 
-For project-specific documentation, see the [`docs/`](./docs) folder.
+### Building for Production
 
-# Learn More
+#### iOS
+1. Open `ios/guinote2.xcworkspace` in Xcode
+2. Select your signing team
+3. Archive and upload to App Store Connect
 
-To learn more about React Native, take a look at the following resources:
+#### Android
+```bash
+cd android
+./gradlew assembleRelease
+```
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+The APK will be in `android/app/build/outputs/apk/release/`
+
+## Game Rules
+
+Guiñote is a Spanish trick-taking card game for 4 players in partnerships. Key rules:
+
+- **Objective**: First team to reach 101 points wins
+- **Cards**: Spanish deck (40 cards), Ace is highest
+- **Cantes**: Declare King-Knight pairs for bonus points
+  - Las Cuarenta (40): King-Knight of trump suit
+  - Veinte (20): King-Knight of other suits
+- **Arrastre**: Last phase when deck is empty
+- **Special Rules**: 
+  - 30 Malas: Need 30+ card points to win
+  - Vueltas: Second hand if no winner
+  - 10 de Últimas: 10 bonus points for last trick
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## License
+
+This project is private and proprietary. All rights reserved.
+
+## Acknowledgments
+
+- Traditional Spanish card game community
+- React Native team for the excellent framework
+- Socket.io for real-time multiplayer support

@@ -6,14 +6,10 @@ import { dimensions } from '../../constants/dimensions';
 import { getCardDimensions } from '../../utils/responsive';
 import { CardGraphics } from './CardGraphics';
 import { CardBack } from './CardBack';
+import type { SpanishCardData } from '../../types/cardTypes';
 
-export type SpanishSuit = 'espadas' | 'bastos' | 'oros' | 'copas';
-export type CardValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 10 | 11 | 12;
-
-export type SpanishCardData = {
-  suit: SpanishSuit;
-  value: CardValue;
-};
+// Re-export SpanishCardData for convenience
+export type { SpanishCardData } from '../../types/cardTypes';
 
 type SpanishCardProps = {
   card?: SpanishCardData;
@@ -22,7 +18,7 @@ type SpanishCardProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-export function SpanishCard({
+export const SpanishCard = React.memo(function SpanishCard({
   card,
   faceDown = false,
   size = 'medium',
@@ -50,7 +46,7 @@ export function SpanishCard({
       />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

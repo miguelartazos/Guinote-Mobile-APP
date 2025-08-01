@@ -1,6 +1,6 @@
 import React from 'react';
 import Svg, { Rect, Path, Text as SvgText, G } from 'react-native-svg';
-import type { SpanishSuit, CardValue } from './SpanishCard';
+import type { SpanishSuit, CardValue } from '../../types/cardTypes';
 
 type CardGraphicsProps = {
   suit: SpanishSuit;
@@ -41,7 +41,7 @@ const VALUE_DISPLAY: Record<CardValue, string> = {
   12: 'R',
 };
 
-export function CardGraphics({
+export const CardGraphics = React.memo(function CardGraphics({
   suit,
   value,
   width,
@@ -167,7 +167,7 @@ export function CardGraphics({
       </G>
     </Svg>
   );
-}
+});
 
 const H_OFFSET = 0.6; // Horizontal offset multiplier
 

@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   TouchableOpacity,
-  View,
   Text,
   StyleSheet,
   Animated,
   Vibration,
 } from 'react-native';
 import { colors } from '../../constants/colors';
-import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
 import { useVoicePermissions } from '../../hooks/useVoicePermissions';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
@@ -35,6 +33,7 @@ export function VoiceButton({
   } = useVoiceRecorder();
 
   const [isPressing, setIsPressing] = useState(false);
+  const [showCountdown, setShowCountdown] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const recordingIdRef = useRef<VoiceRecordingId | null>(null);
@@ -63,7 +62,8 @@ export function VoiceButton({
   }, [isRecording, pulseAnim]);
 
   const handlePressIn = async () => {
-    if (disabled || isProcessingRef.current) return;
+    if (disabled || isProcessingRef.current || isRecording || showCountdown)
+      return;
 
     isProcessingRef.current = true;
 
@@ -84,7 +84,8 @@ export function VoiceButton({
     }
 
     setIsPressing(true);
-    Vibration.vibrate(10);
+    // Haptic feedback pattern: start countdown
+    Vibration.vibrate([0, 10, 50, 20]);
 
     // Scale down animation
     Animated.timing(scaleAnim, {
@@ -93,12 +94,8 @@ export function VoiceButton({
       useNativeDriver: true,
     }).start();
 
-    // Start recording
-    const recordingId = await startRecording(playerId);
-    if (recordingId) {
-      recordingIdRef.current = recordingId;
-    }
-
+    // Start countdown
+    setShowCountdown(true);
     isProcessingRef.current = false;
   };
 
@@ -107,6 +104,10 @@ export function VoiceButton({
 
     isProcessingRef.current = true;
     setIsPressing(false);
+    setShowCountdown(false);
+
+    // Haptic feedback: cancel
+    Vibration.vibrate(5);
 
     // Scale back animation
     Animated.timing(scaleAnim, {
@@ -115,64 +116,82 @@ export function VoiceButton({
       useNativeDriver: true,
     }).start();
 
-    // Stop recording
-    const success = await stopRecording();
-    if (success && recordingIdRef.current) {
-      onRecordingComplete(recordingIdRef.current);
-      recordingIdRef.current = null;
+    // If recording, stop it
+    if (isRecording) {
+      const success = await stopRecording();
+      if (success && recordingIdRef.current) {
+        onRecordingComplete(recordingIdRef.current);
+        recordingIdRef.current = null;
+      }
     }
 
     isProcessingRef.current = false;
   };
 
-  const remainingTime = Math.max(
+  const _remainingTime = Math.max(
     0,
     (MAX_RECORDING_DURATION - recordingDuration) / 1000,
   );
 
+  const _recordingProgress = recordingDuration / MAX_RECORDING_DURATION;
+
+  const _handleCountdownComplete = async () => {
+    if (isProcessingRef.current) return;
+
+    isProcessingRef.current = true;
+    setShowCountdown(false);
+
+    // Haptic feedback: recording starts
+    Vibration.vibrate([0, 20, 10, 20]);
+
+    // Start actual recording
+    const recordingId = await startRecording(playerId);
+    if (recordingId) {
+      recordingIdRef.current = recordingId;
+    }
+
+    isProcessingRef.current = false;
+  };
+
+  // Haptic feedback at milestones
+  useEffect(() => {
+    if (isRecording) {
+      if (recordingDuration >= 2500 && recordingDuration < 2600) {
+        // Halfway milestone
+        Vibration.vibrate(10);
+      } else if (recordingDuration >= 4500 && recordingDuration < 4600) {
+        // Near end warning
+        Vibration.vibrate([0, 10, 50, 10]);
+      }
+    }
+  }, [isRecording, recordingDuration]);
+
   return (
-    <Animated.View
+    <TouchableOpacity
       style={[
-        styles.container,
+        styles.button,
+        isRecording && styles.recordingButton,
+        disabled && styles.disabledButton,
         {
           transform: [{ scale: scaleAnim }],
         },
       ]}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      disabled={disabled}
+      activeOpacity={0.8}
     >
-      <TouchableOpacity
+      <Animated.View
         style={[
-          styles.button,
-          isRecording && styles.recordingButton,
-          disabled && styles.disabledButton,
+          styles.buttonInner,
+          isRecording && {
+            transform: [{ scale: pulseAnim }],
+          },
         ]}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        disabled={disabled}
-        activeOpacity={1}
       >
-        <Animated.View
-          style={[
-            styles.buttonInner,
-            isRecording && {
-              transform: [{ scale: pulseAnim }],
-            },
-          ]}
-        >
-          <Text style={styles.icon}>🎤</Text>
-        </Animated.View>
-      </TouchableOpacity>
-
-      {isRecording && (
-        <View style={styles.recordingIndicator}>
-          <View style={styles.recordingDot} />
-          <Text style={styles.recordingText}>{remainingTime.toFixed(1)}s</Text>
-        </View>
-      )}
-
-      {!isRecording && isPressing && (
-        <Text style={styles.hintText}>Mantén pulsado</Text>
-      )}
-    </Animated.View>
+        <Text style={styles.icon}>🎤</Text>
+      </Animated.View>
+    </TouchableOpacity>
   );
 }
 
@@ -181,10 +200,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   button: {
-    width: dimensions.touchTarget.senior,
-    height: dimensions.touchTarget.senior,
-    borderRadius: dimensions.touchTarget.senior / 2,
-    backgroundColor: colors.accent,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#25D366',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
@@ -205,29 +224,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   icon: {
-    fontSize: typography.fontSize.xxxl,
+    fontSize: 24,
+    color: '#FFFFFF',
+  },
+  progressContainer: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    right: 4,
+    bottom: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   recordingIndicator: {
     position: 'absolute',
-    top: -30,
-    flexDirection: 'row',
+    top: -45,
     alignItems: 'center',
-    backgroundColor: 'rgba(220, 38, 38, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  recordingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.white,
-    marginRight: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minWidth: 120,
   },
   recordingText: {
     color: colors.white,
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
+    marginTop: 4,
   },
   hintText: {
     position: 'absolute',

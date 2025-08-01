@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="280" viewBox="0 0 200 280" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="280" fill="white" stroke="#CCCCCC" stroke-width="2" rx="8"/>
+  
+  <!-- Top left corner -->
+  <text x="15" y="30" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#DC2626">
+    3
+  </text>
+  <text x="15" y="55" font-family="Arial, sans-serif" font-size="20" fill="#DC2626">
+    🫖
+  </text>
+  
+  <!-- Bottom right corner (rotated) -->
+  <g transform="translate(185, 245) rotate(180)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#DC2626">
+      3
+    </text>
+    <text x="0" y="25" font-family="Arial, sans-serif" font-size="20" fill="#DC2626">
+      🫖
+    </text>
+  </g>
+  
+  <!-- Center -->
+  <text x="100" y="140" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#DC2626" text-anchor="middle">
+    🫖
+  </text>
+  <text x="100" y="180" font-family="Arial, sans-serif" font-size="24" fill="#DC2626" text-anchor="middle">
+    3
+  </text>
+  
+  <!-- Border -->
+  <rect x="4" y="4" width="192" height="272" fill="none" stroke="#DC2626" stroke-width="1" rx="6"/>
+</svg>

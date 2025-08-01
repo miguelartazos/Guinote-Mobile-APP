@@ -48,6 +48,13 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// Mock react-native-haptic-feedback
+jest.mock('react-native-haptic-feedback', () => ({
+  default: {
+    trigger: jest.fn(),
+  },
+}));
+
 // Mock @react-navigation/native
 jest.mock('@react-navigation/native', () => {
   const React = require('react');
@@ -79,5 +86,118 @@ jest.mock('@react-navigation/stack', () => {
       Screen: ({ component: Component, ...props }) =>
         React.createElement(Component, props),
     }),
+  };
+});
+
+// Mock react-native-haptic-feedback
+jest.mock('react-native-haptic-feedback', () => ({
+  trigger: jest.fn(),
+}));
+
+// Mock @react-native-async-storage/async-storage
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+  removeItem: jest.fn(),
+  clear: jest.fn(),
+  getAllKeys: jest.fn(),
+  multiGet: jest.fn(),
+  multiSet: jest.fn(),
+  multiRemove: jest.fn(),
+}));
+
+// Setup animation mocks
+global.requestAnimationFrame = callback => {
+  setTimeout(callback, 0);
+};
+
+// Mock Animated timing to resolve immediately in tests
+jest.mock('react-native', () => {
+  const actualReactNative = jest.requireActual('react-native');
+  const Animated = actualReactNative.Animated;
+
+  return {
+    ...actualReactNative,
+    Animated: {
+      ...Animated,
+      timing: (value, config) => {
+        return {
+          start: callback => {
+            value.setValue(config.toValue);
+            callback && callback({ finished: true });
+          },
+          stop: jest.fn(),
+        };
+      },
+      spring: (value, config) => {
+        return {
+          start: callback => {
+            value.setValue(config.toValue);
+            callback && callback({ finished: true });
+          },
+          stop: jest.fn(),
+        };
+      },
+      sequence: animations => {
+        return {
+          start: callback => {
+            animations.forEach(anim => {
+              if (anim.start) {
+                anim.start();
+              }
+            });
+            callback && callback({ finished: true });
+          },
+          stop: jest.fn(),
+        };
+      },
+      parallel: animations => {
+        return {
+          start: callback => {
+            animations.forEach(anim => {
+              if (anim.start) {
+                anim.start();
+              }
+            });
+            callback && callback({ finished: true });
+          },
+          stop: jest.fn(),
+        };
+      },
+      stagger: (delay, animations) => {
+        return {
+          start: callback => {
+            animations.forEach(anim => {
+              if (anim.start) {
+                anim.start();
+              }
+            });
+            callback && callback({ finished: true });
+          },
+          stop: jest.fn(),
+        };
+      },
+      loop: animation => {
+        return {
+          start: callback => {
+            if (animation.start) {
+              animation.start();
+            }
+            callback && callback({ finished: true });
+          },
+          stop: jest.fn(),
+        };
+      },
+      delay: time => {
+        return {
+          start: callback => {
+            setTimeout(() => {
+              callback && callback({ finished: true });
+            }, 0);
+          },
+          stop: jest.fn(),
+        };
+      },
+    },
   };
 });

@@ -8,42 +8,24 @@ import type {
   DifficultyLevel,
   AIPersonality,
 } from '../types/game.types';
-import type { SpanishSuit } from '../components/game/SpanishCard';
+import type { SpanishSuit } from '../types/cardTypes';
 import { CARD_POINTS } from '../types/game.types';
 import { isValidPlay, calculateTrickWinner } from './gameLogic';
 import type { CardMemory } from './aiMemory';
 import { getRemainingHighCards } from './aiMemory';
-
-// AI decision thresholds
-const AI_THRESHOLDS = {
-  VALUABLE_TRICK: 10,
-  HIGH_VALUE_TRICK: 15,
-  LOW_POWER_CARD: 5,
-  MANY_CARDS_LEFT: 20,
-  LOW_VALUE_TRICK: 5,
-  CANTE_AHEAD_THRESHOLD: 40,
-  CANTE_BEHIND_THRESHOLD: -20,
-  CANTE_FAR_BEHIND_THRESHOLD: -30,
-  CANTE_DECK_THRESHOLD: 15,
-  CANTE_FEW_CARDS: 8,
-} as const;
-
-// AI probability constants
-const AI_PROBABILITIES = {
-  DUCK_LOW_TRICK: 0.5,
-  AGGRESSIVE_CANTE: 0.8,
-  AGGRESSIVE_TRUMP: 0.7,
-  TRICKY_RANDOM: 0.3,
-  TRICKY_CANTE: 0.6,
-} as const;
+import {
+  AI_DECISION_THRESHOLDS as AI_THRESHOLDS,
+  AI_PROBABILITIES,
+  AI_FALLBACK_ID,
+} from '../constants/gameConstants';
 
 function getCardPower(card: Card): number {
   const powerRanking: Record<number, number> = {
     1: 10, // As
     3: 9, // Tres
     12: 8, // Rey
-    11: 7, // Caballo
-    10: 6, // Sota
+    10: 7, // Sota (higher than Caballo in Guiñote)
+    11: 6, // Caballo (lower than Sota in Guiñote)
     7: 5,
     6: 4,
     5: 3,
@@ -61,13 +43,14 @@ function canWinTrick(
   card: Card,
   currentTrick: readonly TrickCard[],
   trumpSuit: SpanishSuit,
+  playerId: PlayerId,
 ): boolean {
   if (currentTrick.length === 0) return true;
 
-  const trickWithAI = [...currentTrick, { playerId: 'ai' as any, card }];
+  const trickWithAI = [...currentTrick, { playerId, card }];
   const winnerId = calculateTrickWinner(trickWithAI, trumpSuit);
 
-  return winnerId === 'ai';
+  return winnerId === playerId;
 }
 
 function getTrickPoints(trick: readonly TrickCard[]): number {
@@ -94,7 +77,25 @@ function shouldPreserveCante(
 
   // Check if this card is part of a cante
   if (card.value === 12 || card.value === 10) {
-    return hasCante(hand, card.suit);
+    const canCante = hasCante(hand, card.suit);
+    if (!canCante) return false;
+
+    // Check if we already canted this suit
+    const team = gameState.teams.find(t =>
+      t.playerIds.includes(gameState.currentPlayer),
+    );
+    if (team?.cantes.some(c => c.suit === card.suit)) {
+      return false; // Already canted, no need to preserve
+    }
+
+    // Preserve trump cantes more carefully
+    if (card.suit === gameState.trumpSuit) {
+      // Always preserve trump cante until late game
+      return gameState.deck.length > 10;
+    }
+
+    // Preserve non-trump cantes in early-mid game
+    return gameState.deck.length > 15;
   }
 
   return false;
@@ -114,10 +115,31 @@ function playMediumAI(
   validCards: readonly Card[],
   hand: readonly Card[],
   gameState: GameState,
+  playerId: PlayerId,
   _memory?: CardMemory,
 ): Card {
-  // Medium AI: Current implementation with basic strategy
-  return playStrategicCard(validCards, hand, gameState);
+  // Medium AI: Phase-aware strategy with trump conservation
+  const card = playStrategicCard(validCards, hand, gameState, playerId);
+
+  // Additional trump conservation check
+  const { trumpSuit, phase } = gameState;
+  if (
+    card.suit === trumpSuit &&
+    phase === 'playing' &&
+    gameState.deck.length > AI_THRESHOLDS.MANY_CARDS_LEFT
+  ) {
+    // Try to find a non-trump alternative
+    const nonTrumps = validCards.filter(c => c.suit !== trumpSuit);
+    if (
+      nonTrumps.length > 0 &&
+      Math.random() < AI_PROBABILITIES.SAVE_TRUMP_EARLY
+    ) {
+      // 70% chance to save trump in early game
+      return nonTrumps[Math.floor(Math.random() * nonTrumps.length)];
+    }
+  }
+
+  return card;
 }
 
 function playHardAI(
@@ -126,8 +148,9 @@ function playHardAI(
   gameState: GameState,
   memory: CardMemory,
   partnerId: PlayerId,
+  playerId: PlayerId,
 ): Card {
-  const { currentTrick, trumpSuit } = gameState;
+  const { currentTrick, trumpSuit, phase } = gameState;
 
   // Count remaining high cards in each suit
   const suits: SpanishSuit[] = ['oros', 'copas', 'espadas', 'bastos'];
@@ -140,21 +163,49 @@ function playHardAI(
 
   // Starting a trick with card counting
   if (currentTrick.length === 0) {
-    // Lead with suits where opponents likely have high cards
-    const nonTrumps = validCards.filter(c => c.suit !== trumpSuit);
+    // Preserve cantes intelligently
+    const playableCards = validCards.filter(
+      card => !shouldPreserveCante(card, hand, gameState),
+    );
+    const cardsToConsider =
+      playableCards.length > 0 ? playableCards : validCards;
 
-    if (nonTrumps.length > 0) {
-      // Find suits where we have low cards and opponents might have high cards
-      const lowCards = nonTrumps.filter(
-        c => getCardPower(c) < AI_THRESHOLDS.LOW_POWER_CARD,
-      );
-      if (lowCards.length > 0) {
-        // Lead with low card in suit with many remaining high cards
-        return [...lowCards].sort((a, b) => {
-          const aRemaining = suitStrengths.get(a.suit) || 0;
-          const bRemaining = suitStrengths.get(b.suit) || 0;
-          return bRemaining - aRemaining;
-        })[0];
+    // Phase-aware leading
+    if (phase === 'arrastre' || phase === 'vueltas') {
+      // Never lead trumps in arrastre
+      const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
+      if (nonTrumps.length > 0) {
+        // Lead with low cards to avoid giving points
+        return [...nonTrumps].sort(
+          (a, b) => getCardPower(a) - getCardPower(b),
+        )[0];
+      }
+    } else {
+      // Draw phase - use memory to lead intelligently
+      const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
+      if (nonTrumps.length > 0) {
+        // Find suits where we have low cards and opponents might have high cards
+        const lowCards = nonTrumps.filter(
+          c => getCardPower(c) < AI_THRESHOLDS.LOW_POWER_CARD,
+        );
+        if (lowCards.length > 0) {
+          // Lead with low card in suit with many remaining high cards
+          return [...lowCards].sort((a, b) => {
+            const aRemaining = suitStrengths.get(a.suit) || 0;
+            const bRemaining = suitStrengths.get(b.suit) || 0;
+            return bRemaining - aRemaining;
+          })[0];
+        }
+
+        // No low cards - lead with high cards in depleted suits
+        const highCards = nonTrumps.filter(c => getCardPower(c) >= 8);
+        if (highCards.length > 0) {
+          return [...highCards].sort((a, b) => {
+            const aRemaining = suitStrengths.get(a.suit) || 0;
+            const bRemaining = suitStrengths.get(b.suit) || 0;
+            return aRemaining - bRemaining; // Lead in suits with fewer high cards
+          })[0];
+        }
       }
     }
   }
@@ -163,31 +214,59 @@ function playHardAI(
   if (currentTrick.length > 0) {
     const trickValue = getTrickPoints(currentTrick);
     const winningCards = validCards.filter(card =>
-      canWinTrick(card, currentTrick, trumpSuit),
+      canWinTrick(card, currentTrick, trumpSuit, playerId),
     );
 
     // Partner is winning the trick
     const currentWinner = calculateTrickWinner(currentTrick, trumpSuit);
-    if (currentWinner === partnerId && winningCards.length > 0) {
-      // Give points to partner
-      return [...validCards].sort(
+    if (currentWinner === partnerId) {
+      // Give points to partner, but avoid trumps
+      const nonTrumps = validCards.filter(c => c.suit !== trumpSuit);
+      const cardsToGive = nonTrumps.length > 0 ? nonTrumps : validCards;
+      return [...cardsToGive].sort(
         (a, b) => getCardPoints(b) - getCardPoints(a),
       )[0];
     }
 
-    // High value trick - win with optimal card
+    // Opponent winning - must we take it?
     if (
       trickValue >= AI_THRESHOLDS.HIGH_VALUE_TRICK &&
       winningCards.length > 0
     ) {
+      // Try to win without trumps first
+      const nonTrumpWinners = winningCards.filter(c => c.suit !== trumpSuit);
+      if (nonTrumpWinners.length > 0) {
+        return [...nonTrumpWinners].sort(
+          (a, b) => getCardPower(a) - getCardPower(b),
+        )[0];
+      }
+      // Use trump only if necessary
       return [...winningCards].sort(
         (a, b) => getCardPower(a) - getCardPower(b),
       )[0];
     }
+
+    // Check if we can duck safely based on memory
+    const leadSuit = currentTrick[0].card.suit;
+    const remainingInSuit = suitStrengths.get(leadSuit) || 0;
+
+    // If few high cards remain in suit, we can duck more safely
+    if (remainingInSuit <= 1 && trickValue < AI_THRESHOLDS.VALUABLE_TRICK) {
+      const losingCards = validCards.filter(c => !winningCards.includes(c));
+      if (losingCards.length > 0) {
+        // Discard low points, preferring non-trumps
+        const nonTrumpLosers = losingCards.filter(c => c.suit !== trumpSuit);
+        const toDiscard =
+          nonTrumpLosers.length > 0 ? nonTrumpLosers : losingCards;
+        return [...toDiscard].sort(
+          (a, b) => getCardPoints(a) - getCardPoints(b),
+        )[0];
+      }
+    }
   }
 
   // Fallback to strategic play
-  return playStrategicCard(validCards, hand, gameState);
+  return playStrategicCard(validCards, hand, gameState, playerId);
 }
 
 function applyPersonality(
@@ -217,18 +296,30 @@ function applyPersonality(
     }
 
     case 'aggressive': {
-      // Aggressive: prefer high cards and trumps
+      // Aggressive: prefer high cards but STILL conserve trumps in arrastre
       if (currentTrick.length === 0) {
-        const highCards = validCards.filter(c => getCardPower(c) >= 8);
-        if (highCards.length > 0) {
-          return highCards[0];
+        // In arrastre, even aggressive players should avoid leading trumps
+        if (gameState.phase === 'arrastre' || gameState.phase === 'vueltas') {
+          const nonTrumpHighCards = validCards.filter(
+            c => c.suit !== trumpSuit && getCardPower(c) >= 8,
+          );
+          if (nonTrumpHighCards.length > 0) {
+            return nonTrumpHighCards[0];
+          }
+        } else {
+          // Draw phase - can be more aggressive
+          const highCards = validCards.filter(c => getCardPower(c) >= 8);
+          if (highCards.length > 0) {
+            return highCards[0];
+          }
         }
       }
-      // Trump aggressively
+      // Trump only occasionally (15% chance) and never in arrastre when leading
       const trumps = validCards.filter(c => c.suit === trumpSuit);
       if (
         trumps.length > 0 &&
-        randomValue < AI_PROBABILITIES.AGGRESSIVE_TRUMP
+        randomValue < AI_PROBABILITIES.AGGRESSIVE_TRUMP &&
+        (gameState.phase === 'playing' || currentTrick.length > 0)
       ) {
         return [...trumps].sort((a, b) => getCardPower(b) - getCardPower(a))[0];
       }
@@ -253,28 +344,50 @@ function selectLeadingCard(
   cardsToConsider: readonly Card[],
   trumpSuit: SpanishSuit,
   phase: GamePhase,
+  gameState: GameState,
 ): Card {
-  // In arrastre phase, be more conservative
-  if (phase === 'arrastre') {
-    // Lead with low non-trump cards first
-    const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
+  const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
+  const trumps = cardsToConsider.filter(c => c.suit === trumpSuit);
+
+  // ARRASTRE PHASE - Very conservative play
+  if (phase === 'arrastre' || phase === 'vueltas') {
+    // Never lead with trumps unless forced
     if (nonTrumps.length > 0) {
+      // Lead with lowest non-trump cards
       return [...nonTrumps].sort(
         (a, b) => getCardPower(a) - getCardPower(b),
       )[0];
     }
+    // Only trumps left - play lowest
+    return [...trumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
   }
 
-  // Normal phase: lead with highest non-trump
-  const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
-  if (nonTrumps.length > 0) {
-    return [...nonTrumps].sort((a, b) => getCardPower(b) - getCardPower(a))[0];
+  // DRAW PHASE - Strategic freedom
+  if (phase === 'playing' && nonTrumps.length > 0) {
+    // Early game with many cards left
+    if (gameState.deck.length > AI_THRESHOLDS.MANY_CARDS_LEFT) {
+      // Lead with medium strength cards to probe
+      const mediumCards = nonTrumps.filter(c => {
+        const power = getCardPower(c);
+        return power >= 4 && power <= 7;
+      });
+      if (mediumCards.length > 0) {
+        return mediumCards[Math.floor(Math.random() * mediumCards.length)];
+      }
+    }
+
+    // Mid-late draw phase - lead with high non-trumps
+    const highCards = nonTrumps.filter(c => getCardPower(c) >= 8);
+    if (highCards.length > 0) {
+      return highCards[0];
+    }
+
+    // No high cards - play lowest non-trump
+    return [...nonTrumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
   }
 
-  // Only trumps left, play lowest
-  return [...cardsToConsider].sort(
-    (a, b) => getCardPower(a) - getCardPower(b),
-  )[0];
+  // Only trumps left - play lowest
+  return [...trumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
 }
 
 function selectFollowingCard(
@@ -284,41 +397,120 @@ function selectFollowingCard(
   gameState: GameState,
   shouldDuck: boolean = Math.random() < AI_PROBABILITIES.DUCK_LOW_TRICK,
 ): Card {
-  const { phase } = gameState;
+  const { phase, trumpSuit } = gameState;
 
-  if (winningCards.length > 0) {
-    // Trick has valuable points, try to win it
-    if (trickValue >= AI_THRESHOLDS.VALUABLE_TRICK) {
-      // Win with lowest possible winning card
-      return [...winningCards].sort(
-        (a, b) => getCardPower(a) - getCardPower(b),
+  // Separate trumps and non-trumps
+  const nonTrumpWinners = winningCards.filter(c => c.suit !== trumpSuit);
+  const trumpWinners = winningCards.filter(c => c.suit === trumpSuit);
+  const nonTrumpLosers = validCards.filter(
+    c => c.suit !== trumpSuit && !winningCards.includes(c),
+  );
+  const trumpLosers = validCards.filter(
+    c => c.suit === trumpSuit && !winningCards.includes(c),
+  );
+
+  // PHASE-AWARE STRATEGY
+  if (phase === 'arrastre' || phase === 'vueltas') {
+    // ARRASTRE: Very conservative with trumps
+    if (winningCards.length > 0) {
+      // High value trick - must win but preserve trumps if possible
+      if (trickValue >= AI_THRESHOLDS.HIGH_VALUE_TRICK) {
+        // Try to win without trumps first
+        if (nonTrumpWinners.length > 0) {
+          return [...nonTrumpWinners].sort(
+            (a, b) => getCardPower(a) - getCardPower(b),
+          )[0];
+        }
+        // Only use trump if necessary
+        return [...trumpWinners].sort(
+          (a, b) => getCardPower(a) - getCardPower(b),
+        )[0];
+      }
+
+      // Medium value - try to win without trumps
+      if (
+        trickValue >= AI_THRESHOLDS.VALUABLE_TRICK &&
+        nonTrumpWinners.length > 0
+      ) {
+        return [...nonTrumpWinners].sort(
+          (a, b) => getCardPower(a) - getCardPower(b),
+        )[0];
+      }
+    }
+
+    // Can't win or low value - never waste trumps
+    if (nonTrumpLosers.length > 0) {
+      // Discard lowest point non-trump
+      return [...nonTrumpLosers].sort(
+        (a, b) => getCardPoints(a) - getCardPoints(b),
       )[0];
     }
 
-    // Low value trick in early game, maybe let it go
-    if (
-      phase === 'playing' &&
-      gameState.deck.length > AI_THRESHOLDS.MANY_CARDS_LEFT &&
-      trickValue < AI_THRESHOLDS.LOW_VALUE_TRICK
-    ) {
-      // 50% chance to duck
-      if (shouldDuck) {
-        const losingCards = validCards.filter(c => !winningCards.includes(c));
-        if (losingCards.length > 0) {
-          return [...losingCards].sort(
+    // Only trumps left - play lowest
+    return [...validCards].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
+  }
+
+  // DRAW PHASE: More flexible but still smart
+  if (phase === 'playing') {
+    if (winningCards.length > 0) {
+      // Very valuable trick - win it
+      if (trickValue >= AI_THRESHOLDS.HIGH_VALUE_TRICK) {
+        // Prefer non-trumps for winning
+        if (nonTrumpWinners.length > 0) {
+          return [...nonTrumpWinners].sort(
+            (a, b) => getCardPower(a) - getCardPower(b),
+          )[0];
+        }
+        // Use trump only if needed
+        if (Math.random() > AI_PROBABILITIES.SAVE_TRUMP_DRAW) {
+          return [...trumpWinners].sort(
+            (a, b) => getCardPower(a) - getCardPower(b),
+          )[0];
+        }
+      }
+
+      // Low value trick in early game - often duck
+      if (
+        gameState.deck.length > AI_THRESHOLDS.MANY_CARDS_LEFT &&
+        trickValue < AI_THRESHOLDS.LOW_VALUE_TRICK &&
+        shouldDuck
+      ) {
+        // Prefer discarding non-trumps
+        if (nonTrumpLosers.length > 0) {
+          return [...nonTrumpLosers].sort(
             (a, b) => getCardPoints(a) - getCardPoints(b),
           )[0];
         }
       }
-    }
 
-    // Default: win with lowest winning card
-    return [...winningCards].sort(
-      (a, b) => getCardPower(a) - getCardPower(b),
+      // Default: win with non-trump if possible
+      if (nonTrumpWinners.length > 0) {
+        return [...nonTrumpWinners].sort(
+          (a, b) => getCardPower(a) - getCardPower(b),
+        )[0];
+      }
+
+      // Only use trump if really needed (15% chance in draw phase)
+      if (
+        trumpWinners.length > 0 &&
+        Math.random() < AI_PROBABILITIES.AGGRESSIVE_TRUMP
+      ) {
+        return [...trumpWinners].sort(
+          (a, b) => getCardPower(a) - getCardPower(b),
+        )[0];
+      }
+    }
+  }
+
+  // Can't win - discard wisely
+  // Always prefer discarding non-trumps
+  if (nonTrumpLosers.length > 0) {
+    return [...nonTrumpLosers].sort(
+      (a, b) => getCardPoints(a) - getCardPoints(b),
     )[0];
   }
 
-  // Can't win, play lowest point card
+  // Only trumps available - play lowest
   const sortedByPoints = [...validCards].sort((a, b) => {
     const pointDiff = getCardPoints(a) - getCardPoints(b);
     if (pointDiff !== 0) return pointDiff;
@@ -332,6 +524,7 @@ function playStrategicCard(
   validCards: readonly Card[],
   hand: readonly Card[],
   gameState: GameState,
+  playerId: PlayerId,
 ): Card {
   const { currentTrick, trumpSuit, phase } = gameState;
 
@@ -346,15 +539,43 @@ function playStrategicCard(
     const cardsToConsider =
       playableCards.length > 0 ? playableCards : validCards;
 
-    return selectLeadingCard(cardsToConsider, trumpSuit, phase);
+    return selectLeadingCard(cardsToConsider, trumpSuit, phase, gameState);
   }
 
   // Following in a trick
   const trickValue = getTrickPoints(currentTrick);
 
+  // Check if partner is winning
+  let partnerIsWinning = false;
+  if (currentTrick.length > 0) {
+    const currentWinner = calculateTrickWinner(currentTrick, trumpSuit);
+    const team = gameState.teams.find(t => t.playerIds.includes(playerId));
+    if (
+      team &&
+      team.playerIds.includes(currentWinner) &&
+      currentWinner !== playerId
+    ) {
+      partnerIsWinning = true;
+    }
+  }
+
+  // If partner is winning a valuable trick, give them points
+  if (partnerIsWinning && trickValue >= AI_THRESHOLDS.VALUABLE_TRICK) {
+    // Give high point cards to partner
+    const sortedByPoints = [...validCards].sort(
+      (a, b) => getCardPoints(b) - getCardPoints(a),
+    );
+    // But avoid giving trumps if possible
+    const nonTrumps = sortedByPoints.filter(c => c.suit !== trumpSuit);
+    if (nonTrumps.length > 0) {
+      return nonTrumps[0];
+    }
+    return sortedByPoints[0];
+  }
+
   // Can we win the trick?
   const winningCards = validCards.filter(card =>
-    canWinTrick(card, currentTrick, trumpSuit),
+    canWinTrick(card, currentTrick, trumpSuit, playerId),
   );
 
   return selectFollowingCard(validCards, winningCards, trickValue, gameState);
@@ -368,12 +589,38 @@ export function playAICard(
 ): Card | null {
   const { currentTrick, trumpSuit, phase } = gameState;
 
+  // Ensure player ID is always defined for validation
+  const playerId = player?.id || AI_FALLBACK_ID;
+
   // Get all valid cards
   const validCards = hand.filter(card =>
-    isValidPlay(card, hand, currentTrick, trumpSuit, phase),
+    isValidPlay(
+      card,
+      hand,
+      currentTrick,
+      trumpSuit,
+      phase,
+      playerId, // Always pass a defined ID
+      gameState,
+    ),
   );
 
-  if (validCards.length === 0) return null;
+  // If no valid cards in arrastre, something is wrong - return any card
+  if (validCards.length === 0) {
+    console.error(
+      '❌ No valid cards found! Phase:',
+      phase,
+      'Hand size:',
+      hand.length,
+    );
+    // In arrastre phase, if no valid moves found, return first card as fallback
+    if (phase === 'arrastre' && hand.length > 0) {
+      console.warn('🔧 ARRASTRE FALLBACK: Playing first card');
+      return hand[0];
+    }
+    return null;
+  }
+
   if (validCards.length === 1) return validCards[0];
 
   const difficulty = player?.difficulty || 'medium';
@@ -389,10 +636,8 @@ export function playAICard(
 
     case 'hard': {
       // Find partner ID
-      const team = gameState.teams.find(t =>
-        player ? t.playerIds.includes(player.id) : false,
-      );
-      const partnerId = team?.playerIds.find(id => id !== player?.id);
+      const team = gameState.teams.find(t => t.playerIds.includes(playerId));
+      const partnerId = team?.playerIds.find(id => id !== playerId);
 
       if (memory && partnerId) {
         selectedCard = playHardAI(
@@ -401,17 +646,30 @@ export function playAICard(
           gameState,
           memory,
           partnerId,
+          playerId,
         );
       } else {
         // Fallback to medium if no memory
-        selectedCard = playMediumAI(validCards, hand, gameState, memory);
+        selectedCard = playMediumAI(
+          validCards,
+          hand,
+          gameState,
+          playerId,
+          memory,
+        );
       }
       break;
     }
 
     case 'medium':
     default:
-      selectedCard = playMediumAI(validCards, hand, gameState, memory);
+      selectedCard = playMediumAI(
+        validCards,
+        hand,
+        gameState,
+        playerId,
+        memory,
+      );
       break;
   }
 

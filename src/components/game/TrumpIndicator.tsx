@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import type { StyleProp } from 'react-native';
-import { SpanishCard, type SpanishCardData } from './SpanishCard';
+import { SpanishCard } from './SpanishCard';
+import type { SpanishCardData } from '../../types/cardTypes';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { dimensions } from '../../constants/dimensions';

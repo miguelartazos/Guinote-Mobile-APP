@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Button } from '../components/Button';
 import { colors } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
+import { useGameSettings } from '../hooks/useGameSettings';
 import type { JugarStackScreenProps } from '../types/navigation';
 
 type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'expert';
@@ -12,9 +13,17 @@ type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'expert';
 export function OfflineModeScreen({
   navigation,
 }: JugarStackScreenProps<'OfflineMode'>) {
+  const { settings } = useGameSettings();
   const [selectedDifficulty, setSelectedDifficulty] =
     useState<DifficultyLevel>('medium');
   const [playerName, setPlayerName] = useState('Jugador');
+  const [practiceMode, setPracticeMode] = useState(false);
+
+  useEffect(() => {
+    if (settings?.difficulty) {
+      setSelectedDifficulty(settings.difficulty as DifficultyLevel);
+    }
+  }, [settings]);
 
   const difficulties = [
     {
@@ -38,13 +47,7 @@ export function OfflineModeScreen({
       winRate: '55%',
       icon: '🟠',
     },
-    {
-      level: 'expert' as const,
-      title: 'Experto',
-      description: 'Solo para maestros',
-      winRate: '65%',
-      icon: '🔴',
-    },
+    // Removed expert difficulty as it's not in the game types
   ];
 
   return (
@@ -108,6 +111,31 @@ export function OfflineModeScreen({
               de las partidas
             </Text>
           </View>
+
+          {/* Practice Mode Toggle */}
+          <View style={styles.practiceModeContainer}>
+            <Text style={styles.sectionTitle}>Modo Práctica</Text>
+            <Button
+              onPress={() => setPracticeMode(!practiceMode)}
+              variant={practiceMode ? 'primary' : 'secondary'}
+              style={styles.practiceModeButton}
+            >
+              {practiceMode
+                ? '✓ Modo Práctica Activado'
+                : 'Activar Modo Práctica'}
+            </Button>
+            {practiceMode && (
+              <View style={styles.practiceModeInfo}>
+                <Text style={styles.practiceModeIcon}>📚</Text>
+                <Text style={styles.practiceModeText}>
+                  • Verás las cartas de todos los jugadores
+                  {`\n`}• Podrás deshacer jugadas
+                  {`\n`}• La IA explicará sus jugadas
+                  {`\n`}• Recibirás consejos en tiempo real
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <View style={styles.buttonContainer}>
@@ -117,10 +145,11 @@ export function OfflineModeScreen({
                 gameMode: 'offline',
                 difficulty: selectedDifficulty,
                 playerName: playerName.trim() || 'Jugador',
+                practiceMode,
               })
             }
           >
-            Comenzar Partida
+            {practiceMode ? 'Comenzar Práctica' : 'Comenzar Partida'}
           </Button>
 
           <Button
@@ -226,5 +255,29 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: dimensions.spacing.md,
+  },
+  practiceModeContainer: {
+    marginTop: dimensions.spacing.xl,
+    marginBottom: dimensions.spacing.lg,
+  },
+  practiceModeButton: {
+    marginBottom: dimensions.spacing.md,
+  },
+  practiceModeInfo: {
+    backgroundColor: 'rgba(212, 165, 116, 0.1)',
+    borderRadius: dimensions.borderRadius.lg,
+    padding: dimensions.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  practiceModeIcon: {
+    fontSize: 24,
+    marginRight: dimensions.spacing.md,
+  },
+  practiceModeText: {
+    flex: 1,
+    fontSize: typography.fontSize.md,
+    color: colors.text,
+    lineHeight: typography.lineHeight.normal * typography.fontSize.md,
   },
 });
