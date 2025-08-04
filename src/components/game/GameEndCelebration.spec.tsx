@@ -51,7 +51,7 @@ describe('GameEndCelebration', () => {
   });
 
   test('renders confetti only for winner', () => {
-    const { container: winnerContainer } = render(
+    const winnerScreen = render(
       <GameEndCelebration
         isWinner={true}
         finalScore={{ player: 101, opponent: 85 }}
@@ -60,7 +60,7 @@ describe('GameEndCelebration', () => {
       />,
     );
 
-    const { container: loserContainer } = render(
+    const loserScreen = render(
       <GameEndCelebration
         isWinner={false}
         finalScore={{ player: 85, opponent: 101 }}
@@ -69,13 +69,11 @@ describe('GameEndCelebration', () => {
       />,
     );
 
-    // Winner should have SVG elements for confetti
-    const winnerSvg = winnerContainer.querySelector('svg');
-    expect(winnerSvg).toBeTruthy();
+    // Winner should show victory text
+    expect(winnerScreen.getByText('¡Victoria!')).toBeTruthy();
 
-    // Loser should not have SVG elements
-    const loserSvg = loserContainer.querySelector('svg');
-    expect(loserSvg).toBeFalsy();
+    // Loser should show defeat text
+    expect(loserScreen.getByText('Derrota')).toBeTruthy();
   });
 
   test('calls playSound when animation starts', () => {

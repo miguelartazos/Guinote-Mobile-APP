@@ -19,8 +19,7 @@ export function JugarHomeScreen({
   navigation,
 }: JugarStackScreenProps<'JugarHome'>) {
   const glowAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const { statistics, isLoading } = useGameStatistics();
+  const { statistics } = useGameStatistics();
 
   useEffect(() => {
     // Glow animation for main CTA
@@ -39,11 +38,6 @@ export function JugarHomeScreen({
       ]),
     ).start();
   }, [glowAnim]);
-
-  const glowInterpolation = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['rgba(255, 193, 7, 0.3)', 'rgba(255, 193, 7, 0.8)'],
-  });
 
   return (
     <ScreenContainer>
@@ -65,112 +59,72 @@ export function JugarHomeScreen({
           </View>
         </View>
 
-        {/* Featured CTA - Partida Rápida */}
-        <Animated.View
-          style={[
-            styles.featuredCTA,
-            {
-              shadowColor: glowInterpolation,
-              shadowOpacity: 0.8,
-              shadowRadius: 20,
-              elevation: 10,
-            },
-          ]}
-        >
+        {/* Primary Game Modes */}
+        <View style={styles.primaryModes}>
+          {/* Partida Rápida */}
           <TouchableOpacity
+            style={styles.primaryModeCard}
             onPress={() => navigation.navigate('QuickMatch')}
-            onPressIn={() => {
-              Animated.spring(scaleAnim, {
-                toValue: 0.95,
-                useNativeDriver: true,
-              }).start();
-            }}
-            onPressOut={() => {
-              Animated.spring(scaleAnim, {
-                toValue: 1,
-                useNativeDriver: true,
-              }).start();
-            }}
-            activeOpacity={1}
-          >
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-              <View
-                style={[styles.featuredButton, { backgroundColor: '#FFA500' }]}
-              >
-                <View style={styles.featuredContent}>
-                  <Text style={styles.featuredIcon}>⚡</Text>
-                  <Text style={styles.featuredTitle}>PARTIDA RÁPIDA</Text>
-                  <Text style={styles.featuredSubtitle}>
-                    Encuentra rivales al instante
-                  </Text>
-                  <View style={styles.playNowButton}>
-                    <Text style={styles.playNowText}>JUGAR AHORA</Text>
-                  </View>
-                </View>
-              </View>
-            </Animated.View>
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Secondary Modes Grid */}
-        <View style={styles.modesGrid}>
-          {/* Paso y Juego */}
-          <TouchableOpacity
-            style={styles.modeCard}
-            onPress={() => navigation.navigate('LocalMultiplayer')}
             activeOpacity={0.8}
           >
-            <View
-              style={[styles.modeCardGradient, { backgroundColor: '#2E8B57' }]}
-            >
-              <Text style={styles.modeIcon}>🤝</Text>
-              <Text style={styles.modeTitle}>Paso y Juego</Text>
-              <Text style={styles.modeSubtitle}>Con amigos</Text>
+            <View style={[styles.primaryModeContent, styles.quickMatchColor]}>
+              <Text style={styles.primaryModeIcon}>🎯</Text>
+              <Text style={styles.primaryModeTitle}>PARTIDA RÁPIDA</Text>
+              <Text style={styles.primaryModeSubtitle}>
+                Juega con otros jugadores
+              </Text>
             </View>
           </TouchableOpacity>
 
-          {/* Contra IA */}
+          {/* Jugar con Amigos */}
           <TouchableOpacity
-            style={styles.modeCard}
+            style={styles.primaryModeCard}
+            onPress={() => navigation.navigate('FriendsLobby')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.primaryModeContent, styles.friendsColor]}>
+              <Text style={styles.primaryModeIcon}>👥</Text>
+              <Text style={styles.primaryModeTitle}>JUGAR CON AMIGOS</Text>
+              <Text style={styles.primaryModeSubtitle}>
+                Crea una sala o únete con código
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Contra la Máquina */}
+          <TouchableOpacity
+            style={styles.primaryModeCard}
             onPress={() => navigation.navigate('OfflineMode')}
             activeOpacity={0.8}
           >
-            <View
-              style={[styles.modeCardGradient, { backgroundColor: '#4169E1' }]}
-            >
-              <Text style={styles.modeIcon}>🤖</Text>
-              <Text style={styles.modeTitle}>Contra IA</Text>
-              <Text style={styles.modeSubtitle}>Sin internet</Text>
+            <View style={[styles.primaryModeContent, styles.aiColor]}>
+              <Text style={styles.primaryModeIcon}>🤖</Text>
+              <Text style={styles.primaryModeTitle}>CONTRA LA MÁQUINA</Text>
+              <Text style={styles.primaryModeSubtitle}>
+                Practica en solitario
+              </Text>
             </View>
           </TouchableOpacity>
+        </View>
 
-          {/* Online Mundial */}
+        {/* Secondary Options */}
+        <View style={styles.secondaryOptions}>
           <TouchableOpacity
-            style={[styles.modeCard, styles.disabledCard]}
-            activeOpacity={0.5}
+            style={styles.secondaryButton}
+            onPress={() => navigation.navigate('LocalMultiplayer')}
+            activeOpacity={0.8}
           >
-            <View
-              style={[styles.modeCardGradient, { backgroundColor: '#9370DB' }]}
-            >
-              <Text style={styles.modeIcon}>🌍</Text>
-              <Text style={styles.modeTitle}>Online Mundial</Text>
-              <Text style={styles.modeSubtitle}>Próximamente</Text>
-            </View>
+            <Text style={styles.secondaryButtonIcon}>📱</Text>
+            <Text style={styles.secondaryButtonText}>Pasar y Jugar</Text>
           </TouchableOpacity>
 
-          {/* Tutorial */}
           <TouchableOpacity
-            style={styles.modeCard}
+            style={styles.secondaryButton}
             onPress={() => navigation.navigate('TutorialSetup')}
             activeOpacity={0.8}
           >
-            <View
-              style={[styles.modeCardGradient, { backgroundColor: '#FF6347' }]}
-            >
-              <Text style={styles.modeIcon}>🎓</Text>
-              <Text style={styles.modeTitle}>Tutorial</Text>
-              <Text style={styles.modeSubtitle}>Aprende</Text>
-            </View>
+            <Text style={styles.secondaryButtonIcon}>🎓</Text>
+            <Text style={styles.secondaryButtonText}>Tutorial</Text>
           </TouchableOpacity>
         </View>
 
@@ -268,91 +222,76 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: typography.fontWeight.medium,
   },
-  featuredCTA: {
-    marginHorizontal: dimensions.spacing.lg,
-    marginBottom: dimensions.spacing.xxl,
+  primaryModes: {
+    paddingHorizontal: dimensions.spacing.lg,
+    marginBottom: dimensions.spacing.xl,
   },
-  featuredButton: {
-    borderRadius: dimensions.borderRadius.xl,
-    overflow: 'hidden',
-  },
-  featuredContent: {
-    padding: dimensions.spacing.xxl,
-    alignItems: 'center',
-  },
-  featuredIcon: {
-    fontSize: 60,
+  primaryModeCard: {
     marginBottom: dimensions.spacing.md,
-  },
-  featuredTitle: {
-    fontSize: 28,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
-    marginBottom: dimensions.spacing.sm,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  featuredSubtitle: {
-    fontSize: typography.fontSize.lg,
-    color: colors.white,
-    marginBottom: dimensions.spacing.lg,
-    opacity: 0.9,
-  },
-  playNowButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    paddingHorizontal: dimensions.spacing.xxl,
-    paddingVertical: dimensions.spacing.md,
     borderRadius: dimensions.borderRadius.lg,
-    borderWidth: 2,
-    borderColor: colors.white,
+    overflow: 'hidden',
+    elevation: 6,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
-  playNowText: {
-    color: colors.white,
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-  },
-  modesGrid: {
+  primaryModeContent: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: dimensions.spacing.lg,
+  },
+  primaryModeIcon: {
+    fontSize: 36,
+    marginRight: dimensions.spacing.md,
+  },
+  primaryModeTitle: {
+    flex: 1,
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+    marginBottom: 4,
+  },
+  primaryModeSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: 'rgba(255, 255, 255, 0.9)',
+    position: 'absolute',
+    bottom: dimensions.spacing.lg,
+    left: dimensions.spacing.lg + 36 + dimensions.spacing.md,
+  },
+  quickMatchColor: {
+    backgroundColor: '#FFA500',
+  },
+  friendsColor: {
+    backgroundColor: '#4169E1',
+  },
+  aiColor: {
+    backgroundColor: '#2E8B57',
+  },
+  secondaryOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     paddingHorizontal: dimensions.spacing.lg,
     marginBottom: dimensions.spacing.xxl,
   },
-  modeCard: {
-    width: '48%',
-    marginBottom: dimensions.spacing.lg,
-    borderRadius: dimensions.borderRadius.lg,
-    overflow: 'hidden',
-    elevation: 4,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  modeCardGradient: {
-    padding: dimensions.spacing.lg,
+  secondaryButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 120,
+    backgroundColor: colors.surface,
+    paddingHorizontal: dimensions.spacing.lg,
+    paddingVertical: dimensions.spacing.md,
+    borderRadius: dimensions.borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  modeIcon: {
-    fontSize: 32,
-    marginBottom: dimensions.spacing.sm,
+  secondaryButtonIcon: {
+    fontSize: 20,
+    marginRight: dimensions.spacing.sm,
   },
-  modeTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
-    textAlign: 'center',
-  },
-  modeSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-  },
-  disabledCard: {
-    opacity: 0.6,
+  secondaryButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text,
   },
   statsSection: {
     paddingHorizontal: dimensions.spacing.lg,

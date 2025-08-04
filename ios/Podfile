@@ -11,6 +11,9 @@ end
 node_require('react-native/scripts/react_native_pods.rb')
 node_require('react-native-permissions/scripts/setup.rb')
 
+# Expo modules autolinking
+require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
+
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
@@ -26,6 +29,7 @@ if linkage != nil
 end
 
 target 'guinote2' do
+  use_expo_modules!
   config = use_native_modules!
 
   use_react_native!(

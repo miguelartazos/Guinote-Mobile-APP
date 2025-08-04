@@ -6,6 +6,7 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { dimensions } from '../../constants/dimensions';
 import { CARD_DEAL_DURATION, SMOOTH_EASING } from '../../constants/animations';
+import { getCardDimensions } from '../../utils/responsive';
 
 const CARDS_PER_ROUND = 3;
 const TRUMP_REVEAL_DURATION = 800;
@@ -17,7 +18,6 @@ type CardDealingAnimationProps = {
   playDealSound: () => void;
   playTrumpRevealSound: () => void;
   playShuffleSound: () => void;
-  playerPositions: Array<{ x: number; y: number }>;
   firstPlayerIndex: number;
 };
 
@@ -28,7 +28,6 @@ export function CardDealingAnimation({
   playDealSound,
   playTrumpRevealSound,
   playShuffleSound,
-  playerPositions,
   firstPlayerIndex,
 }: CardDealingAnimationProps) {
   const [dealingPhase, setDealingPhase] = useState<
@@ -161,6 +160,8 @@ export function CardDealingAnimation({
   };
 
   const dealCardsRound = async (round: number) => {
+    const cardDimensions = getCardDimensions();
+
     for (let playerOffset = 0; playerOffset < 4; playerOffset++) {
       const playerIndex = (3 + playerOffset) % 4; // Start from player to right of dealer
 
@@ -169,40 +170,58 @@ export function CardDealingAnimation({
       for (let cardNum = 0; cardNum < CARDS_PER_ROUND; cardNum++) {
         // Calculate card index based on player and round
         const cardIndexForPlayer = playerIndex * 6 + round * 3 + cardNum;
-        const targetPos = playerPositions[playerIndex];
-        // Calculate offset to position cards correctly (0-5 cards)
         const totalCardIndex = round * 3 + cardNum;
-        const offsetX = (totalCardIndex - 2.5) * 30; // Center the 6 cards
 
-        // Calculate end position
-        const endX = targetPos.x + offsetX;
-        const endY = targetPos.y;
+        // First move to dealing line position
+        const lineX = centerX - 100 + cardIndexForPlayer * 15;
+        const lineY = centerY;
+
+        // Get final position based on player and card layout
+        const { endX, endY, rotation } = getCardFinalPosition(
+          playerIndex,
+          totalCardIndex,
+          6, // total cards
+          cardDimensions,
+        );
 
         animations.push(
-          Animated.parallel([
-            Animated.timing(
-              cardAnimations.current[cardIndexForPlayer].opacity,
-              {
-                toValue: 1,
-                duration: 100,
-                useNativeDriver: true,
-              },
-            ),
-            Animated.timing(
-              cardAnimations.current[cardIndexForPlayer].position,
-              {
-                toValue: { x: endX, y: endY },
-                duration: CARD_DEAL_DURATION,
-                easing: SMOOTH_EASING,
-                useNativeDriver: true,
-              },
-            ),
-            Animated.sequence([
+          Animated.sequence([
+            // First animate to line position
+            Animated.parallel([
+              Animated.timing(
+                cardAnimations.current[cardIndexForPlayer].opacity,
+                {
+                  toValue: 1,
+                  duration: 100,
+                  useNativeDriver: true,
+                },
+              ),
+              Animated.timing(
+                cardAnimations.current[cardIndexForPlayer].position,
+                {
+                  toValue: { x: lineX, y: lineY },
+                  duration: CARD_DEAL_DURATION / 2,
+                  easing: SMOOTH_EASING,
+                  useNativeDriver: true,
+                },
+              ),
               Animated.timing(
                 cardAnimations.current[cardIndexForPlayer].scale,
                 {
                   toValue: 1.1,
                   duration: CARD_DEAL_DURATION / 2,
+                  useNativeDriver: true,
+                },
+              ),
+            ]),
+            // Then animate to final position
+            Animated.parallel([
+              Animated.timing(
+                cardAnimations.current[cardIndexForPlayer].position,
+                {
+                  toValue: { x: endX, y: endY },
+                  duration: CARD_DEAL_DURATION / 2,
+                  easing: SMOOTH_EASING,
                   useNativeDriver: true,
                 },
               ),
@@ -214,15 +233,15 @@ export function CardDealingAnimation({
                   useNativeDriver: true,
                 },
               ),
+              Animated.timing(
+                cardAnimations.current[cardIndexForPlayer].rotation,
+                {
+                  toValue: rotation,
+                  duration: CARD_DEAL_DURATION / 2,
+                  useNativeDriver: true,
+                },
+              ),
             ]),
-            Animated.timing(
-              cardAnimations.current[cardIndexForPlayer].rotation,
-              {
-                toValue: (Math.random() - 0.5) * 0.1,
-                duration: CARD_DEAL_DURATION,
-                useNativeDriver: true,
-              },
-            ),
           ]),
         );
       }
@@ -422,6 +441,85 @@ export function CardDealingAnimation({
       )}
     </View>
   );
+}
+
+// Helper function to calculate final card positions with proper layouts
+function getCardFinalPosition(
+  playerIndex: number,
+  cardIndex: number,
+  totalCards: number,
+  cardDimensions: ReturnType<typeof getCardDimensions>,
+) {
+  const screenDimensions = Dimensions.get('window');
+  const centerX = screenDimensions.width / 2;
+  const centerY = screenDimensions.height / 2;
+
+  switch (playerIndex) {
+    case 0: {
+      // Bottom player - simple horizontal layout
+      const overlap = 0.45; // 45% overlap matching GameTable
+      const cardWidth = cardDimensions.hand.width;
+      const visibleWidth = cardWidth * (1 - overlap);
+      const totalWidth = cardWidth + (totalCards - 1) * visibleWidth;
+
+      // Center the hand horizontally
+      const startX = (screenDimensions.width - totalWidth) / 2;
+      const cardX = startX + cardIndex * visibleWidth;
+
+      return {
+        endX: cardX + cardWidth / 2, // Center of card position
+        endY: screenDimensions.height - 60,
+        rotation: 0, // No rotation for horizontal layout
+      };
+    }
+
+    case 1: {
+      // Left player - vertical stack
+      const leftX = 40;
+      const leftCenterY = centerY;
+      const verticalSpacing = 35;
+      const leftStartY = leftCenterY - ((totalCards - 1) * verticalSpacing) / 2;
+
+      return {
+        endX: leftX,
+        endY: leftStartY + cardIndex * verticalSpacing,
+        rotation: 0.25, // 90 degrees
+      };
+    }
+
+    case 2: {
+      // Top player - horizontal with overlap
+      const overlap = 0.6;
+      const cardWidth = cardDimensions.small.width;
+      const visibleWidth = cardWidth * (1 - overlap);
+      const totalWidth = cardWidth + (totalCards - 1) * visibleWidth;
+      const topStartX = centerX - totalWidth / 2;
+
+      return {
+        endX: topStartX + cardIndex * visibleWidth,
+        endY: 25,
+        rotation: 0,
+      };
+    }
+
+    case 3: {
+      // Right player - vertical stack
+      const rightX = screenDimensions.width - 40;
+      const rightCenterY = centerY;
+      const verticalSpacing = 35;
+      const rightStartY =
+        rightCenterY - ((totalCards - 1) * verticalSpacing) / 2;
+
+      return {
+        endX: rightX,
+        endY: rightStartY + cardIndex * verticalSpacing,
+        rotation: -0.25, // -90 degrees
+      };
+    }
+
+    default:
+      return { endX: centerX, endY: centerY, rotation: 0 };
+  }
 }
 
 const styles = StyleSheet.create({

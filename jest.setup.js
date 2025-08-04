@@ -106,98 +106,57 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   multiRemove: jest.fn(),
 }));
 
+// Mock react-native-url-polyfill completely to prevent auto.js from running
+jest.mock('react-native-url-polyfill/auto', () => {});
+
+// Mock react-native-contacts
+jest.mock('react-native-contacts', () => ({
+  getAll: jest.fn().mockResolvedValue([]),
+  requestPermission: jest.fn().mockResolvedValue('authorized'),
+  checkPermission: jest.fn().mockResolvedValue('authorized'),
+}));
+
+// Mock js-sha256
+jest.mock('js-sha256', () => ({
+  sha256: jest.fn((input) => `hash_${input}`),
+}));
+
+// Mock react-native-permissions
+jest.mock('react-native-permissions', () => ({
+  PERMISSIONS: {
+    IOS: { CONTACTS: 'ios.permission.CONTACTS' },
+    ANDROID: { READ_CONTACTS: 'android.permission.READ_CONTACTS' },
+  },
+  RESULTS: {
+    GRANTED: 'granted',
+    DENIED: 'denied',
+    BLOCKED: 'blocked',
+    UNAVAILABLE: 'unavailable',
+  },
+  request: jest.fn().mockResolvedValue('granted'),
+  check: jest.fn().mockResolvedValue('granted'),
+}));
+
+// Note: Additional module mocks will be added here as needed
+// Currently we only mock the modules that are actually imported in our test files
+
 // Setup animation mocks
 global.requestAnimationFrame = callback => {
   setTimeout(callback, 0);
 };
 
-// Mock Animated timing to resolve immediately in tests
-jest.mock('react-native', () => {
-  const actualReactNative = jest.requireActual('react-native');
-  const Animated = actualReactNative.Animated;
-
-  return {
-    ...actualReactNative,
-    Animated: {
-      ...Animated,
-      timing: (value, config) => {
-        return {
-          start: callback => {
-            value.setValue(config.toValue);
-            callback && callback({ finished: true });
-          },
-          stop: jest.fn(),
-        };
-      },
-      spring: (value, config) => {
-        return {
-          start: callback => {
-            value.setValue(config.toValue);
-            callback && callback({ finished: true });
-          },
-          stop: jest.fn(),
-        };
-      },
-      sequence: animations => {
-        return {
-          start: callback => {
-            animations.forEach(anim => {
-              if (anim.start) {
-                anim.start();
-              }
-            });
-            callback && callback({ finished: true });
-          },
-          stop: jest.fn(),
-        };
-      },
-      parallel: animations => {
-        return {
-          start: callback => {
-            animations.forEach(anim => {
-              if (anim.start) {
-                anim.start();
-              }
-            });
-            callback && callback({ finished: true });
-          },
-          stop: jest.fn(),
-        };
-      },
-      stagger: (delay, animations) => {
-        return {
-          start: callback => {
-            animations.forEach(anim => {
-              if (anim.start) {
-                anim.start();
-              }
-            });
-            callback && callback({ finished: true });
-          },
-          stop: jest.fn(),
-        };
-      },
-      loop: animation => {
-        return {
-          start: callback => {
-            if (animation.start) {
-              animation.start();
-            }
-            callback && callback({ finished: true });
-          },
-          stop: jest.fn(),
-        };
-      },
-      delay: time => {
-        return {
-          start: callback => {
-            setTimeout(() => {
-              callback && callback({ finished: true });
-            }, 0);
-          },
-          stop: jest.fn(),
-        };
-      },
-    },
-  };
-});
+// Simple React Native mock for service tests
+jest.mock('react-native', () => ({
+  Platform: {
+    OS: 'ios',
+    select: (obj) => obj.ios || obj.default,
+  },
+  Dimensions: {
+    get: () => ({ width: 375, height: 667 }),
+  },
+  PermissionsAndroid: {
+    request: jest.fn().mockResolvedValue('granted'),
+    PERMISSIONS: { READ_CONTACTS: 'android.permission.READ_CONTACTS' },
+    RESULTS: { GRANTED: 'granted' },
+  },
+}));

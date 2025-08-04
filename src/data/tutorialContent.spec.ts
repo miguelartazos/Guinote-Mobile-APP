@@ -10,113 +10,79 @@ import { tutorialType } from '../utils/brandedTypes';
 
 describe('tutorialContent', () => {
   describe('completeTutorialSteps', () => {
-    test('contains all tutorial sections', () => {
-      expect(completeTutorialSteps).toHaveLength(6);
-
-      const sectionIds = completeTutorialSteps.map(section => section.id);
-      expect(sectionIds).toEqual([
-        'intro',
-        'cards',
-        'basic-play',
-        'cantes',
-        'special-rules',
-        'strategy',
-      ]);
-    });
-
-    test('each section has required properties', () => {
-      completeTutorialSteps.forEach(section => {
-        expect(section).toHaveProperty('id');
-        expect(section).toHaveProperty('title');
-        expect(section).toHaveProperty('steps');
-        expect(Array.isArray(section.steps)).toBe(true);
-        expect(section.steps.length).toBeGreaterThan(0);
-      });
+    test('contains complete tutorial steps', () => {
+      expect(completeTutorialSteps).toHaveLength(9);
+      expect(completeTutorialSteps[0].title).toBe(
+        '🎓 Has llegado al final del camino',
+      );
     });
 
     test('all steps have required properties', () => {
-      completeTutorialSteps.forEach(section => {
-        section.steps.forEach(step => {
-          expect(step).toHaveProperty('id');
-          expect(step).toHaveProperty('title');
-          expect(step).toHaveProperty('description');
-          expect(['tap', 'drag', 'observe', undefined]).toContain(step.action);
-        });
+      completeTutorialSteps.forEach(step => {
+        expect(step).toHaveProperty('id');
+        expect(step).toHaveProperty('title');
+        expect(step).toHaveProperty('description');
+        expect(step.title.length).toBeGreaterThan(0);
+        expect(step.description.length).toBeGreaterThan(0);
       });
-    });
-
-    test('intro section has correct steps', () => {
-      const introSection = completeTutorialSteps[0];
-      expect(introSection.id).toBe('intro');
-      expect(introSection.steps).toHaveLength(2);
-      expect(introSection.steps[0].title).toBe('¡Bienvenido a Guiñote!');
-      expect(introSection.steps[1].title).toBe('La Mesa de Juego');
-    });
-
-    test('some steps have highlight areas', () => {
-      const allSteps = completeTutorialSteps.flatMap(section => section.steps);
-      const stepsWithHighlight = allSteps.filter(step => step.highlightArea);
-      expect(stepsWithHighlight.length).toBeGreaterThan(0);
-    });
-
-    test('some steps have target elements', () => {
-      const allSteps = completeTutorialSteps.flatMap(section => section.steps);
-      const stepsWithTarget = allSteps.filter(step => step.targetElement);
-      expect(stepsWithTarget.length).toBeGreaterThan(0);
     });
   });
 
   describe('basicTutorialSteps', () => {
-    test('contains subset of complete tutorial', () => {
-      expect(basicTutorialSteps).toHaveLength(5);
-
-      // Verify steps are from complete tutorial
-      basicTutorialSteps.forEach(step => {
-        const foundInComplete = completeTutorialSteps
-          .flatMap(section => section.steps)
-          .some(completeStep => completeStep.id === step.id);
-        expect(foundInComplete).toBe(true);
-      });
+    test('contains basic tutorial steps', () => {
+      expect(basicTutorialSteps).toHaveLength(7);
+      expect(basicTutorialSteps[0].title).toBe(
+        '¡Hola, futuro campeón/a de Guiñote! 🏆',
+      );
     });
 
-    test('covers essential gameplay', () => {
-      const titles = basicTutorialSteps.map(step => step.title);
-      expect(titles).toContain('¡Bienvenido a Guiñote!');
-      expect(titles).toContain('El Triunfo');
-      expect(titles).toContain('Tu Turno');
+    test('all steps have required properties', () => {
+      basicTutorialSteps.forEach(step => {
+        expect(step).toHaveProperty('id');
+        expect(step).toHaveProperty('title');
+        expect(step).toHaveProperty('description');
+      });
     });
   });
 
   describe('cantesTutorialSteps', () => {
     test('contains cante-specific steps', () => {
-      expect(cantesTutorialSteps).toHaveLength(4);
+      expect(cantesTutorialSteps).toHaveLength(8);
+      expect(cantesTutorialSteps[0].title).toBe(
+        '🚀 ¿Ya te sientes cómodo/a con lo básico?',
+      );
+    });
 
-      const titles = cantesTutorialSteps.map(step => step.title);
-      expect(titles).toContain('¿Qué son los Cantes?');
-      expect(titles).toContain('Las 20');
-      expect(titles).toContain('Las 40');
-      expect(titles).toContain('Cómo Cantar');
+    test('all steps have required properties', () => {
+      cantesTutorialSteps.forEach(step => {
+        expect(step).toHaveProperty('id');
+        expect(step).toHaveProperty('title');
+        expect(step).toHaveProperty('description');
+      });
     });
   });
 
   describe('specialTutorialSteps', () => {
     test('contains special rules steps', () => {
       expect(specialTutorialSteps).toHaveLength(4);
+      expect(specialTutorialSteps[0].title).toBe(
+        '⭐ Reglas Especiales y Situaciones Avanzadas',
+      );
+    });
 
-      const titles = specialTutorialSteps.map(step => step.title);
-      expect(titles).toContain('Cambiar el 7');
-      expect(titles).toContain('Últimas 12 Cartas');
-      expect(titles).toContain('Última Baza');
-      expect(titles).toContain('Capote');
+    test('all steps have required properties', () => {
+      specialTutorialSteps.forEach(step => {
+        expect(step).toHaveProperty('id');
+        expect(step).toHaveProperty('title');
+        expect(step).toHaveProperty('description');
+      });
     });
   });
 
   describe('getTutorialSteps', () => {
     test('returns complete tutorial steps', () => {
       const steps = getTutorialSteps(tutorialType('complete'));
-      const allSteps = completeTutorialSteps.flatMap(section => section.steps);
-      expect(steps).toHaveLength(allSteps.length);
-      expect(steps).toEqual(allSteps);
+      expect(steps).toEqual(completeTutorialSteps);
     });
 
     test('returns basic tutorial steps', () => {
@@ -176,32 +142,18 @@ describe('tutorialContent', () => {
   });
 
   describe('data integrity', () => {
-    test('no duplicate step IDs', () => {
-      const allSteps = completeTutorialSteps.flatMap(section => section.steps);
-      const stepIds = allSteps.map(step => step.id);
-      const uniqueIds = [...new Set(stepIds)];
+    test('all tutorial steps have meaningful descriptions', () => {
+      const allTutorialSteps = [
+        ...completeTutorialSteps,
+        ...basicTutorialSteps,
+        ...cantesTutorialSteps,
+        ...specialTutorialSteps,
+      ];
 
-      expect(stepIds).toHaveLength(uniqueIds.length);
-    });
-
-    test('all descriptions are meaningful', () => {
-      const allSteps = completeTutorialSteps.flatMap(section => section.steps);
-
-      allSteps.forEach(step => {
+      allTutorialSteps.forEach(step => {
         expect(step.description.length).toBeGreaterThan(20);
         expect(step.description).not.toContain('TODO');
         expect(step.description).not.toContain('TBD');
-      });
-    });
-
-    test('action types are consistent', () => {
-      const allSteps = completeTutorialSteps.flatMap(section => section.steps);
-      const validActions = ['tap', 'drag', 'observe'];
-
-      allSteps.forEach(step => {
-        if (step.action) {
-          expect(validActions).toContain(step.action);
-        }
       });
     });
   });

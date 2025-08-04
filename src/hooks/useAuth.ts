@@ -1,288 +1,153 @@
-import { useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import networkService from '../services/networkService';
+import { useEffect, useState } from 'react';
+import { useAuth as useClerkAuth, useUser } from '@clerk/clerk-expo';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import { APP_CONFIG } from '../config/appConfig';
 
-interface Player {
-  id: string;
-  username: string;
-  email?: string;
-  avatar: string;
-  stats: {
-    elo: number;
-    gamesPlayed: number;
-    wins: number;
-    losses: number;
-    winStreak: number;
-    bestWinStreak: number;
-  };
-  isGuest?: boolean;
-}
+export interface AuthState {
+  // User data
+  user: any | null; // Convex user
+  clerkUser: any | null; // Clerk user
 
-interface AuthState {
-  isAuthenticated: boolean;
+  // Loading states
   isLoading: boolean;
-  player: Player | null;
+  isLoaded: boolean;
+
+  // Auth states
+  isAuthenticated: boolean;
+  isSignedIn: boolean;
+
+  // Actions
+  signIn: () => void;
+  signUp: () => void;
+  signOut: () => Promise<void>;
+
+  // Error handling
   error: string | null;
+  clearError: () => void;
 }
 
-export function useAuth() {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    isLoading: true,
-    player: null,
-    error: null,
-  });
+/**
+ * Unified authentication hook that combines Clerk and Convex auth
+ * This is the single source of truth for authentication in the app
+ */
+export function useAuth(): AuthState {
+  const [error, setError] = useState<string | null>(null);
 
-  // Check for existing session on mount
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
+  // Clerk hooks
+  const clerkAuth = useClerkAuth();
+  const { user: clerkUser } = useUser();
 
-  const checkAuthStatus = async () => {
-    try {
-      // TEMPORARY: Mock authentication for testing
-      const mockPlayer: Player = {
-        id: 'test-player-123',
-        username: 'TestPlayer',
-        email: 'test@example.com',
-        avatar: '🎮',
-        stats: {
-          elo: 1000,
-          gamesPlayed: 0,
-          wins: 0,
-          losses: 0,
-          winStreak: 0,
-          bestWinStreak: 0,
-        },
-        isGuest: false,
-      };
-
-      // Set mock auth token
-      await AsyncStorage.setItem('authToken', 'mock-token-123');
-      await AsyncStorage.setItem('player', JSON.stringify(mockPlayer));
-
-      setAuthState({
-        isAuthenticated: true,
-        isLoading: false,
-        player: mockPlayer,
-        error: null,
-      });
-
-      // Initialize network service with mock token
-      networkService.authToken = 'mock-token-123';
-
-      console.log('🔧 Using mock authentication for testing');
-      return;
-
-      // ORIGINAL CODE (commented out for testing):
-      /*
-      const [token, playerData] = await Promise.all([
-        AsyncStorage.getItem('authToken'),
-        AsyncStorage.getItem('player'),
-      ]);
-
-      if (token && playerData) {
-        const player = JSON.parse(playerData);
-        setAuthState({
-          isAuthenticated: true,
-          isLoading: false,
-          player,
-          error: null,
-        });
-
-        // Initialize network service
-        await networkService.initialize();
-      } else {
-        setAuthState({
-          isAuthenticated: false,
-          isLoading: false,
-          player: null,
-          error: null,
-        });
-      }
-      */
-    } catch (error) {
-      console.error('Auth check error:', error);
-      setAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        player: null,
-        error: 'Error al verificar sesión',
-      });
-    }
-  };
-
-  const login = useCallback(async (username: string, password: string) => {
-    try {
-      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
-
-      const data = await networkService.login(username, password);
-
-      setAuthState({
-        isAuthenticated: true,
-        isLoading: false,
-        player: data.player,
-        error: null,
-      });
-
-      return data;
-    } catch (error: any) {
-      const errorMessage = error.message || 'Error al iniciar sesión';
-      setAuthState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-      }));
-      throw error;
-    }
-  }, []);
-
-  const register = useCallback(
-    async (
-      username: string,
-      email: string,
-      password: string,
-      avatar?: string,
-    ) => {
-      try {
-        setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
-
-        const data = await networkService.register(
-          username,
-          email,
-          password,
-          avatar,
-        );
-
-        setAuthState({
-          isAuthenticated: true,
-          isLoading: false,
-          player: data.player,
-          error: null,
-        });
-
-        return data;
-      } catch (error: any) {
-        const errorMessage = error.message || 'Error al registrarse';
-        setAuthState(prev => ({
-          ...prev,
-          isLoading: false,
-          error: errorMessage,
-        }));
-        throw error;
-      }
-    },
-    [],
+  // Convex hooks
+  const syncUser = useMutation(api.auth.syncUser);
+  const convexUser = useQuery(
+    api.auth.getUserByClerkId,
+    clerkUser?.id ? { clerkId: clerkUser.id } : 'skip',
   );
 
-  const loginAsGuest = useCallback(async () => {
-    try {
-      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
-
-      // Create a local guest player without server connection
-      const guestPlayer: Player = {
-        id: `guest-${Date.now()}`,
-        username: 'Invitado',
-        email: undefined,
-        avatar: '🎮',
-        stats: {
-          elo: 1000,
-          gamesPlayed: 0,
-          wins: 0,
-          losses: 0,
-          winStreak: 0,
-          bestWinStreak: 0,
-        },
-        isGuest: true,
-      };
-
-      // Save guest data locally
-      await AsyncStorage.setItem('authToken', `guest-token-${Date.now()}`);
-      await AsyncStorage.setItem('player', JSON.stringify(guestPlayer));
-
-      setAuthState({
-        isAuthenticated: true,
-        isLoading: false,
-        player: guestPlayer,
-        error: null,
-      });
-
-      console.log('🎮 Guest login successful (offline mode)');
-      return { player: guestPlayer };
-    } catch (error: any) {
-      const errorMessage = error.message || 'Error al entrar como invitado';
-      setAuthState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-      }));
-      throw error;
-    }
-  }, []);
-
-  const logout = useCallback(async () => {
-    try {
-      setAuthState(prev => ({ ...prev, isLoading: true }));
-
-      await networkService.logout();
-
-      setAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        player: null,
-        error: null,
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Even if logout fails on server, clear local state
-      setAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        player: null,
-        error: null,
-      });
-    }
-  }, []);
-
-  const updateProfile = useCallback(async (updates: Partial<Player>) => {
-    try {
-      const response = await fetch('/api/players/profile', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${await AsyncStorage.getItem('authToken')}`,
-        },
-        body: JSON.stringify(updates),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update profile');
+  // Sync Clerk user to Convex when authenticated
+  useEffect(() => {
+    if (
+      clerkAuth.isLoaded &&
+      clerkAuth.isSignedIn &&
+      clerkUser &&
+      !convexUser
+    ) {
+      if (APP_CONFIG.SHOW_AUTH_LOGS) {
+        console.log('[useAuth] Syncing user to Convex...');
       }
 
-      const updatedPlayer = await response.json();
-
-      setAuthState(prev => ({
-        ...prev,
-        player: updatedPlayer,
-      }));
-
-      // Update stored player data
-      await AsyncStorage.setItem('player', JSON.stringify(updatedPlayer));
-
-      return updatedPlayer;
-    } catch (error) {
-      console.error('Update profile error:', error);
-      throw error;
+      syncUser({
+        clerkId: clerkUser.id,
+        username: clerkUser.username || clerkUser.firstName || 'Player',
+        displayName: clerkUser.fullName || undefined,
+        avatar: clerkUser.imageUrl || undefined,
+      }).catch(err => {
+        console.error('[useAuth] Failed to sync user:', err);
+        setError('Failed to sync user data');
+      });
     }
-  }, []);
+  }, [
+    clerkAuth.isLoaded,
+    clerkAuth.isSignedIn,
+    clerkUser,
+    convexUser,
+    syncUser,
+  ]);
+
+  // Sign out function
+  const signOut = async () => {
+    try {
+      setError(null);
+      await clerkAuth.signOut();
+    } catch (err) {
+      console.error('[useAuth] Sign out error:', err);
+      setError('Failed to sign out');
+      throw err;
+    }
+  };
+
+  // Navigation to auth screens
+  const signIn = () => {
+    // This will be handled by navigation
+    // For now, just log
+    console.log('[useAuth] Sign in requested');
+  };
+
+  const signUp = () => {
+    // This will be handled by navigation
+    // For now, just log
+    console.log('[useAuth] Sign up requested');
+  };
+
+  const clearError = () => setError(null);
+
+  // Determine auth state
+  const isAuthenticated = !!(clerkAuth.isSignedIn && convexUser);
+  const isLoading =
+    !clerkAuth.isLoaded || (clerkAuth.isSignedIn && !convexUser);
+
+  // Log auth state in development
+  if (APP_CONFIG.SHOW_AUTH_LOGS) {
+    useEffect(() => {
+      console.log('[useAuth] Auth state:', {
+        isLoaded: clerkAuth.isLoaded,
+        isSignedIn: clerkAuth.isSignedIn,
+        hasClerkUser: !!clerkUser,
+        hasConvexUser: !!convexUser,
+        isAuthenticated,
+        isLoading,
+      });
+    }, [
+      clerkAuth.isLoaded,
+      clerkAuth.isSignedIn,
+      clerkUser,
+      convexUser,
+      isAuthenticated,
+      isLoading,
+    ]);
+  }
 
   return {
-    ...authState,
-    login,
-    register,
-    loginAsGuest,
-    logout,
-    updateProfile,
-    checkAuthStatus,
+    // User data
+    user: convexUser,
+    clerkUser,
+
+    // Loading states
+    isLoading,
+    isLoaded: clerkAuth.isLoaded,
+
+    // Auth states
+    isAuthenticated,
+    isSignedIn: clerkAuth.isSignedIn,
+
+    // Actions
+    signIn,
+    signUp,
+    signOut,
+
+    // Error handling
+    error,
+    clearError,
   };
 }

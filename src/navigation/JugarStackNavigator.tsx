@@ -2,14 +2,19 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { JugarHomeScreen } from '../screens/JugarHomeScreen';
 import { QuickMatchScreen } from '../screens/QuickMatchScreen';
+import { FriendsLobbyScreen } from '../screens/FriendsLobbyScreen';
+import { GameRoomScreen } from '../screens/GameRoomScreen';
 import { CreateRoomScreen } from '../screens/CreateRoomScreen';
 import { OfflineModeScreen } from '../screens/OfflineModeScreen';
 import { LocalMultiplayerScreen } from '../screens/LocalMultiplayerScreen';
 import { TutorialSetupScreen } from '../screens/TutorialSetupScreen';
+import { TutorialViewerScreen } from '../screens/TutorialViewerScreen';
 import { GameScreen } from '../screens/GameScreen';
 import { RoomScreen } from '../screens/RoomScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
+import { OnlineLobbyScreen } from '../screens/OnlineLobbyScreen';
+import { NetworkGameScreen } from '../screens/NetworkGameScreen';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
 import type { JugarStackParamList } from '../types/navigation';
@@ -44,6 +49,16 @@ export function JugarStackNavigator() {
         options={{ title: 'Partida Rápida' }}
       />
       <Stack.Screen
+        name="FriendsLobby"
+        component={FriendsLobbyScreen}
+        options={{ title: 'Jugar con Amigos' }}
+      />
+      <Stack.Screen
+        name="GameRoom"
+        component={GameRoomScreen}
+        options={{ title: 'Sala de Juego' }}
+      />
+      <Stack.Screen
         name="CreateRoom"
         component={CreateRoomScreen}
         options={{ title: 'Crear Sala' }}
@@ -61,6 +76,11 @@ export function JugarStackNavigator() {
       <Stack.Screen
         name="TutorialSetup"
         component={TutorialSetupScreen}
+        options={{ title: 'Tutorial' }}
+      />
+      <Stack.Screen
+        name="TutorialViewer"
+        component={TutorialViewerScreen}
         options={{ title: 'Tutorial' }}
       />
       <Stack.Screen
@@ -85,6 +105,19 @@ export function JugarStackNavigator() {
         name="Register"
         component={RegisterScreen}
         options={{ title: 'Crear Cuenta' }}
+      />
+      <Stack.Screen
+        name="OnlineLobby"
+        component={OnlineLobbyScreen}
+        options={{ title: 'Lobby Online' }}
+      />
+      <Stack.Screen
+        name="NetworkGame"
+        component={NetworkGameScreen}
+        options={{
+          title: 'Partida Online',
+          headerShown: false,
+        }}
       />
     </Stack.Navigator>
   );

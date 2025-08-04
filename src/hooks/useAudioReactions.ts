@@ -115,9 +115,17 @@ export function useAudioReactions(gameState: GameState | null) {
     if (newCantes.length > oldCantes.length) {
       // Find the new cante by comparing arrays
       const latestCante = newCantes[newCantes.length - 1];
+      // Find which team made the cante
+      const canteTeamIndex = newState.teams.findIndex(
+        team => team.cantes.includes(latestCante)
+      );
+      const canteTeam = newState.teams[canteTeamIndex];
+      // Use first player from the team that made the cante
+      const playerId = canteTeam.playerIds[0];
+      
       eventQueueRef.current.push({
         type: 'cante',
-        playerId: latestCante.playerId,
+        playerId,
         data: { points: latestCante.points },
       });
     }
@@ -151,11 +159,13 @@ export function useAudioReactions(gameState: GameState | null) {
 
     // Check for game end
     if (oldState.phase !== 'finished' && newState.phase === 'finished') {
-      const winner =
-        newState.scores.team1 > newState.scores.team2 ? 'player0' : 'player2';
+      const team1Score = newState.teams[0].score;
+      const team2Score = newState.teams[1].score;
+      const winningTeam = team1Score > team2Score ? 0 : 1;
+      const winner = newState.teams[winningTeam].playerIds[0];
       eventQueueRef.current.push({
         type: 'game_won',
-        playerId: winner as PlayerId,
+        playerId: winner,
       });
     }
 

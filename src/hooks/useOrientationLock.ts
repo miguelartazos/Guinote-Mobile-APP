@@ -43,14 +43,6 @@ export function useOrientationLock(lock: OrientationLock | null) {
       console.warn('Failed to set orientation lock:', error);
     }
 
-    return () => {
-      try {
-        if (Orientation) {
-          Orientation.unlockAllOrientations();
-        }
-      } catch (error) {
-        console.warn('Failed to unlock orientation:', error);
-      }
-    };
+    // NO CLEANUP - orientations stay locked to prevent render bugs
   }, [lock]);
 }

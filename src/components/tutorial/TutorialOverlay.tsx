@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Modal,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
@@ -19,14 +18,6 @@ export type TutorialStep = {
   id: TutorialStepId;
   title: string;
   description: string;
-  highlightArea?: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-  action?: 'tap' | 'drag' | 'observe';
-  targetElement?: string;
 };
 
 type TutorialOverlayProps = {
@@ -52,7 +43,6 @@ export function TutorialOverlay({
 }: TutorialOverlayProps) {
   const fadeAnim = useState(new Animated.Value(0))[0];
   const scaleAnim = useState(new Animated.Value(0.9))[0];
-  const pulseAnim = useState(new Animated.Value(1))[0];
 
   useEffect(() => {
     if (visible) {
@@ -70,64 +60,15 @@ export function TutorialOverlay({
           useNativeDriver: true,
         }),
       ]).start();
-
-      // Pulse animation for highlight area
-      if (currentStep.highlightArea) {
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(pulseAnim, {
-              toValue: 1.2,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(pulseAnim, {
-              toValue: 1,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-          ]),
-        ).start();
-      }
     } else {
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.9);
-      pulseAnim.setValue(1);
     }
-  }, [visible, currentStep, fadeAnim, scaleAnim, pulseAnim]);
+  }, [visible, fadeAnim, scaleAnim]);
 
   if (!visible) return null;
 
   const isLastStep = currentStepIndex === totalSteps - 1;
-  const screenDimensions = Dimensions.get('window');
-
-  // Calculate tooltip position based on highlight area
-  const getTooltipPosition = () => {
-    if (!currentStep.highlightArea) {
-      return {
-        top: screenDimensions.height * 0.3,
-        left: dimensions.spacing.lg,
-        right: dimensions.spacing.lg,
-      };
-    }
-
-    const { y, height } = currentStep.highlightArea;
-    const tooltipHeight = 200; // Approximate height
-
-    // Position tooltip above or below highlight area
-    if (y + height + tooltipHeight < screenDimensions.height * 0.8) {
-      return {
-        top: y + height + dimensions.spacing.lg,
-        left: dimensions.spacing.lg,
-        right: dimensions.spacing.lg,
-      };
-    } else {
-      return {
-        bottom: screenDimensions.height - y + dimensions.spacing.lg,
-        left: dimensions.spacing.lg,
-        right: dimensions.spacing.lg,
-      };
-    }
-  };
 
   return (
     <Modal
@@ -137,7 +78,7 @@ export function TutorialOverlay({
       statusBarTranslucent
     >
       <View style={styles.container}>
-        {/* Dark overlay with cutout for highlighted area */}
+        {/* Dark overlay */}
         <Animated.View
           style={[
             StyleSheet.absoluteFillObject,
@@ -147,29 +88,10 @@ export function TutorialOverlay({
           pointerEvents="none"
         />
 
-        {/* Highlight area */}
-        {currentStep.highlightArea && (
-          <Animated.View
-            style={[
-              styles.highlightArea,
-              {
-                left: currentStep.highlightArea.x - 10,
-                top: currentStep.highlightArea.y - 10,
-                width: currentStep.highlightArea.width + 20,
-                height: currentStep.highlightArea.height + 20,
-                transform: [{ scale: pulseAnim }],
-                opacity: fadeAnim,
-              },
-            ]}
-            pointerEvents="none"
-          />
-        )}
-
-        {/* Tutorial tooltip */}
+        {/* Tutorial content centered */}
         <Animated.View
           style={[
             styles.tooltip,
-            getTooltipPosition(),
             {
               opacity: fadeAnim,
               transform: [{ scale: scaleAnim }],
@@ -188,21 +110,6 @@ export function TutorialOverlay({
           <Text style={styles.title}>{currentStep.title}</Text>
           <Text style={styles.description}>{currentStep.description}</Text>
 
-          {currentStep.action && (
-            <View style={styles.actionHint}>
-              <Text style={styles.actionIcon}>
-                {currentStep.action === 'tap' && '👆'}
-                {currentStep.action === 'drag' && '👋'}
-                {currentStep.action === 'observe' && '👀'}
-              </Text>
-              <Text style={styles.actionText}>
-                {currentStep.action === 'tap' && 'Toca para continuar'}
-                {currentStep.action === 'drag' && 'Arrastra la carta'}
-                {currentStep.action === 'observe' && 'Observa'}
-              </Text>
-            </View>
-          )}
-
           <View style={styles.navigationButtons}>
             {currentStepIndex > 0 && (
               <AnimatedButton
@@ -210,7 +117,6 @@ export function TutorialOverlay({
                   haptics.light();
                   onPrevious();
                 }}
-                variant="secondary"
                 style={styles.navButton}
               >
                 <Text style={styles.navButtonText}>Anterior</Text>
@@ -255,19 +161,14 @@ export function TutorialOverlay({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: dimensions.spacing.lg,
   },
   overlay: {
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
-  highlightArea: {
-    position: 'absolute',
-    borderWidth: 3,
-    borderColor: colors.accent,
-    borderRadius: dimensions.borderRadius.lg,
-    backgroundColor: 'transparent',
-  },
   tooltip: {
-    position: 'absolute',
     backgroundColor: colors.surface,
     borderRadius: dimensions.borderRadius.xl,
     padding: dimensions.spacing.xl,
@@ -278,6 +179,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
+    maxWidth: '90%',
+    width: '100%',
   },
   tooltipHeader: {
     flexDirection: 'row',
@@ -309,24 +212,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: typography.lineHeight.normal * typography.fontSize.lg,
     marginBottom: dimensions.spacing.lg,
-  },
-  actionHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(212, 165, 116, 0.1)',
-    paddingVertical: dimensions.spacing.sm,
-    paddingHorizontal: dimensions.spacing.md,
-    borderRadius: dimensions.borderRadius.md,
-    marginBottom: dimensions.spacing.lg,
-  },
-  actionIcon: {
-    fontSize: 24,
-    marginRight: dimensions.spacing.sm,
-  },
-  actionText: {
-    fontSize: typography.fontSize.md,
-    color: colors.accent,
-    fontWeight: typography.fontWeight.medium,
   },
   navigationButtons: {
     flexDirection: 'row',

@@ -4,7 +4,6 @@ import { SpanishCard } from './SpanishCard';
 import type { SpanishCardData } from './SpanishCard';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
-import { dimensions } from '../../constants/dimensions';
 
 type DeckPileProps = {
   cardsRemaining: number;
@@ -46,7 +45,8 @@ export function DeckPile({
               )}
             </>
           )}
-          <View style={styles.cardCount}>
+          {/* Card count badge overlay */}
+          <View style={styles.cardCountBadge}>
             <Text style={styles.cardCountText}>{cardsRemaining}</Text>
           </View>
         </View>
@@ -85,20 +85,28 @@ const styles = StyleSheet.create({
   stackedCard2: {
     transform: [{ translateX: 4 }, { translateY: 4 }],
   },
-  cardCount: {
+  cardCountBadge: {
     position: 'absolute',
-    bottom: -25,
-    left: 0,
-    right: 0,
+    top: -8,
+    right: -8,
+    backgroundColor: colors.error,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.white,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
   },
   cardCountText: {
-    color: colors.text,
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: dimensions.spacing.sm,
-    paddingVertical: dimensions.spacing.xs,
-    borderRadius: dimensions.borderRadius.sm,
+    color: colors.white,
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    textAlign: 'center',
   },
 });

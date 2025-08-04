@@ -20,7 +20,7 @@ export function useAudioAccessibility(gameState: GameState | null) {
       if (!settings?.accessibilityAudioCues) return;
 
       AccessibilityInfo.announceForAccessibility(
-        `${getCardName(card.value)} de ${getSuitName(card.suit)}`,
+        `${getCardName(card.value.toString())} de ${getSuitName(card.suit)}`,
       );
     },
     [settings?.accessibilityAudioCues],
@@ -81,13 +81,14 @@ export function useAudioAccessibility(gameState: GameState | null) {
     }
 
     // Announce trump suit at game start
-    if (gameState.phase === 'playing' && gameState.trump) {
-      announceGameState(`Triunfo: ${getSuitName(gameState.trump)}`);
+    if (gameState.phase === 'playing' && gameState.trumpSuit) {
+      announceGameState(`Triunfo: ${getSuitName(gameState.trumpSuit)}`);
     }
 
-    // Announce cantes
-    if (gameState.cantes.length > 0) {
-      const lastCante = gameState.cantes[gameState.cantes.length - 1];
+    // Announce cantes from teams
+    const allCantes = [...gameState.teams[0].cantes, ...gameState.teams[1].cantes];
+    if (allCantes.length > 0) {
+      const lastCante = allCantes[allCantes.length - 1];
       announceGameState(`Cante de ${lastCante.points} puntos`);
       playAccessibilityCue('cante');
     }

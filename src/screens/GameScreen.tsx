@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
   StatusBar,
   Text,
   TouchableOpacity,
-  Dimensions,
   Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,13 +12,17 @@ import { GameTable } from '../components/game/GameTable';
 import { CardDealingAnimation } from '../components/game/CardDealingAnimation';
 import { GameEndCelebration } from '../components/game/GameEndCelebration';
 import { PassDeviceOverlay } from '../components/game/PassDeviceOverlay';
-import { GameActionButtons } from '../components/game/GameActionButtons';
+import { CompactActionBar } from '../components/game/CompactActionBar';
 import { GameModals } from '../components/game/GameModals';
 import { AnimatedButton } from '../components/ui/AnimatedButton';
+import { ScreenContainer } from '../components/ScreenContainer';
+import { ConnectionStatus } from '../components/game/ConnectionStatus';
+import { VoiceMessaging } from '../components/game/VoiceMessaging';
 import { haptics } from '../utils/haptics';
 import type { JugarStackScreenProps } from '../types/navigation';
 import { useGameState } from '../hooks/useGameState';
-import { useAuth } from '../hooks/useAuth';
+import { useNetworkGameState } from '../hooks/useNetworkGameState';
+import { useConvexAuth } from '../hooks/useConvexAuth';
 import { canCantar, shouldStartVueltas } from '../utils/gameLogic';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
@@ -27,11 +30,10 @@ import { dimensions } from '../constants/dimensions';
 import { useSounds } from '../hooks/useSounds';
 import { useGameSettings } from '../hooks/useGameSettings';
 import { useGameStatistics } from '../hooks/useGameStatistics';
-import { useOrientation } from '../hooks/useOrientation';
+import { useConvexStatistics } from '../hooks/useConvexStatistics';
 import { useAudioReactions } from '../hooks/useAudioReactions';
 import { useBackgroundMusic } from '../hooks/useBackgroundMusic';
 import { useAudioAccessibility } from '../hooks/useAudioAccessibility';
-import Orientation from 'react-native-orientation-locker';
 
 const RENUNCIO_REASONS = [
   {
@@ -60,12 +62,13 @@ export function GameScreen({
   navigation,
   route,
 }: JugarStackScreenProps<'Game'>) {
-  const { playerName, difficulty, gameMode, playerNames, roomId } =
+  const { playerName, difficulty, gameMode, playerNames, roomId, roomCode } =
     route.params;
-  const orientation = useOrientation();
   const isLocalMultiplayer = gameMode === 'local';
-  const isOnline = gameMode === 'online';
-  const { player } = useAuth();
+  const isOnline = gameMode === 'friends' || gameMode === 'online';
+
+  // Get user for online games
+  const { user: convexUser } = useConvexAuth();
 
   // Use local game state for offline modes
   const localGameState = useGameState({
@@ -75,13 +78,25 @@ export function GameScreen({
     playerNames: playerNames,
   });
 
-  // For now, always use local game state since online mode isn't ready
-  // When online mode is ready, we'll need to refactor this to avoid conditional hooks
+  // Use network game state for online modes
+  const networkGameState = useNetworkGameState({
+    gameMode: isOnline ? 'online' : 'offline',
+    roomId: roomId,
+    userId: convexUser?._id,
+    playerName: playerName || convexUser?.username || 'Player',
+    difficulty: difficulty as any,
+    playerNames: playerNames,
+  });
+
+  // Select the appropriate game state based on mode
+  const gameStateHook = isOnline ? networkGameState : localGameState;
+
   const {
     gameState,
     playCard,
     cantar,
     cambiar7,
+    reorderPlayerHand,
     continueFromScoring,
     declareVictory,
     declareRenuncio,
@@ -91,7 +106,10 @@ export function GameScreen({
     isDealingComplete,
     completeDealingAnimation,
     completeTrickAnimation,
-  } = localGameState;
+    isConnected,
+    isLoading,
+    networkError,
+  } = gameStateHook as any;
 
   const [showLastTrick, setShowLastTrick] = useState(false);
   const [showDeclareVictory, setShowDeclareVictory] = useState(false);
@@ -100,6 +118,20 @@ export function GameScreen({
   const [showGameEndCelebration, setShowGameEndCelebration] = useState(false);
   const [showPassDevice, setShowPassDevice] = useState(false);
   const [lastPlayerIndex, setLastPlayerIndex] = useState<number | null>(null);
+  const [gameStartTime] = useState(Date.now());
+
+  // Handle network errors
+  React.useEffect(() => {
+    if (isOnline && networkError) {
+      Alert.alert('Connection Error', networkError, [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
+    }
+  }, [isOnline, networkError, navigation]);
+
   const {
     playCardSound,
     playTurnSound,
@@ -111,59 +143,10 @@ export function GameScreen({
   } = useSounds();
   const { settings } = useGameSettings();
   const { recordGame } = useGameStatistics();
+  const { recordGameResult } = useConvexStatistics(convexUser?._id);
   useAudioReactions(gameState);
   const { startMusic, stopMusic } = useBackgroundMusic();
   const { announceCard } = useAudioAccessibility(gameState);
-
-  // Force orientation to landscape for gameplay
-  useEffect(() => {
-    const lockToLandscape = async () => {
-      try {
-        // Get current orientation first
-        Orientation.getOrientation((orientation: string) => {
-          console.log('Current orientation:', orientation);
-
-          // If we're in portrait, force rotation by locking to specific landscape first
-          if (
-            orientation === 'PORTRAIT' ||
-            orientation === 'PORTRAIT-UPSIDEDOWN'
-          ) {
-            // Lock to specific landscape orientation to trigger rotation
-            Orientation.lockToLandscapeLeft();
-            console.log('Forcing rotation to landscape-left');
-
-            // After a brief moment, allow both landscape orientations
-            setTimeout(() => {
-              Orientation.lockToLandscape();
-              console.log('Now allowing both landscape orientations');
-            }, 300);
-          } else {
-            // Already in landscape, just lock it
-            Orientation.lockToLandscape();
-            console.log('Already in landscape, locking orientation');
-          }
-        });
-      } catch (error) {
-        console.warn('Failed to lock orientation:', error);
-        // Fallback to simple lock
-        Orientation.lockToLandscape();
-      }
-    };
-
-    // Delay to ensure native view is ready
-    const timer = setTimeout(lockToLandscape, 200);
-
-    return () => {
-      clearTimeout(timer);
-      // Unlock when leaving the screen
-      try {
-        Orientation.unlockAllOrientations();
-        console.log('Orientation unlocked');
-      } catch (error) {
-        console.warn('Failed to unlock orientation:', error);
-      }
-    };
-  }, []);
 
   // Hide tab bar when this screen is focused
   useFocusEffect(
@@ -202,6 +185,16 @@ export function GameScreen({
       stopMusic,
     ]),
   );
+
+  // Show loading state for online games
+  if (isOnline && isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <Text style={styles.loadingText}>Connecting to game...</Text>
+        {roomCode && <Text style={styles.roomCode}>Room Code: {roomCode}</Text>}
+      </View>
+    );
+  }
 
   // Play turn sound when it's player's turn + Handle pass device for local multiplayer
   React.useEffect(() => {
@@ -257,8 +250,9 @@ export function GameScreen({
       }
       setShowGameEndCelebration(true);
 
-      // Record statistics for offline games
+      // Record statistics
       if (!isOnline) {
+        // Offline games - local stats
         const playerScore = playerTeam?.score || 0;
         const partnerPlayer = gameState.players.find(
           p => p.teamId === playerTeam?.id && p.id !== gameState.players[0].id,
@@ -269,8 +263,17 @@ export function GameScreen({
           partnerPlayer?.name || 'IA',
           difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
         );
+      } else if (convexUser?._id && gameState.matchScore) {
+        // Online games - Convex stats
+        recordGameResult(
+          gameState,
+          convexUser._id,
+          gameMode as 'ranked' | 'casual' | 'friends',
+          gameStartTime,
+        ).catch(error => {
+          console.error('Failed to record game stats:', error);
+        });
       }
-      // Online games statistics are updated on the server
     }
   }, [
     gameState?.phase,
@@ -278,15 +281,19 @@ export function GameScreen({
     playVictorySound,
     playDefeatSound,
     recordGame,
+    recordGameResult,
     difficulty,
     isOnline,
+    convexUser,
+    gameMode,
+    gameStartTime,
   ]);
 
   if (!gameState) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
+      <ScreenContainer orientation="landscape" style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Preparando mesa...</Text>
-      </View>
+      </ScreenContainer>
     );
   }
 
@@ -488,7 +495,7 @@ export function GameScreen({
     const shouldPlayVueltas = shouldStartVueltas(gameState);
 
     return (
-      <View style={[styles.container, styles.scoringContainer]}>
+      <ScreenContainer orientation="landscape" style={styles.scoringContainer}>
         <StatusBar hidden />
         <Text style={styles.scoringTitle}>FIN DE LA MANO</Text>
 
@@ -544,7 +551,7 @@ export function GameScreen({
             {shouldPlayVueltas ? 'JUGAR VUELTAS' : 'CONTINUAR'}
           </Text>
         </AnimatedButton>
-      </View>
+      </ScreenContainer>
     );
   }
 
@@ -570,7 +577,7 @@ export function GameScreen({
     }
 
     return (
-      <View style={[styles.container, styles.gameOverContainer]}>
+      <ScreenContainer orientation="landscape" style={styles.gameOverContainer}>
         <StatusBar hidden />
         <Text
           style={[
@@ -621,48 +628,24 @@ export function GameScreen({
             <Text style={styles.exitButtonText}>SALIR</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
-  // Calculate player positions for dealing animation based on orientation
-  const screenDimensions = Dimensions.get('window');
-  const landscape = orientation === 'landscape';
-
-  const playerPositions = landscape
-    ? [
-        // Landscape positions
-        {
-          x: screenDimensions.width / 2 - 100,
-          y: screenDimensions.height - 150,
-        }, // Bottom (player)
-        { x: 100, y: screenDimensions.height / 2 - 50 }, // Left
-        { x: screenDimensions.width / 2 - 100, y: 30 }, // Top
-        {
-          x: screenDimensions.width - 200,
-          y: screenDimensions.height / 2 - 50,
-        }, // Right
-      ]
-    : [
-        // Portrait positions
-        {
-          x: screenDimensions.width / 2 - 100,
-          y: screenDimensions.height - 200,
-        }, // Bottom (player)
-        { x: 50, y: screenDimensions.height / 2 - 50 }, // Left
-        { x: screenDimensions.width / 2 - 100, y: 50 }, // Top
-        {
-          x: screenDimensions.width - 150,
-          y: screenDimensions.height / 2 - 50,
-        }, // Right
-      ];
-
   return (
-    <View style={[styles.container, landscape && styles.landscapeContainer]}>
+    <ScreenContainer orientation="landscape" style={styles.gameContainer}>
       <StatusBar hidden />
 
       {/* Connection status for online games */}
       {isOnline && <ConnectionStatus />}
+
+      {/* Voice messaging for online games */}
+      {isOnline && (
+        <VoiceMessaging
+          roomId={roomId}
+          gameMode={gameMode as 'online' | 'friends' | 'offline'}
+        />
+      )}
 
       {/* Card dealing animation */}
       {gameState?.phase === 'dealing' && (
@@ -673,7 +656,6 @@ export function GameScreen({
           playDealSound={playDealSound}
           playTrumpRevealSound={playTrumpRevealSound}
           playShuffleSound={playShuffleSound}
-          playerPositions={playerPositions}
           firstPlayerIndex={gameState.currentPlayerIndex}
         />
       )}
@@ -697,9 +679,9 @@ export function GameScreen({
           card: { suit: tc.card.suit, value: tc.card.value },
         }))}
         onCardPlay={handleCardPlay}
-        onCantar={handleCantar}
-        onCambiar7={handleCambiar7}
-        onSalir={handleSalir}
+        onCardReorder={reorderPlayerHand}
+        onExitGame={handleSalir}
+        onRenuncio={() => setShowRenuncio(true)}
         thinkingPlayerId={thinkingPlayer}
         tableColor={settings?.tableColor || 'green'}
         isDealing={gameState?.phase === 'dealing'}
@@ -707,6 +689,7 @@ export function GameScreen({
         validCardIndices={getValidCardIndices()}
         isVueltas={gameState.isVueltas}
         canDeclareVictory={gameState.canDeclareVictory}
+        collectedTricks={gameState.collectedTricks}
         trickAnimating={gameState.trickAnimating}
         pendingTrickWinner={
           gameState.pendingTrickWinner
@@ -723,32 +706,11 @@ export function GameScreen({
         onCompleteTrickAnimation={completeTrickAnimation}
       />
 
-      {/* Game info - only show deck count */}
-      {isDealingComplete && gameState?.deck && gameState.deck.length > 0 && (
-        <View style={styles.gameInfoContainer}>
-          <Text style={styles.deckCountText}>
-            Mazo: {gameState.deck.length}
-          </Text>
-        </View>
-      )}
-
-      {/* Score display - only show during Vueltas */}
-      {gameState?.isVueltas && (
-        <View style={styles.scoreContainer}>
-          <Text style={styles.vueltasText}>VUELTAS</Text>
-          <Text style={styles.scoreText}>
-            Nosotros: {gameState.teams[0].score}
-            {gameState.teams[0].cardPoints < 30 &&
-              gameState.teams[0].score >= 101 && (
-                <Text style={styles.warningText}> (Falta 30 malas)</Text>
-              )}
-          </Text>
-          <Text style={styles.scoreText}>
-            Ellos: {gameState.teams[1].score}
-            {gameState.teams[1].cardPoints < 30 &&
-              gameState.teams[1].score >= 101 && (
-                <Text style={styles.warningText}> (Falta 30 malas)</Text>
-              )}
+      {/* Small corner score display during gameplay */}
+      {gameState?.teams && gameState.phase === 'playing' && (
+        <View style={styles.cornerScore}>
+          <Text style={styles.cornerScoreText}>
+            {gameState.teams[0].score} - {gameState.teams[1].score}
           </Text>
         </View>
       )}
@@ -788,15 +750,12 @@ export function GameScreen({
         </View>
       )}
 
-      {/* Game action buttons */}
+      {/* Compact action bar */}
       {gameState && isDealingComplete && (
-        <GameActionButtons
+        <CompactActionBar
           gameState={gameState}
           onCantar={handleCantar}
           onCambiar7={handleCambiar7}
-          onShowLastTrick={() => setShowLastTrick(true)}
-          onDeclareVictory={() => setShowDeclareVictory(true)}
-          onRenuncio={() => setShowRenuncio(true)}
           disabled={!isPlayerTurn() || thinkingPlayer !== null}
         />
       )}
@@ -832,7 +791,7 @@ export function GameScreen({
           autoHideDelay={3000}
         />
       )}
-    </View>
+    </ScreenContainer>
   );
 }
 
@@ -840,8 +799,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  landscapeContainer: {
-    // Landscape-specific adjustments if needed
+  gameContainer: {
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -1060,46 +1020,28 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
   },
-  gameInfoContainer: {
-    position: 'absolute',
-    top: 50,
-    left: 15,
-    zIndex: 10,
-    gap: 10,
-  },
-  phaseIndicator: {
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: dimensions.spacing.md,
-    paddingVertical: dimensions.spacing.sm,
-    borderRadius: dimensions.borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  phaseText: {
-    color: colors.accent,
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-  },
   vueltasText: {
-    color: colors.error,
+    color: colors.gold,
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
-    backgroundColor: 'rgba(207, 102, 121, 0.2)',
+    backgroundColor: 'rgba(212, 175, 55, 0.2)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  deckCountText: {
-    color: colors.text,
+  matchScoreContainer: {
+    marginBottom: dimensions.spacing.xs,
+  },
+  matchScoreText: {
+    color: colors.white,
     fontSize: typography.fontSize.sm,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: dimensions.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: dimensions.borderRadius.sm,
-    alignSelf: 'flex-start',
+    textAlign: 'center',
+    fontWeight: typography.fontWeight.semibold,
+  },
+  currentGameScore: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    paddingTop: dimensions.spacing.xs,
   },
   warningText: {
     color: colors.error,
@@ -1247,5 +1189,34 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.5,
+  },
+  cornerScore: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    zIndex: 100,
+  },
+  cornerScoreText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: typography.fontSize.xl,
+    color: colors.text,
+    marginBottom: 10,
+  },
+  roomCode: {
+    fontSize: typography.fontSize.lg,
+    color: colors.accent,
+    fontWeight: typography.fontWeight.bold,
   },
 });

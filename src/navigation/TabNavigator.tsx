@@ -5,7 +5,6 @@ import { JugarStackNavigator } from './JugarStackNavigator';
 import { AmigosScreen } from '../screens/AmigosScreen';
 import { RankingScreen } from '../screens/RankingScreen';
 import { TiendaScreen } from '../screens/TiendaScreen';
-import { ComunidadScreen } from '../screens/ComunidadScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
@@ -71,17 +70,6 @@ export function TabNavigator() {
           tabBarIcon: ({ focused }) => (
             <Text style={{ color: focused ? colors.accent : colors.text }}>
               🛍️
-            </Text>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Comunidad"
-        component={ComunidadScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>
-              📰
             </Text>
           ),
         }}

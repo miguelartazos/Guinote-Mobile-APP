@@ -1,25 +1,16 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, Dimensions } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
 import { DraggableCard } from './DraggableCard';
-import { PlayerPanel } from './PlayerPanel';
+import { MinimalPlayerPanel } from './MinimalPlayerPanel';
 import { DeckPile } from './DeckPile';
-import { VoiceButton } from './VoiceButton';
-import { VoiceBubble } from './VoiceBubble';
-import { VoiceQueueIndicator } from './VoiceQueueIndicator';
 import { TrickCollectionAnimation } from './TrickCollectionAnimation';
-import { TopLeftActions } from './TopLeftActions';
 import { CardCountBadge } from './CardCountBadge';
+import { CollapsibleGameMenu } from './CollapsibleGameMenu';
 import { colors, TABLE_COLORS } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
-import type { VoiceRecordingId } from '../../utils/voiceStorage';
-import { useVoiceQueue } from '../../hooks/useVoiceQueue';
-import {
-  scaleWidth,
-  getCardDimensions,
-  getCardOverlap,
-} from '../../utils/responsive';
+import { getCardDimensions } from '../../utils/responsive';
 import { useOrientation } from '../../hooks/useOrientation';
 
 type Player = {
@@ -35,10 +26,18 @@ type GameTableProps = {
   currentPlayerIndex: number;
   trumpCard?: SpanishCardData;
   currentTrick?: Array<{ playerId: string; card: SpanishCardData }>;
+  collectedTricks?: Map<
+    string,
+    Array<Array<{ playerId: string; card: SpanishCardData }>>
+  >;
   onCardPlay: (cardIndex: number) => void;
-  onCantar?: () => void;
-  onCambiar7?: () => void;
-  onSalir?: () => void;
+  onCardReorder?: (
+    playerId: string,
+    fromIndex: number,
+    toIndex: number,
+  ) => void;
+  onExitGame?: () => void;
+  onRenuncio?: () => void;
   thinkingPlayerId?: string | null;
   tableColor?: 'green' | 'blue' | 'red' | 'wood';
   isDealing?: boolean;
@@ -55,23 +54,16 @@ type GameTableProps = {
   onCompleteTrickAnimation?: () => void;
 };
 
-type VoiceMessage = {
-  recordingId: VoiceRecordingId;
-  playerId: string;
-  playerName: string;
-  playerAvatar: string;
-  position: 'top' | 'left' | 'right' | 'bottom';
-};
-
 export function GameTable({
   players,
   currentPlayerIndex,
   trumpCard,
   currentTrick = [],
+  collectedTricks = new Map(),
   onCardPlay,
-  onCantar: _onCantar,
-  onCambiar7: _onCambiar7,
-  onSalir: _onSalir,
+  onCardReorder,
+  onExitGame,
+  onRenuncio,
   thinkingPlayerId,
   tableColor = 'green',
   isDealing = false,
@@ -87,7 +79,6 @@ export function GameTable({
   const orientation = useOrientation();
   const landscape = orientation === 'landscape';
   const playAreaRef = useRef<View>(null);
-  const [voiceMessages, setVoiceMessages] = useState<VoiceMessage[]>([]);
   const [dropZoneBounds, setDropZoneBounds] = useState<{
     x: number;
     y: number;
@@ -103,45 +94,6 @@ export function GameTable({
     [rightPlayer.id]: 3, // right
   };
 
-  const {
-    queue,
-    isPaused,
-    addToQueue,
-    pauseQueue,
-    resumeQueue,
-    clearQueue,
-    skipCurrent,
-  } = useVoiceQueue();
-
-  const handleVoiceRecording = (recordingId: VoiceRecordingId) => {
-    // Add to queue instead of direct display
-    addToQueue({
-      recordingId,
-      playerId: 'player',
-      playerName: bottomPlayer.name,
-      playerAvatar: bottomPlayer.avatar,
-      position: 'bottom',
-      isCurrentPlayer: currentPlayerIndex === 0,
-      isTeammate: false, // In Guiñote, bottom and top are teammates
-    });
-
-    // Also add to display
-    const newMessage: VoiceMessage = {
-      recordingId,
-      playerId: 'player',
-      playerName: bottomPlayer.name,
-      playerAvatar: bottomPlayer.avatar,
-      position: 'bottom',
-    };
-    setVoiceMessages(prev => [...prev, newMessage]);
-  };
-
-  const handleVoiceExpire = (recordingId: VoiceRecordingId) => {
-    setVoiceMessages(prev =>
-      prev.filter(msg => msg.recordingId !== recordingId),
-    );
-  };
-
   return (
     <View
       style={[
@@ -151,119 +103,125 @@ export function GameTable({
       ]}
     >
       {/* Player Panels */}
-      <PlayerPanel
+      <MinimalPlayerPanel
         playerName={topPlayer.name}
-        ranking={topPlayer.ranking}
         position="top"
-        avatar={topPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 2}
         teamId="team1"
         isThinking={thinkingPlayerId === 'bot2'}
-        showRanking={isVueltas}
       />
-      <PlayerPanel
+      <MinimalPlayerPanel
         playerName={leftPlayer.name}
-        ranking={leftPlayer.ranking}
         position="left"
-        avatar={leftPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 1}
         teamId="team2"
         isThinking={thinkingPlayerId === 'bot1'}
-        showRanking={isVueltas}
       />
-      <PlayerPanel
+      <MinimalPlayerPanel
         playerName={rightPlayer.name}
-        ranking={rightPlayer.ranking}
         position="right"
-        avatar={rightPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 3}
         teamId="team2"
         isThinking={thinkingPlayerId === 'bot3'}
-        showRanking={isVueltas}
       />
-      <PlayerPanel
+      <MinimalPlayerPanel
         playerName={bottomPlayer.name}
-        ranking={bottomPlayer.ranking}
         position="bottom"
-        avatar={bottomPlayer.avatar}
         isCurrentPlayer={currentPlayerIndex === 0}
         teamId="team1"
         isThinking={thinkingPlayerId === 'player'}
-        showRanking={isVueltas}
       />
 
       {/* Top Player Cards (Teammate) with Icon */}
-      <View
-        style={[
-          styles.topPlayerCardsContainer,
-          landscape && styles.topPlayerCardsLandscape,
-        ]}
-      >
-        <View style={styles.topPlayerIcon}>
-          <Text style={styles.topPlayerIconText}>🤝</Text>
+      {!isDealing && (
+        <View
+          style={[
+            styles.topPlayerCardsContainer,
+            landscape && styles.topPlayerCardsLandscape,
+          ]}
+        >
+          <View style={styles.topPlayerCards}>
+            {topPlayer.cards.map((_, index) => {
+              const cardDimensions = getCardDimensions();
+              const overlap = 0.6;
+              const cardWidth = cardDimensions.small.width;
+              const visibleWidth = cardWidth * (1 - overlap);
+
+              return (
+                <SpanishCard
+                  key={`top-${index}`}
+                  faceDown
+                  size="small"
+                  style={[styles.topCard, { left: index * visibleWidth }]}
+                />
+              );
+            })}
+            <CardCountBadge count={topPlayer.cards.length} position="top" />
+          </View>
         </View>
-        <View style={styles.topPlayerCards}>
-          {topPlayer.cards.map((_, index) => (
-            <SpanishCard
-              key={`top-${index}`}
-              faceDown
-              size="small"
-              style={[styles.topCard, { left: index * 15 }]}
-            />
-          ))}
-          <CardCountBadge count={topPlayer.cards.length} position="top" />
-        </View>
-      </View>
+      )}
 
       {/* Left Player Cards */}
-      <View
-        style={[
-          styles.leftPlayerCards,
-          landscape && styles.leftPlayerCardsLandscape,
-        ]}
-      >
-        {leftPlayer.cards.map((_, index) => (
-          <SpanishCard
-            key={`left-${index}`}
-            faceDown
-            size="small"
-            style={[
-              styles.leftCard,
-              {
-                top: index * 15,
-                zIndex: 5 + index,
-                transform: [{ rotate: '90deg' }],
-              },
-            ]}
-          />
-        ))}
-        <CardCountBadge count={leftPlayer.cards.length} position="left" />
-      </View>
+      {!isDealing && (
+        <View
+          style={[
+            styles.leftPlayerCards,
+            landscape && styles.leftPlayerCardsLandscape,
+          ]}
+        >
+          {leftPlayer.cards.map((_, index) => {
+            const verticalSpacing = 35;
+
+            return (
+              <SpanishCard
+                key={`left-${index}`}
+                faceDown
+                size="small"
+                style={[
+                  styles.leftCard,
+                  {
+                    top: index * verticalSpacing,
+                    zIndex: 5 + index,
+                    transform: [{ rotate: '90deg' }],
+                  },
+                ]}
+              />
+            );
+          })}
+          <CardCountBadge count={leftPlayer.cards.length} position="left" />
+        </View>
+      )}
 
       {/* Right Player Cards */}
-      <View
-        style={[
-          styles.rightPlayerCards,
-          landscape && styles.rightPlayerCardsLandscape,
-        ]}
-      >
-        {rightPlayer.cards.map((_, index) => (
-          <SpanishCard
-            key={`right-${index}`}
-            faceDown
-            size="small"
-            style={[
-              styles.rightCard,
-              {
-                top: index * 15,
-                zIndex: 5 + index,
-                transform: [{ rotate: '-90deg' }],
-              },
-            ]}
-          />
-        ))}
-        <CardCountBadge count={rightPlayer.cards.length} position="right" />
-      </View>
+      {!isDealing && (
+        <View
+          style={[
+            styles.rightPlayerCards,
+            landscape && styles.rightPlayerCardsLandscape,
+          ]}
+        >
+          {rightPlayer.cards.map((_, index) => {
+            const verticalSpacing = 35;
+
+            return (
+              <SpanishCard
+                key={`right-${index}`}
+                faceDown
+                size="small"
+                style={[
+                  styles.rightCard,
+                  {
+                    top: index * verticalSpacing,
+                    zIndex: 5 + index,
+                    transform: [{ rotate: '-90deg' }],
+                  },
+                ]}
+              />
+            );
+          })}
+          <CardCountBadge count={rightPlayer.cards.length} position="right" />
+        </View>
+      )}
 
       {/* Central Game Area */}
       <View style={styles.centralArea}>
@@ -316,7 +274,7 @@ export function GameTable({
       )}
 
       {/* Deck and Trump Display */}
-      {deckCount > 0 && trumpCard && (
+      {deckCount > 0 && trumpCard && !isDealing && (
         <View style={styles.deckPileContainer}>
           <DeckPile
             cardsRemaining={deckCount}
@@ -336,93 +294,125 @@ export function GameTable({
         </View>
       )}
 
-      {/* Bottom Player Hand */}
-      {!isDealing && (
-        <View
-          style={[
-            styles.bottomPlayerHand,
-            landscape && styles.bottomPlayerHandLandscape,
-          ]}
-        >
-          {bottomPlayer.cards.map((card, index) => {
-            const isValidCard =
-              !validCardIndices || validCardIndices.includes(index);
-            const isPlayerTurn = currentPlayerIndex === 0;
-            const cardDimensions = getCardDimensions();
-            const overlap = getCardOverlap();
-            const cardOffset =
-              index * (cardDimensions.medium.width * (1 - overlap));
-
-            return (
-              <DraggableCard
-                key={`hand-${index}`}
-                card={card}
-                index={index}
-                onCardPlay={onCardPlay}
-                dropZoneBounds={dropZoneBounds || undefined}
-                isEnabled={
-                  !isDealing && !!dropZoneBounds && isPlayerTurn && isValidCard
-                }
-                cardSize="medium"
-                style={[
-                  styles.handCardContainer,
-                  { left: cardOffset, zIndex: 20 + index },
-                  styles.handCard,
-                  landscape && styles.handCardLandscape,
-                  !isValidCard && isPlayerTurn && styles.invalidCard,
-                ]}
-              />
-            );
-          })}
-          <CardCountBadge count={bottomPlayer.cards.length} position="bottom" />
+      {/* Trick Piles in Corners */}
+      {/* Bottom Player Trick Pile */}
+      {(collectedTricks.get(bottomPlayer.id)?.length || 0) > 0 && (
+        <View style={[styles.trickPile, styles.bottomTrickPile]}>
+          <SpanishCard faceDown size="small" />
+          <Text style={styles.trickPileCount}>
+            {collectedTricks.get(bottomPlayer.id)?.length || 0}
+          </Text>
         </View>
       )}
 
-      {/* Voice Messages */}
-      {voiceMessages.map(msg => (
-        <VoiceBubble
-          key={msg.recordingId}
-          recordingId={msg.recordingId}
-          playerName={msg.playerName}
-          playerAvatar={msg.playerAvatar}
-          position={msg.position}
-          onExpire={() => handleVoiceExpire(msg.recordingId)}
-        />
-      ))}
+      {/* Left Player Trick Pile */}
+      {(collectedTricks.get(leftPlayer.id)?.length || 0) > 0 && (
+        <View style={[styles.trickPile, styles.leftTrickPile]}>
+          <SpanishCard faceDown size="small" />
+          <Text style={styles.trickPileCount}>
+            {collectedTricks.get(leftPlayer.id)?.length || 0}
+          </Text>
+        </View>
+      )}
 
-      {/* Voice Queue Indicator */}
-      <VoiceQueueIndicator
-        queue={queue}
-        isPaused={isPaused}
-        onPauseToggle={() => (isPaused ? resumeQueue() : pauseQueue())}
-        onClear={clearQueue}
-        onSkip={skipCurrent}
-      />
+      {/* Top Player Trick Pile */}
+      {(collectedTricks.get(topPlayer.id)?.length || 0) > 0 && (
+        <View style={[styles.trickPile, styles.topTrickPile]}>
+          <SpanishCard faceDown size="small" />
+          <Text style={styles.trickPileCount}>
+            {collectedTricks.get(topPlayer.id)?.length || 0}
+          </Text>
+        </View>
+      )}
 
-      {/* Top Left Actions */}
-      <TopLeftActions
-        onMenuPress={() => {
-          // TODO: Implement menu functionality
-        }}
-        onEmojiPress={() => {
-          // TODO: Implement emoji functionality
-        }}
-        onRankingPress={() => {
-          // TODO: Implement ranking functionality
-        }}
-        onSettingsPress={() => {
-          // TODO: Implement settings functionality
-        }}
-      />
+      {/* Right Player Trick Pile */}
+      {(collectedTricks.get(rightPlayer.id)?.length || 0) > 0 && (
+        <View style={[styles.trickPile, styles.rightTrickPile]}>
+          <SpanishCard faceDown size="small" />
+          <Text style={styles.trickPileCount}>
+            {collectedTricks.get(rightPlayer.id)?.length || 0}
+          </Text>
+        </View>
+      )}
 
-      {/* Voice Button - Right Side */}
-      <View style={styles.rightSideActions}>
-        <VoiceButton
-          playerId="player"
-          onRecordingComplete={handleVoiceRecording}
-          disabled={currentPlayerIndex !== 0}
-        />
+      {/* Bottom Player Hand */}
+      <View
+        style={[
+          styles.bottomPlayerHand,
+          landscape && styles.bottomPlayerHandLandscape,
+        ]}
+      >
+        {bottomPlayer.cards.map((card, index) => {
+          const isValidCard =
+            !validCardIndices || validCardIndices.includes(index);
+          const isPlayerTurn = currentPlayerIndex === 0;
+          const cardDimensions = getCardDimensions();
+          const cardCount = bottomPlayer.cards.length;
+          const screenWidth = Dimensions.get('window').width;
+
+          // Simple horizontal layout with less overlap for better visibility
+          const overlap = 0.45; // 45% overlap
+          const cardWidth = cardDimensions.hand.width;
+          const visibleWidth = cardWidth * (1 - overlap);
+          const totalWidth = cardWidth + (cardCount - 1) * visibleWidth;
+
+          // Center the hand horizontally
+          const startX = (screenWidth - totalWidth) / 2;
+          const cardX = startX + index * visibleWidth;
+
+          return (
+            <DraggableCard
+              key={`hand-${index}`}
+              card={card}
+              index={index}
+              onCardPlay={onCardPlay}
+              onReorder={
+                onCardReorder
+                  ? (fromIndex, toIndex) =>
+                      onCardReorder(bottomPlayer.id, fromIndex, toIndex)
+                  : undefined
+              }
+              dropZoneBounds={dropZoneBounds || undefined}
+              isEnabled={
+                !isDealing && !!dropZoneBounds && isPlayerTurn && isValidCard
+              }
+              cardSize="medium"
+              totalCards={bottomPlayer.cards.length}
+              cardWidth={cardWidth}
+              style={[
+                styles.handCardContainer,
+                {
+                  left: cardX,
+                  bottom: -10,
+                  zIndex: 20 + index,
+                  opacity: isDealing ? 0 : 1,
+                },
+                styles.handCard,
+                landscape && styles.handCardLandscape,
+                !isValidCard && isPlayerTurn && styles.invalidCard,
+              ]}
+            />
+          );
+        })}
       </View>
+
+      {/* Collapsible Game Menu */}
+      <CollapsibleGameMenu
+        onExitGame={onExitGame || (() => {})}
+        onRenuncio={onRenuncio || (() => {})}
+        onSettings={() => {
+          // TODO: Implement settings
+        }}
+        onRankings={() => {
+          // TODO: Implement rankings
+        }}
+        onEmojis={() => {
+          // TODO: Implement emojis
+        }}
+        onHelp={() => {
+          // TODO: Implement help
+        }}
+      />
     </View>
   );
 }
@@ -454,27 +444,17 @@ const styles = StyleSheet.create({
   },
   topPlayerCardsContainer: {
     position: 'absolute',
-    top: 80,
-    left: 20,
+    top: -5,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 5,
   },
   topPlayerCardsLandscape: {
     top: 80,
     left: 20,
-  },
-  topPlayerIcon: {
-    width: 30,
-    height: 30,
-    backgroundColor: colors.accent,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  topPlayerIconText: {
-    fontSize: typography.fontSize.md,
   },
   topPlayerCards: {
     flexDirection: 'row',
@@ -485,8 +465,9 @@ const styles = StyleSheet.create({
   },
   leftPlayerCards: {
     position: 'absolute',
-    left: 20,
-    bottom: 200,
+    left: 10,
+    top: '50%',
+    transform: [{ translateY: -87.5 }],
     flexDirection: 'column',
     zIndex: 5,
   },
@@ -499,8 +480,9 @@ const styles = StyleSheet.create({
   },
   rightPlayerCards: {
     position: 'absolute',
-    right: 20,
-    top: 80,
+    right: 10,
+    top: '50%',
+    transform: [{ translateY: -87.5 }],
     flexDirection: 'column',
     zIndex: 5,
   },
@@ -513,9 +495,9 @@ const styles = StyleSheet.create({
   },
   deckPileContainer: {
     position: 'absolute',
-    top: '45%',
-    right: scaleWidth(50),
-    transform: [{ translateY: -70 }],
+    top: '50%',
+    left: '25%',
+    transform: [{ translateY: -70 }, { translateX: -70 }],
     zIndex: 15,
   },
   trumpCard: {
@@ -549,12 +531,12 @@ const styles = StyleSheet.create({
   },
   bottomPlayerHand: {
     position: 'absolute',
-    bottom: 100,
-    right: 20,
+    bottom: 80,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     zIndex: 20,
-    alignItems: 'flex-end',
-    justifyContent: 'flex-end',
+    height: 120, // Fixed height for card area
   },
   handCardContainer: {
     position: 'absolute',
@@ -566,28 +548,6 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 8,
     // Cards will lift on hover/drag via DraggableCard component
-  },
-  rightSideActions: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    zIndex: 30,
-  },
-  helpButton: {
-    backgroundColor: colors.accent,
-  },
-  buttonInner: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: dimensions.spacing.sm,
-    paddingHorizontal: dimensions.spacing.sm,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  helpButtonIcon: {
-    fontSize: typography.fontSize.xxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
   },
   trickCards: {
     position: 'relative',
@@ -602,8 +562,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tableGreen,
   },
   bottomPlayerHandLandscape: {
-    bottom: 100,
-    right: 20,
+    bottom: 60,
+    // Centered positioning maintained from base style
   },
   handCardLandscape: {
     // Cards in landscape have controlled overlap via getCardOverlap()
@@ -643,6 +603,42 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 12,
     marginTop: 4,
+  },
+  trickPile: {
+    position: 'absolute',
+    width: 70,
+    height: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomTrickPile: {
+    bottom: 20,
+    right: 20,
+  },
+  leftTrickPile: {
+    left: 20,
+    bottom: 20,
+  },
+  topTrickPile: {
+    top: 20,
+    left: 20,
+  },
+  rightTrickPile: {
+    right: 20,
+    top: 20,
+  },
+  trickPileCount: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    backgroundColor: colors.primary,
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: 'bold',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
 });
 

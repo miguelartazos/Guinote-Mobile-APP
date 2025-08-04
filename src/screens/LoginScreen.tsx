@@ -4,80 +4,110 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  SafeAreaView,
 } from 'react-native';
-import { ScreenContainer } from '../components/ScreenContainer';
-import { Button } from '../components/Button';
+import { useSignIn } from '@clerk/clerk-expo';
+import { useNavigation } from '@react-navigation/native';
 import { colors } from '../constants/colors';
-import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
-import { useAuth } from '../hooks/useAuth';
-import type { JugarStackScreenProps } from '../types/navigation';
+import { dimensions } from '../constants/dimensions';
+import { Button } from '../components/Button';
 
-export function LoginScreen({ navigation }: JugarStackScreenProps<'Login'>) {
-  const { login, loginAsGuest, error } = useAuth();
-  const [username, setUsername] = useState('');
+export function LoginScreen() {
+  const { signIn, setActive, isLoaded } = useSignIn();
+  const navigation = useNavigation();
+
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+  const handleSignIn = async () => {
+    if (!isLoaded) return;
+
+    if (!email || !password) {
+      Alert.alert('Error', 'Por favor ingresa tu email y contraseña');
       return;
     }
 
     setIsLoading(true);
+
     try {
-      await login(username, password);
-      navigation.navigate('JugarHome');
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Error al iniciar sesión');
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      });
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        // Navigation will be handled by auth state change
+      } else {
+        // Handle other statuses if needed
+        console.log('Sign in status:', result.status);
+      }
+    } catch (error: any) {
+      console.error('Sign in error:', error);
+      let errorMessage = 'Verifica tus credenciales e intenta de nuevo';
+
+      // Check for specific Clerk test mode errors
+      if (error.errors?.[0]?.message?.includes('clerk_test')) {
+        errorMessage =
+          'Para iniciar sesión en modo de prueba, usa un email con formato: tu_email+clerk_test@example.com';
+      } else if (error.errors?.[0]?.message?.includes('not found')) {
+        errorMessage =
+          'No se encontró una cuenta con ese email. ¿Quieres registrarte?';
+      } else if (error.errors?.[0]?.message) {
+        errorMessage = error.errors[0].message;
+      }
+
+      Alert.alert('Error al iniciar sesión', errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGuestLogin = async () => {
-    setIsLoading(true);
-    try {
-      await loginAsGuest();
-      navigation.navigate('JugarHome');
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Error al entrar como invitado');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSignUp = () => {
+    navigation.navigate('Register' as never);
+  };
+
+  const handleForgotPassword = () => {
+    Alert.alert(
+      'Recuperar Contraseña',
+      'Esta función estará disponible pronto',
+    );
   };
 
   return (
-    <ScreenContainer>
+    <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.header}>
-            <Text style={styles.logo}>♠♥♣♦</Text>
-            <Text style={styles.title}>GUIÑOTE</Text>
-            <Text style={styles.subtitle}>Inicia sesión para jugar online</Text>
+          <View style={styles.headerContainer}>
+            <Text style={styles.title}>Guiñote</Text>
+            <Text style={styles.subtitle}>Inicia sesión para jugar</Text>
           </View>
 
-          <View style={styles.form}>
+          <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Usuario o Email</Text>
+              <Text style={styles.label}>Email</Text>
               <TextInput
                 style={styles.input}
-                value={username}
-                onChangeText={setUsername}
-                placeholder="Ingresa tu usuario o email"
-                placeholderTextColor={colors.secondary}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="tu_email@example.com"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 editable={!isLoading}
@@ -90,152 +120,173 @@ export function LoginScreen({ navigation }: JugarStackScreenProps<'Login'>) {
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
-                placeholder="Ingresa tu contraseña"
-                placeholderTextColor={colors.secondary}
+                placeholder="••••••••"
+                placeholderTextColor={colors.textSecondary}
                 secureTextEntry
-                autoCapitalize="none"
                 editable={!isLoading}
               />
             </View>
 
-            {error && <Text style={styles.errorText}>{error}</Text>}
+            <TouchableOpacity
+              onPress={handleForgotPassword}
+              disabled={isLoading}
+            >
+              <Text style={styles.forgotPassword}>
+                ¿Olvidaste tu contraseña?
+              </Text>
+            </TouchableOpacity>
 
             <Button
-              onPress={handleLogin}
-              disabled={isLoading}
-              style={styles.loginButton}
-            >
-              {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
-            </Button>
+              title={isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+              onPress={handleSignIn}
+              disabled={isLoading || !isLoaded}
+              style={styles.signInButton}
+            />
+
+            {isLoading && (
+              <ActivityIndicator style={styles.loader} color={colors.primary} />
+            )}
+
+            <View style={styles.orContainer}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>o</Text>
+              <View style={styles.orLine} />
+            </View>
 
             <TouchableOpacity
-              onPress={() => navigation.navigate('Register')}
+              style={styles.registerButton}
+              onPress={handleSignUp}
               disabled={isLoading}
-              style={styles.linkButton}
             >
-              <Text style={styles.linkText}>¿No tienes cuenta? Regístrate</Text>
+              <Text style={styles.registerButtonText}>Crear Cuenta Nueva</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.dividerContainer}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>O</Text>
-            <View style={styles.divider} />
-          </View>
-
-          <View style={styles.alternativeActions}>
-            <Button
-              variant="secondary"
-              onPress={handleGuestLogin}
-              disabled={isLoading}
-              style={styles.guestButton}
-            >
-              Jugar como Invitado
-            </Button>
-
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              disabled={isLoading}
-              style={styles.linkButton}
-            >
-              <Text style={styles.linkText}>Volver al menú principal</Text>
+          <View style={styles.footerContainer}>
+            <Text style={styles.footerText}>¿No tienes cuenta?</Text>
+            <TouchableOpacity onPress={handleSignUp} disabled={isLoading}>
+              <Text style={styles.signUpLink}>Regístrate</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ScreenContainer>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: dimensions.spacing.xl,
-    paddingVertical: dimensions.spacing.xxl,
+    paddingHorizontal: dimensions.spacing.lg,
+    paddingTop: dimensions.spacing.xl,
+    paddingBottom: dimensions.spacing.xxl,
   },
-  header: {
+  headerContainer: {
     alignItems: 'center',
     marginBottom: dimensions.spacing.xxl,
   },
-  logo: {
-    fontSize: 48,
-    marginBottom: dimensions.spacing.sm,
-  },
   title: {
-    fontSize: typography.fontSize.xxxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.accent,
-    letterSpacing: 2,
+    ...typography.largeTitle,
+    color: colors.primary,
     marginBottom: dimensions.spacing.sm,
   },
   subtitle: {
-    fontSize: typography.fontSize.lg,
-    color: colors.text,
-    textAlign: 'center',
+    ...typography.body,
+    color: colors.textSecondary,
   },
-  form: {
+  formContainer: {
     marginBottom: dimensions.spacing.xl,
   },
   inputContainer: {
-    marginBottom: dimensions.spacing.lg,
+    marginBottom: dimensions.spacing.md,
   },
   label: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.medium,
+    ...typography.caption,
     color: colors.text,
-    marginBottom: dimensions.spacing.sm,
+    marginBottom: dimensions.spacing.xs,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderRadius: dimensions.borderRadius.md,
-    paddingHorizontal: dimensions.spacing.lg,
-    paddingVertical: dimensions.spacing.md,
-    fontSize: typography.fontSize.md,
-    color: colors.text,
     borderWidth: 1,
-    borderColor: colors.secondary,
+    borderColor: colors.border,
+    borderRadius: dimensions.borderRadius.md,
+    padding: dimensions.spacing.md,
+    fontSize: 16,
+    color: colors.text,
+    backgroundColor: colors.cardBackground,
   },
-  errorText: {
-    color: colors.error,
-    fontSize: typography.fontSize.sm,
+  forgotPassword: {
+    ...typography.caption,
+    color: colors.primary,
+    textAlign: 'right',
     marginTop: dimensions.spacing.sm,
-    textAlign: 'center',
+    marginBottom: dimensions.spacing.lg,
   },
-  loginButton: {
-    marginTop: dimensions.spacing.lg,
-  },
-  linkButton: {
+  signInButton: {
     marginTop: dimensions.spacing.md,
-    alignItems: 'center',
   },
-  linkText: {
-    color: colors.accent,
-    fontSize: typography.fontSize.md,
-    textDecorationLine: 'underline',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: dimensions.spacing.xl,
+  loader: {
+    marginTop: dimensions.spacing.md,
   },
   divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: dimensions.spacing.lg,
+  },
+  footerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: dimensions.spacing.lg,
+    backgroundColor: colors.cardBackground,
+    borderRadius: dimensions.borderRadius.md,
+    marginBottom: dimensions.spacing.md,
+  },
+  footerText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginRight: dimensions.spacing.xs,
+  },
+  signUpLink: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: 'bold',
+    fontSize: typography.fontSize.lg,
+    textDecorationLine: 'underline',
+  },
+  orContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: dimensions.spacing.lg,
+  },
+  orLine: {
     flex: 1,
     height: 1,
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.border,
   },
-  dividerText: {
+  orText: {
+    ...typography.caption,
+    color: colors.textSecondary,
     marginHorizontal: dimensions.spacing.md,
-    color: colors.text,
-    fontSize: typography.fontSize.md,
   },
-  alternativeActions: {
+  registerButton: {
+    backgroundColor: colors.accent,
+    paddingVertical: dimensions.spacing.md,
+    paddingHorizontal: dimensions.spacing.lg,
+    borderRadius: dimensions.borderRadius.md,
     alignItems: 'center',
+    marginBottom: dimensions.spacing.md,
   },
-  guestButton: {
-    width: '100%',
+  registerButtonText: {
+    ...typography.body,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: typography.fontSize.md,
   },
 });

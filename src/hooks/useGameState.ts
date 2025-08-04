@@ -146,10 +146,12 @@ export function useGameState({
           dealerIndex: 0, // Mock dealer
           trickCount: 0,
           trickWins: new Map(),
+          collectedTricks: new Map(),
           canCambiar7: true,
           gameHistory: [],
           isVueltas: false,
           canDeclareVictory: false,
+          matchScore: { team1Sets: 0, team2Sets: 0, currentSet: 'buenas' },
         };
 
         setGameState(newGameState);
@@ -292,10 +294,12 @@ export function useGameState({
         dealerIndex,
         trickCount: 0,
         trickWins: new Map(),
+        collectedTricks: new Map(),
         canCambiar7: true,
         gameHistory: [],
         isVueltas: false,
         canDeclareVictory: false,
+        matchScore: { team1Sets: 0, team2Sets: 0, currentSet: 'buenas' },
       };
 
       setGameState(newGameState);
@@ -396,8 +400,13 @@ export function useGameState({
             };
           }
 
-          // Increment trick count
+          // Increment trick count and store collected trick
           const newTrickCount = prevState.trickCount + 1;
+
+          // Update collected tricks for the winner
+          const newCollectedTricks = new Map(prevState.collectedTricks);
+          const winnerTricks = newCollectedTricks.get(winnerId) || [];
+          newCollectedTricks.set(winnerId, [...winnerTricks, newTrick]);
 
           // Deal new cards if deck has cards
           let newDeck = [...prevState.deck];
@@ -482,6 +491,7 @@ export function useGameState({
             currentPlayerIndex: winnerIndex,
             teams: newTeams,
             trickCount: newTrickCount,
+            collectedTricks: newCollectedTricks,
             lastTrickWinner: winnerId,
             lastTrick: newTrick,
             phase: (() => {
@@ -589,6 +599,35 @@ export function useGameState({
           phase: isGameOver({ ...prevState, teams: newTeams })
             ? 'gameOver'
             : 'playing',
+        };
+      });
+    },
+    [gameState],
+  );
+
+  // Reorder cards in player's hand
+  const reorderPlayerHand = useCallback(
+    (playerId: PlayerId, fromIndex: number, toIndex: number) => {
+      if (!gameState || fromIndex === toIndex) return;
+
+      setGameState(prevState => {
+        if (!prevState) return null;
+
+        const playerHand = prevState.hands.get(playerId);
+        if (!playerHand) return prevState;
+
+        // Create new hand with reordered cards
+        const newHand = [...playerHand];
+        const [movedCard] = newHand.splice(fromIndex, 1);
+        newHand.splice(toIndex, 0, movedCard);
+
+        // Update hands map
+        const newHands = new Map(prevState.hands);
+        newHands.set(playerId, newHand);
+
+        return {
+          ...prevState,
+          hands: newHands,
         };
       });
     },
@@ -757,11 +796,51 @@ export function useGameState({
     );
 
     if (winningTeam) {
-      // Game over - we have a winner
-      setGameState(prev => ({
-        ...prev!,
-        phase: 'gameOver' as GamePhase,
-      }));
+      // Auto-win: Team reached 101 points
+      setGameState(prev => {
+        if (!prev) return null;
+        const currentMatchScore = prev.matchScore || {
+          team1Sets: 0,
+          team2Sets: 0,
+          currentSet: 'buenas',
+        };
+        const winningTeamIndex = prev.teams.findIndex(
+          t => t.id === winningTeam.id,
+        );
+        const updatedMatchScore = { ...currentMatchScore };
+
+        if (winningTeamIndex === 0) {
+          updatedMatchScore.team1Sets += 1;
+        } else {
+          updatedMatchScore.team2Sets += 1;
+        }
+
+        // Check if match is over (best of 3)
+        const team1Won = updatedMatchScore.team1Sets >= 2;
+        const team2Won = updatedMatchScore.team2Sets >= 2;
+
+        if (team1Won || team2Won) {
+          // Match over
+          return {
+            ...prev,
+            phase: 'gameOver' as GamePhase,
+            matchScore: updatedMatchScore,
+          };
+        } else {
+          // Continue to next set
+          updatedMatchScore.currentSet =
+            updatedMatchScore.team1Sets === 1 &&
+            updatedMatchScore.team2Sets === 1
+              ? 'bella'
+              : 'malas';
+          // Reset for next game
+          return {
+            ...prev,
+            phase: 'gameOver' as GamePhase, // Will be reset for new game
+            matchScore: updatedMatchScore,
+          };
+        }
+      });
     } else {
       // No winner - start vueltas (second hand)
       setGameState(prev => {
@@ -883,6 +962,7 @@ export function useGameState({
     playCard,
     cantar,
     cambiar7,
+    reorderPlayerHand,
     continueFromScoring,
     declareVictory,
     declareRenuncio,

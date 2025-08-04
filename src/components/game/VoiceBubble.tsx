@@ -20,7 +20,7 @@ import {
   AVAILABLE_REACTIONS,
   ReactionType,
 } from '../../utils/voiceReactions';
-import type { VoiceRecordingId } from '../../utils/voiceStorage';
+import type { VoiceRecordingId } from '../../types/voice.types';
 import { REACTION_TO_AUDIO_MAP } from '../../utils/soundAssets';
 
 type VoiceBubbleProps = {

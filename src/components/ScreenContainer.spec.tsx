@@ -1,10 +1,15 @@
 import React from 'react';
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, test, jest } from '@jest/globals';
 import { render } from '@testing-library/react-native';
 import { Text } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { colors } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
+
+// Mock the useOrientationLock hook
+jest.mock('../hooks/useOrientationLock', () => ({
+  useOrientationLock: jest.fn(),
+}));
 
 describe('ScreenContainer', () => {
   test('renders children', () => {
@@ -71,5 +76,29 @@ describe('ScreenContainer', () => {
         flex: 1,
       }),
     );
+  });
+
+  test('calls useOrientationLock with default portrait orientation', () => {
+    const { useOrientationLock } = require('../hooks/useOrientationLock');
+
+    render(
+      <ScreenContainer>
+        <Text>Content</Text>
+      </ScreenContainer>,
+    );
+
+    expect(useOrientationLock).toHaveBeenCalledWith('portrait');
+  });
+
+  test('calls useOrientationLock with specified orientation', () => {
+    const { useOrientationLock } = require('../hooks/useOrientationLock');
+
+    render(
+      <ScreenContainer orientation="landscape">
+        <Text>Content</Text>
+      </ScreenContainer>,
+    );
+
+    expect(useOrientationLock).toHaveBeenCalledWith('landscape');
   });
 });

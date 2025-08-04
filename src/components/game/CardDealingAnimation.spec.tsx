@@ -18,13 +18,6 @@ describe('CardDealingAnimation', () => {
     { suit: 'copas', value: 5 },
   ];
 
-  const mockPlayerPositions = [
-    { x: 100, y: 400 },
-    { x: 50, y: 200 },
-    { x: 100, y: 50 },
-    { x: 250, y: 200 },
-  ];
-
   const mockSounds = {
     playDealSound: jest.fn(),
     playTrumpRevealSound: jest.fn(),
@@ -46,7 +39,6 @@ describe('CardDealingAnimation', () => {
         playDealSound={mockSounds.playDealSound}
         playTrumpRevealSound={mockSounds.playTrumpRevealSound}
         playShuffleSound={mockSounds.playShuffleSound}
-        playerPositions={mockPlayerPositions}
         firstPlayerIndex={0}
       />,
     );
@@ -63,7 +55,6 @@ describe('CardDealingAnimation', () => {
         playDealSound={mockSounds.playDealSound}
         playTrumpRevealSound={mockSounds.playTrumpRevealSound}
         playShuffleSound={mockSounds.playShuffleSound}
-        playerPositions={mockPlayerPositions}
         firstPlayerIndex={0}
       />,
     );
@@ -85,7 +76,6 @@ describe('CardDealingAnimation', () => {
         playDealSound={mockSounds.playDealSound}
         playTrumpRevealSound={mockSounds.playTrumpRevealSound}
         playShuffleSound={mockSounds.playShuffleSound}
-        playerPositions={mockPlayerPositions}
         firstPlayerIndex={0}
       />,
     );
@@ -107,7 +97,6 @@ describe('CardDealingAnimation', () => {
         playDealSound={mockSounds.playDealSound}
         playTrumpRevealSound={mockSounds.playTrumpRevealSound}
         playShuffleSound={mockSounds.playShuffleSound}
-        playerPositions={mockPlayerPositions}
         firstPlayerIndex={0}
       />,
     );
@@ -130,7 +119,6 @@ describe('CardDealingAnimation', () => {
         playDealSound={mockSounds.playDealSound}
         playTrumpRevealSound={mockSounds.playTrumpRevealSound}
         playShuffleSound={mockSounds.playShuffleSound}
-        playerPositions={mockPlayerPositions}
         firstPlayerIndex={1}
       />,
     );

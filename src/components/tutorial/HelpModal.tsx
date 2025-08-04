@@ -248,8 +248,8 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   closeButton: {
-    width: dimensions.touchTarget.small,
-    height: dimensions.touchTarget.small,
+    width: dimensions.touchTarget.minimum,
+    height: dimensions.touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
   },

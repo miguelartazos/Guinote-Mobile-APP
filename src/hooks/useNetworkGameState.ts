@@ -1,288 +1,262 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import networkService from '../services/networkService';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import type {
   GameState,
-  CardId,
   Card,
-  GamePhase,
   PlayerId,
+  DifficultyLevel,
 } from '../types/game.types';
-import type { SpanishSuit } from '../types/cardTypes';
-import { getValidCards } from '../utils/gameLogic';
+import type { GameMove } from '../types/gameMove.types';
+import { serializeGameState } from '../utils/gameStateAdapter';
+import { continueFromScoring } from '../utils/gameEngine';
+// useRealtimeGame removed - using Convex
+import { useConvexGame } from './useConvexGame';
+import { useGameState } from './useGameState';
+import type { Id } from '../../convex/_generated/dataModel';
+import { useOptimisticMoves } from './useOptimisticMoves';
+import { useMoveQueue } from './useMoveQueue';
+import { useGameActions } from './useGameActions';
 
-interface NetworkGameStateProps {
-  roomId: string;
-  playerId: PlayerId;
-  onGameEnd?: (winner: any) => void;
-  onPlayerDisconnect?: (playerId: string) => void;
+interface UseNetworkGameStateProps {
+  gameMode: 'offline' | 'online' | 'local-multiplayer';
+  roomId?: string;
+  userId?: string;
+  playerName: string;
+  difficulty?: DifficultyLevel;
+  playerNames?: string[]; // For local multiplayer
 }
 
+/**
+ * Main hook for game state management
+ * Handles both offline and online modes with a clean interface
+ */
 export function useNetworkGameState({
+  gameMode,
   roomId,
-  playerId,
-  onGameEnd,
-  onPlayerDisconnect,
-}: NetworkGameStateProps | any) {
-  const [gameState, setGameState] = useState<GameState | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  userId,
+  playerName,
+  difficulty = 'medium',
+  playerNames,
+}: UseNetworkGameStateProps) {
+  // For offline mode, use the existing hook
+  if (gameMode === 'offline' || gameMode === 'local-multiplayer') {
+    return useGameState({ playerName, difficulty, playerNames });
+  }
+
+  // Online mode: compose multiple hooks
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
-  const [isMyTurn, setIsMyTurn] = useState(false);
-  const [connectionStatus, setConnectionStatus] =
-    useState<string>('connecting');
+  const [isDealingComplete, setIsDealingComplete] = useState(false);
+  const [localGameState, setLocalGameState] = useState<GameState | null>(null);
 
-  // Track pending actions for optimistic updates
-  const pendingActions = useRef<Set<string>>(new Set());
+  // Real-time game connection using Convex
+  const { room, actions } = useConvexGame(roomId as Id<'rooms'> | undefined);
 
-  // Initialize network connection and join room
+  const remoteGameState = room?.gameState || null;
+  const remotePlayers = room?.players || [];
+  const isConnected = !!room;
+  const isLoading = false;
+  const error = null;
+  // These actions don't exist yet - need to implement or use existing actions
+  const updateRemote = async (state: GameState) => {
+    console.warn(
+      'updateRemote not implemented - state updates should happen through game actions',
+    );
+  };
+  const sendMoveToServer = async (move: GameMove) => {
+    // Map move to appropriate action
+    if (move.type === 'PLAY_CARD' && userId) {
+      await actions.playCard(move.cardId, userId as Id<'users'>);
+      return true;
+    }
+    console.warn('Move type not implemented:', move.type);
+    return false;
+  };
+
+  // Optimistic move handling
+  const {
+    optimisticMoves,
+    applyOptimisticMove,
+    rollbackMove,
+    clearOptimisticMoves,
+  } = useOptimisticMoves();
+
+  // Move queue for offline handling
+  const { queueMove, processQueue } = useMoveQueue();
+
+  // Sync remote state to local
   useEffect(() => {
-    let mounted = true;
+    if (remoteGameState) {
+      setLocalGameState(remoteGameState);
+      clearOptimisticMoves();
+    }
+  }, [remoteGameState, clearOptimisticMoves]);
 
-    const initializeGame = async () => {
+  // Send move with optimistic update and queueing
+  const sendMove = useCallback(
+    async (move: GameMove): Promise<boolean> => {
+      if (!localGameState) return false;
+
+      // Apply optimistically
+      const newState = applyOptimisticMove(localGameState, move);
+      if (newState) {
+        setLocalGameState(newState);
+      }
+
+      if (!isConnected) {
+        queueMove(move);
+        return false;
+      }
+
       try {
-        // Join the game room
-        networkService.joinRoom(roomId);
-        setIsLoading(true);
-      } catch (err) {
-        console.error('Failed to join room:', err);
-        if (mounted) {
-          setError('Error al conectar con la partida');
-          setIsLoading(false);
+        const success = await sendMoveToServer(move);
+        if (!success) {
+          rollbackMove(move);
+          if (remoteGameState) {
+            setLocalGameState(remoteGameState);
+          }
         }
-      }
-    };
-
-    // Set up event listeners
-    const handleGameState = (data: any) => {
-      if (!mounted) return;
-
-      setGameState(data as GameState);
-      setIsLoading(false);
-
-      // Check if it's my turn
-      const currentPlayer = data.players[data.gameState.currentPlayerIndex];
-      setIsMyTurn(currentPlayer.playerId === playerId);
-    };
-
-    const handleGameUpdate = (data: any) => {
-      if (!mounted) return;
-
-      setGameState(data.gameState);
-
-      // Clear pending action if it was processed
-      if (data.lastAction) {
-        const actionKey = `${data.lastAction.type}_${data.lastAction.playerId}`;
-        pendingActions.current.delete(actionKey);
-      }
-
-      // Check if it's my turn
-      const currentPlayer =
-        data.gameState.players[data.gameState.currentPlayerIndex];
-      setIsMyTurn(currentPlayer.playerId === playerId);
-
-      // Check if game ended
-      if (data.gameState.phase === 'gameOver' && onGameEnd) {
-        onGameEnd(data.gameState.winner);
-      }
-    };
-
-    const handlePlayerDisconnected = (data: any) => {
-      if (!mounted) return;
-
-      if (onPlayerDisconnect) {
-        onPlayerDisconnect(data.playerId);
-      }
-    };
-
-    const handleConnectionStatus = (data: any) => {
-      if (!mounted) return;
-      setConnectionStatus(data.status);
-    };
-
-    const handleError = (error: any) => {
-      if (!mounted) return;
-      console.error('Game error:', error);
-      setError(error.message || 'Error en el juego');
-    };
-
-    const handleVoiceMessage = (data: any) => {
-      if (!mounted) return;
-      // Voice messages are handled by the VoiceHistory component
-      // Just emit an event that can be listened to
-    };
-
-    // Subscribe to events
-    networkService.on('game_state', handleGameState);
-    networkService.on('game_update', handleGameUpdate);
-    networkService.on('player_disconnected', handlePlayerDisconnected);
-    networkService.on('connection_status', handleConnectionStatus);
-    networkService.on('error', handleError);
-    networkService.on('voice_message', handleVoiceMessage);
-
-    initializeGame();
-
-    // Cleanup
-    return () => {
-      mounted = false;
-      networkService.off('game_state', handleGameState);
-      networkService.off('game_update', handleGameUpdate);
-      networkService.off('player_disconnected', handlePlayerDisconnected);
-      networkService.off('connection_status', handleConnectionStatus);
-      networkService.off('error', handleError);
-      networkService.off('voice_message', handleVoiceMessage);
-
-      if (roomId) {
-        networkService.leaveRoom(roomId);
-      }
-    };
-  }, [roomId, playerId, onGameEnd, onPlayerDisconnect]);
-
-  // Play a card with optimistic update
-  const playCard = useCallback(
-    (cardId: CardId) => {
-      if (!gameState || !isMyTurn) return;
-
-      try {
-        // Add to pending actions
-        const actionKey = `PLAY_CARD_${playerId}`;
-        pendingActions.current.add(actionKey);
-
-        // Send to server
-        networkService.playCard(roomId, cardId);
-
-        // Optimistic update
-        setGameState(prevState => {
-          if (!prevState) return null;
-
-          // Find the card in player's hand
-          const playerHand = prevState.hands.get(playerId);
-          if (!playerHand) return prevState;
-
-          const cardIndex = playerHand.findIndex(c => c.id === cardId);
-          if (cardIndex === -1) return prevState;
-
-          // Create new state with card removed from hand and added to trick
-          const newHands = new Map(prevState.hands);
-          const newHand = [...playerHand];
-          const card = newHand.splice(cardIndex, 1)[0];
-          newHands.set(playerId, newHand);
-
-          const newCurrentTrick = [
-            ...prevState.currentTrick,
-            { playerId, card },
-          ];
-
-          return {
-            ...prevState,
-            hands: newHands,
-            currentTrick: newCurrentTrick,
-          };
-        });
-      } catch (err) {
-        console.error('Failed to play card:', err);
-        setError('Error al jugar carta');
-
-        // Remove from pending actions
-        const actionKey = `PLAY_CARD_${playerId}`;
-        pendingActions.current.delete(actionKey);
+        return success;
+      } catch (error) {
+        console.error('Failed to send move:', error);
+        rollbackMove(move);
+        if (remoteGameState) {
+          setLocalGameState(remoteGameState);
+        }
+        return false;
       }
     },
-    [gameState, isMyTurn, roomId, playerId],
+    [
+      localGameState,
+      isConnected,
+      applyOptimisticMove,
+      sendMoveToServer,
+      rollbackMove,
+      queueMove,
+      remoteGameState,
+    ],
   );
 
-  // Cantar
-  const cantar = useCallback(
-    (suit: SpanishSuit) => {
-      if (!gameState || !isMyTurn) return;
-
-      try {
-        networkService.cantar(roomId, suit);
-      } catch (err) {
-        console.error('Failed to cantar:', err);
-        setError('Error al cantar');
-      }
-    },
-    [gameState, isMyTurn, roomId],
-  );
-
-  // Cambiar 7
-  const cambiar7 = useCallback(() => {
-    if (!gameState || !isMyTurn) return;
-
-    try {
-      networkService.cambiar7(roomId);
-    } catch (err) {
-      console.error('Failed to cambiar 7:', err);
-      setError('Error al cambiar 7');
+  // Process queued moves when reconnected
+  useEffect(() => {
+    if (isConnected) {
+      processQueue(sendMove);
     }
-  }, [gameState, isMyTurn, roomId]);
+  }, [isConnected, processQueue, sendMove]);
 
-  // Declare victory
-  const declareVictory = useCallback(() => {
-    if (!gameState || !isMyTurn) return;
+  // Game actions
+  const gameActions = useGameActions({
+    gameState: localGameState,
+    userId,
+    sendMove,
+  });
 
-    try {
-      networkService.declareVictory(roomId);
-    } catch (err) {
-      console.error('Failed to declare victory:', err);
-      setError('Error al declarar victoria');
-    }
-  }, [gameState, isMyTurn, roomId]);
-
-  // Get current player's hand
+  // Helper functions
   const getCurrentPlayerHand = useCallback((): Card[] => {
-    if (!gameState) return [];
+    if (!localGameState || !userId) return [];
+    return [...(localGameState.hands.get(userId as PlayerId) || [])];
+  }, [localGameState, userId]);
 
-    const player = gameState.players.find(p => p.id === playerId);
-    if (!player) return [];
+  const isPlayerTurn = useCallback((): boolean => {
+    if (!localGameState || !userId) return false;
+    return (
+      localGameState.players[localGameState.currentPlayerIndex].id === userId
+    );
+  }, [localGameState, userId]);
 
-    return [...(gameState.hands.get(playerId) || [])];
-  }, [gameState, playerId]);
+  const continueFromScoringPhase = useCallback(async () => {
+    if (!localGameState || localGameState.phase !== 'scoring') return;
 
-  // Get valid cards for current player
-  const getValidCardsForCurrentPlayer = useCallback((): Card[] => {
-    if (!gameState || !isMyTurn) return [];
-
-    const playerHand = getCurrentPlayerHand();
-    return getValidCards(playerHand, gameState, playerId);
-  }, [gameState, isMyTurn, getCurrentPlayerHand, playerId]);
-
-  // Check if reconnecting
-  const isReconnecting = connectionStatus === 'reconnecting';
-
-  // Stub for unused methods to match interface
-  const declareRenuncio = useCallback(() => {
-    console.log('Renuncio not implemented for online games');
-  }, []);
-
-  const continueFromScoring = useCallback(() => {
-    console.log('Continue from scoring handled automatically online');
-  }, []);
+    const newState = continueFromScoring(localGameState);
+    if (newState && roomId) {
+      setLocalGameState(newState);
+      await updateRemote(newState);
+    }
+  }, [localGameState, roomId, updateRemote]);
 
   const completeDealingAnimation = useCallback(() => {
-    // Dealing is handled by server
-  }, []);
+    setIsDealingComplete(true);
+    if (localGameState && roomId) {
+      const newState = { ...localGameState, phase: 'playing' as const };
+      setLocalGameState(newState);
+      updateRemote(newState);
+    }
+  }, [localGameState, roomId, updateRemote]);
+
+  const completeTrickAnimation = useCallback(() => {
+    if (localGameState?.trickAnimating && roomId) {
+      const newState = {
+        ...localGameState,
+        currentTrick: [],
+        trickAnimating: false,
+        pendingTrickWinner: undefined,
+      };
+      setLocalGameState(newState);
+      updateRemote(newState);
+    }
+  }, [localGameState, roomId, updateRemote]);
 
   return {
-    gameState,
-    isLoading,
-    error,
-    isMyTurn,
+    gameState: localGameState,
+    ...gameActions,
+    continueFromScoring: continueFromScoringPhase,
     selectedCard,
     setSelectedCard,
-    playCard,
-    cantar,
-    cambiar7,
-    declareVictory,
-    declareRenuncio,
-    continueFromScoring,
     getCurrentPlayerHand,
-    getValidCardsForCurrentPlayer,
-    isPlayerTurn: () => isMyTurn,
-    connectionStatus,
-    isReconnecting,
-    thinkingPlayer: null,
-    isDealingComplete: gameState?.phase !== 'dealing',
+    getValidCardsForCurrentPlayer: useCallback(() => {
+      if (!localGameState || !userId) return [];
+      const hand = getCurrentPlayerHand();
+      
+      // If it's not the player's turn, no cards are valid
+      if (!isPlayerTurn()) return [];
+      
+      // During initial phase, all cards are valid
+      if (localGameState.phase === 'playing' || localGameState.phase === 'initial') {
+        return hand;
+      }
+      
+      // During arrastre (final phase), must follow suit if possible
+      if (localGameState.phase === 'arrastre' && localGameState.currentTrick.length > 0) {
+        const leadCard = localGameState.currentTrick[0].card;
+        const sameSuitCards = hand.filter(card => card.suit === leadCard.suit);
+        
+        if (sameSuitCards.length > 0) {
+          return sameSuitCards;
+        }
+        
+        // If no cards of same suit, must play trump if possible
+        const trumpCards = hand.filter(card => card.suit === localGameState.trumpSuit);
+        if (trumpCards.length > 0) {
+          return trumpCards;
+        }
+      }
+      
+      // Otherwise all cards are valid
+      return hand;
+    }, [localGameState, userId, getCurrentPlayerHand, isPlayerTurn]),
+    isPlayerTurn,
+    thinkingPlayer: useMemo(() => {
+      if (!localGameState || !remotePlayers) return null;
+      
+      // Find current player
+      const currentPlayer = remotePlayers.find(
+        (_, index) => index === localGameState.currentPlayerIndex
+      );
+      
+      // If current player is AI and it's their turn
+      if (currentPlayer?.isAI && localGameState.phase === 'playing') {
+        return localGameState.players[localGameState.currentPlayerIndex]?.id || null;
+      }
+      
+      return null;
+    }, [localGameState, remotePlayers]),
+    isDealingComplete,
     completeDealingAnimation,
+    completeTrickAnimation,
+    setGameState: setLocalGameState,
+    // Network-specific additions
+    isConnected,
+    isLoading,
+    networkError: error,
+    remotePlayers,
+    optimisticMoves,
   };
 }

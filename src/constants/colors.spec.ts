@@ -14,10 +14,14 @@ describe('colors', () => {
     expect(colors.black).toBe('#000000');
   });
 
-  test('color values are properly formatted hex codes', () => {
+  test('color values are properly formatted', () => {
     const hexPattern = /^#[0-9A-F]{6}$/;
+    const rgbaPattern = /^rgba\(\d+,\d+,\d+,[\d.]+\)$/;
+
     Object.values(colors).forEach(color => {
-      expect(color).toMatch(hexPattern);
+      const isHex = hexPattern.test(color);
+      const isRgba = rgbaPattern.test(color);
+      expect(isHex || isRgba).toBe(true);
     });
   });
 });

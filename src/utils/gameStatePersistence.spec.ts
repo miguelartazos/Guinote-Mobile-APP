@@ -1,4 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from '@jest/globals';
+import { jest } from '@jest/globals';
+const vi = jest;
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   saveGameState,
@@ -74,6 +76,7 @@ describe('gameStatePersistence', () => {
       ['team1' as TeamId, 3],
       ['team2' as TeamId, 2],
     ]),
+    collectedTricks: new Map(),
     canCambiar7: true,
     gameHistory: [],
     isVueltas: false,

@@ -50,12 +50,13 @@ describe('useOrientationLock', () => {
     expect(mockOrientation.unlockAllOrientations).not.toHaveBeenCalled();
   });
 
-  test('unlocks all orientations on unmount', () => {
+  test('does NOT unlock orientations on unmount (fixed orientation)', () => {
     const { unmount } = renderHook(() => useOrientationLock('landscape'));
     expect(mockOrientation.lockToLandscape).toHaveBeenCalledTimes(1);
 
     unmount();
-    expect(mockOrientation.unlockAllOrientations).toHaveBeenCalledTimes(1);
+    // Should NOT unlock - orientations stay fixed
+    expect(mockOrientation.unlockAllOrientations).not.toHaveBeenCalled();
   });
 
   test('does not call unlock on unmount when null was passed', () => {
@@ -71,10 +72,11 @@ describe('useOrientationLock', () => {
     });
 
     expect(mockOrientation.lockToPortrait).toHaveBeenCalledTimes(1);
-    expect(mockOrientation.unlockAllOrientations).toHaveBeenCalledTimes(0);
 
     rerender({ lock: 'landscape' });
-    expect(mockOrientation.unlockAllOrientations).toHaveBeenCalledTimes(1);
+    // Should directly lock to landscape without unlocking first
     expect(mockOrientation.lockToLandscape).toHaveBeenCalledTimes(1);
+    // Should NOT unlock between orientation changes
+    expect(mockOrientation.unlockAllOrientations).not.toHaveBeenCalled();
   });
 });

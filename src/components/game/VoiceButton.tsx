@@ -10,7 +10,7 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { useVoicePermissions } from '../../hooks/useVoicePermissions';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
-import type { VoiceRecordingId } from '../../utils/voiceStorage';
+import type { VoiceRecordingId } from '../../types/voice.types';
 
 type VoiceButtonProps = {
   playerId: string;

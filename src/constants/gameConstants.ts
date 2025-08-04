@@ -23,10 +23,10 @@ export const TRUMP_CARD_ID = 'trump_card' as CardId;
 
 // Game timing constants
 export const AI_TIMING = {
-  MIN_THINKING_TIME: 500,
-  MAX_THINKING_TIME: 2000,
-  RECOVERY_TIMEOUT: 5000, // 5 seconds - reduced for faster recovery
-  COMPLEXITY_BONUS: 500,
+  MIN_THINKING_TIME: 300, // Reduced from 500
+  MAX_THINKING_TIME: 1500, // Reduced from 2000
+  RECOVERY_TIMEOUT: 3000, // 3 seconds - reduced from 5 for faster recovery
+  COMPLEXITY_BONUS: 300, // Reduced from 500
 } as const;
 
 // Game rules constants

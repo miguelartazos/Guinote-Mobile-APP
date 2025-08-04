@@ -12,33 +12,35 @@ import { Button } from '../components/Button';
 import { colors } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
-import { useMatchmaking } from '../hooks/useMatchmaking';
-import { useAuth } from '../hooks/useAuth';
+import { useConvexAuth } from '../hooks/useConvexAuth';
+import { useConvexMatchmaking } from '../hooks/useConvexMatchmaking';
 import type { JugarStackScreenProps } from '../types/navigation';
 
 export function QuickMatchScreen({
   navigation,
 }: JugarStackScreenProps<'QuickMatch'>) {
-  const { isAuthenticated, player } = useAuth();
+  const { user, isAuthenticated } = useConvexAuth();
   const { status, error, startMatchmaking, cancelMatchmaking } =
-    useMatchmaking();
+    useConvexMatchmaking();
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     // Check authentication
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user) {
       navigation.navigate('Login');
       return;
     }
 
     // Start matchmaking
-    startMatchmaking();
+    startMatchmaking(user._id);
 
     // Handle back button
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
-        cancelMatchmaking();
+        if (user) {
+          cancelMatchmaking(user._id);
+        }
         navigation.goBack();
         return true;
       },
@@ -62,10 +64,12 @@ export function QuickMatchScreen({
 
     // Cleanup
     return () => {
-      cancelMatchmaking();
+      if (user) {
+        cancelMatchmaking(user._id);
+      }
       backHandler.remove();
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user, startMatchmaking, cancelMatchmaking, navigation]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -104,7 +108,7 @@ export function QuickMatchScreen({
                 </Animated.View>
                 <Text style={styles.searchText}>Buscando partida...</Text>
                 <Text style={styles.searchSubtext}>
-                  ELO: {player?.stats?.elo || 1000} (±{status.eloRange})
+                  ELO: {user?.elo || 1000} (±{status.eloRange})
                 </Text>
                 <Text style={styles.waitTime}>
                   Tiempo: {formatTime(status.waitTime)}
@@ -118,10 +122,10 @@ export function QuickMatchScreen({
                 <View style={styles.playersList}>
                   <View style={styles.playerSlot}>
                     <Text style={styles.playerIcon}>
-                      {player?.avatar || '👤'}
+                      {user?.avatar || '👤'}
                     </Text>
                     <Text style={styles.playerName}>
-                      {player?.username || 'Tú'}
+                      {user?.username || 'Tú'}
                     </Text>
                     <Text style={styles.playerStatus}>Listo</Text>
                   </View>
@@ -170,7 +174,9 @@ export function QuickMatchScreen({
           <Button
             variant="secondary"
             onPress={() => {
-              cancelMatchmaking();
+              if (user) {
+                cancelMatchmaking(user._id);
+              }
               navigation.goBack();
             }}
             style={styles.button}

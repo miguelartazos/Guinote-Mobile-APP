@@ -1,120 +1,84 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import networkService from '../../services/networkService';
+import { useConnectionStatus } from '../../hooks/useConnectionStatus';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
-import { dimensions } from '../../constants/dimensions';
-
-type ConnectionState =
-  | 'connected'
-  | 'connecting'
-  | 'disconnected'
-  | 'reconnecting'
-  | 'error';
 
 export function ConnectionStatus() {
-  const [status, setStatus] = useState<ConnectionState>('connecting');
+  const { status, isConnected, isReconnecting, reconnectAttempts } = useConnectionStatus();
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
-    const handleConnectionStatus = (data: { status: string }) => {
-      setStatus(data.status as ConnectionState);
-    };
-
-    networkService.on('connection_status', handleConnectionStatus);
-
-    // Initial status
-    const currentStatus = networkService.getConnectionStatus();
-    setStatus(currentStatus as ConnectionState);
-
-    // Pulse animation for connecting/reconnecting states
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 0.6,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-
-    if (status === 'connecting' || status === 'reconnecting') {
-      animation.start();
+  React.useEffect(() => {
+    if (isReconnecting) {
+      // Create pulsing animation when reconnecting
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.2,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
     } else {
-      animation.stop();
       pulseAnim.setValue(1);
     }
+  }, [isReconnecting, pulseAnim]);
 
-    return () => {
-      networkService.off('connection_status', handleConnectionStatus);
-      animation.stop();
-    };
-  }, [status, pulseAnim]);
+  // Only show when not connected or reconnecting
+  if (isConnected) {
+    return null;
+  }
 
   const getStatusConfig = () => {
     switch (status) {
-      case 'connected':
+      case 'disconnected':
         return {
-          icon: '✓',
-          text: 'Conectado',
-          color: colors.success,
-          show: false, // Hide when connected
-        };
-      case 'connecting':
-        return {
-          icon: '●',
-          text: 'Conectando...',
-          color: colors.warning,
-          show: true,
+          text: 'Offline',
+          color: colors.error,
+          backgroundColor: `${colors.error}20`,
         };
       case 'reconnecting':
         return {
-          icon: '⟳',
-          text: 'Reconectando...',
+          text: `Reconnecting${reconnectAttempts > 0 ? ` (${reconnectAttempts})` : ''}...`,
           color: colors.warning,
-          show: true,
+          backgroundColor: `${colors.warning}20`,
         };
-      case 'disconnected':
+      case 'checking':
         return {
-          icon: '✗',
-          text: 'Sin conexión',
-          color: colors.error,
-          show: true,
-        };
-      case 'error':
-        return {
-          icon: '!',
-          text: 'Error de conexión',
-          color: colors.error,
-          show: true,
+          text: 'Checking connection...',
+          color: colors.text,
+          backgroundColor: `${colors.surface}80`,
         };
       default:
-        return {
-          icon: '?',
-          text: 'Estado desconocido',
-          color: colors.secondary,
-          show: true,
-        };
+        return null;
     }
   };
 
   const config = getStatusConfig();
-
-  if (!config.show) {
-    return null;
-  }
+  if (!config) return null;
 
   return (
-    <View style={[styles.container, { backgroundColor: config.color }]}>
-      <Animated.View style={{ opacity: pulseAnim }}>
-        <Text style={styles.icon}>{config.icon}</Text>
+    <View style={styles.container}>
+      <Animated.View 
+        style={[
+          styles.statusBadge,
+          { 
+            backgroundColor: config.backgroundColor,
+            transform: [{ scale: pulseAnim }]
+          }
+        ]}
+      >
+        <View style={[styles.indicator, { backgroundColor: config.color }]} />
+        <Text style={[styles.statusText, { color: config.color }]}>
+          {config.text}
+        </Text>
       </Animated.View>
-      <Text style={styles.text}>{config.text}</Text>
     </View>
   );
 }
@@ -122,24 +86,27 @@ export function ConnectionStatus() {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 0,
+    top: 50,
     left: 0,
     right: 0,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: dimensions.spacing.sm,
-    paddingHorizontal: dimensions.spacing.md,
     zIndex: 1000,
   },
-  icon: {
-    fontSize: typography.fontSize.md,
-    color: colors.white,
-    marginRight: dimensions.spacing.sm,
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 8,
   },
-  text: {
+  indicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusText: {
     fontSize: typography.fontSize.sm,
-    color: colors.white,
     fontWeight: typography.fontWeight.medium,
   },
 });

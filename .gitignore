@@ -79,3 +79,17 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Convex
+convex/_generated/
+convex/.cache/
+convex/dist/
+convex/out/
+convex/**/*.js
+convex/**/*.js.map
+!convex/convex.config.js

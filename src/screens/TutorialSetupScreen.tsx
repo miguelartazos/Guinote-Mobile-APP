@@ -18,41 +18,42 @@ export function TutorialSetupScreen({
   const tutorials = [
     {
       type: 'complete' as const,
-      title: 'Tutorial Completo',
-      description: 'Aprende todo sobre Guiñote paso a paso',
-      duration: '15 min',
+      title: 'Tutorial Completo 🎓',
+      description:
+        '¡Las llaves del reino! Todo lo que necesitas para dominar el Guiñote como un maestro',
+      duration: '10 min',
       icon: '🎓',
       recommended: true,
     },
     {
       type: 'basic' as const,
-      title: 'Juego Básico',
-      description: 'Solo lo esencial para empezar a jugar',
+      title: 'Lo Básico 👶',
+      description:
+        '¡Hola, futuro campeón/a! Aprende lo esencial para jugar en menos de 5 minutos',
       duration: '5 min',
-      icon: '🃏',
+      icon: '👶',
     },
     {
       type: 'cantes' as const,
-      title: 'Cantes y Puntuación',
-      description: 'Aprende sobre las 20 y las 40',
-      duration: '3 min',
-      icon: '👑',
+      title: 'Cantes y Puntuación 🚀',
+      description:
+        '¡Hora de subir de nivel! Desbloquea los superpoderes del Guiñote',
+      duration: '8 min',
+      icon: '🚀',
     },
     {
       type: 'special' as const,
-      title: 'Reglas Especiales',
-      description: 'Vueltas, cambiar el 7 y más',
-      duration: '3 min',
+      title: 'Reglas Especiales ⭐',
+      description:
+        'Situaciones avanzadas y reglas especiales. ¡Domínalas y serás imparable!',
+      duration: '4 min',
       icon: '⭐',
     },
   ];
 
   const startTutorial = () => {
-    navigation.navigate('Game', {
-      gameMode: 'offline',
-      difficulty: 'easy',
-      playerName: 'Aprendiz',
-      tutorialMode: selectedTutorial,
+    navigation.navigate('TutorialViewer', {
+      tutorialType: selectedTutorial,
     });
   };
 
@@ -121,8 +122,9 @@ export function TutorialSetupScreen({
         <View style={styles.infoCard}>
           <Text style={styles.infoIcon}>💡</Text>
           <Text style={styles.infoText}>
-            Durante el tutorial, el juego se pausará para explicarte cada
-            concepto. Podrás practicar cada jugada antes de continuar.
+            ¡Relájate y aprende a tu ritmo! Estos tutoriales son solo de
+            lectura. Navega paso a paso y cuando termines, ¡estarás listo/a para
+            conquistar el Guiñote!
           </Text>
         </View>
 

@@ -134,6 +134,17 @@ export function useAITurn({
       botHand.length < 5;
     const thinkingTime = getAIThinkingTime(currentPlayer, isComplexDecision);
 
+    // Add extra logging for debugging
+    console.log('🎯 AI DECISION CONTEXT:', {
+      bot: botName,
+      turnKey: currentTurnKey,
+      trickSize: gameState.currentTrick.length,
+      phase: currentPhase,
+      isComplex: isComplexDecision,
+      thinkingTime,
+      timestamp: new Date().toISOString(),
+    });
+
     console.log('🤖 BOT THINKING:', {
       bot: botName,
       handSize: botHand.length,
@@ -230,6 +241,12 @@ export function useAITurn({
         botRecoveryTimerRef.current = null;
       }
     }, AI_TIMING.RECOVERY_TIMEOUT);
+
+    console.log('⏰ RECOVERY TIMER SET:', {
+      bot: botName,
+      timeout: AI_TIMING.RECOVERY_TIMEOUT,
+      timerId: recovery,
+    });
     botRecoveryTimerRef.current = recovery;
 
     // Smart AI logic with memory
@@ -313,7 +330,7 @@ export function useAITurn({
     gameState,
     aiMemory,
     setAIMemory,
-    thinkingPlayer,
+    // Remove thinkingPlayer to prevent re-render loops
   ]);
 
   return {

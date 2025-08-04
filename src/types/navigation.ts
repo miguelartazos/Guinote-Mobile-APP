@@ -6,30 +6,48 @@ export type MainTabParamList = {
   Amigos: undefined;
   Ranking: undefined;
   Tienda: undefined;
-  Comunidad: undefined;
   Ajustes: undefined;
 };
 
 export type JugarStackParamList = {
   JugarHome: undefined;
   QuickMatch: undefined;
+  FriendsLobby: undefined;
   CreateRoom: undefined;
-  OfflineMode: undefined;
+  JoinRoom: { roomCode?: string };
+  AIGame: {
+    aiPlayers: Array<{
+      name: string;
+      difficulty: 'easy' | 'medium' | 'hard';
+    }>;
+  };
   LocalMultiplayer: undefined;
   TutorialSetup: undefined;
+  TutorialViewer: {
+    tutorialType: 'complete' | 'basic' | 'cantes' | 'special';
+  };
   Login: undefined;
   Register: undefined;
+  OnlineLobby: undefined;
+  NetworkGame: {
+    roomId: string;
+    roomCode: string;
+  };
   Game: {
-    gameMode: 'quick' | 'private' | 'offline' | 'local' | 'online';
+    gameMode: 'quick' | 'friends' | 'ai' | 'local' | 'tutorial';
     difficulty?: 'easy' | 'medium' | 'hard' | 'expert';
     playerName?: string;
     playerNames?: string[];
     tutorialMode?: 'complete' | 'basic' | 'cantes' | 'special';
     practiceMode?: boolean;
     roomId?: string;
+    roomCode?: string;
     players?: any[];
   };
-  Room: undefined;
+  GameRoom: {
+    roomId: string;
+    roomCode?: string;
+  };
 };
 
 export type AmigosStackParamList = {
@@ -44,10 +62,6 @@ export type RankingStackParamList = {
 
 export type TiendaStackParamList = {
   Store: undefined;
-};
-
-export type ComunidadStackParamList = {
-  Community: undefined;
 };
 
 export type AjustesStackParamList = {
@@ -68,9 +82,6 @@ export type RankingStackScreenProps<T extends keyof RankingStackParamList> =
 
 export type TiendaStackScreenProps<T extends keyof TiendaStackParamList> =
   StackScreenProps<TiendaStackParamList, T>;
-
-export type ComunidadStackScreenProps<T extends keyof ComunidadStackParamList> =
-  StackScreenProps<ComunidadStackParamList, T>;
 
 export type AjustesStackScreenProps<T extends keyof AjustesStackParamList> =
   StackScreenProps<AjustesStackParamList, T>;

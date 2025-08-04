@@ -21,7 +21,7 @@ export type Card = {
 
 export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
-export type AIPersonality = 'prudent' | 'aggressive' | 'tricky';
+export type AIPersonality = 'aggressive' | 'defensive' | 'balanced' | 'unpredictable';
 
 export type Player = {
   id: PlayerId;
@@ -41,7 +41,16 @@ export type GamePhase =
   | 'arrastre'
   | 'scoring'
   | 'vueltas'
-  | 'gameOver';
+  | 'gameOver'
+  | 'finished'; // Legacy phase - same as gameOver
+
+export type GameSet = 'buenas' | 'malas' | 'bella';
+
+export type MatchScore = {
+  team1Sets: number;
+  team2Sets: number;
+  currentSet: GameSet;
+};
 
 export type TrickCard = {
   playerId: PlayerId;
@@ -77,6 +86,7 @@ export type GameState = Readonly<{
   dealerIndex: number; // Track dealer position
   trickCount: number; // Total tricks played
   trickWins: ReadonlyMap<TeamId, number>;
+  collectedTricks: ReadonlyMap<PlayerId, ReadonlyArray<TrickCard[]>>; // Tricks won by each player
   lastTrickWinner?: PlayerId;
   lastTrick?: ReadonlyArray<TrickCard>;
   canCambiar7: boolean;
@@ -92,6 +102,7 @@ export type GameState = Readonly<{
     points: number;
     cards: ReadonlyArray<Card>;
   }; // Data for trick animation
+  matchScore?: MatchScore; // Track buenas/malas sets
 }>;
 
 export type GameAction =
@@ -124,3 +135,6 @@ export const CARD_POINTS: Record<CardValue, number> = {
 export const WINNING_SCORE = 101;
 export const MINIMUM_CARD_POINTS = 30; // 30 malas rule
 export const LAST_TRICK_BONUS = 10; // diez de últimas
+
+// Re-export GameMove types
+export type { GameMove } from './gameMove.types';

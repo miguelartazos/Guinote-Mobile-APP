@@ -6,14 +6,17 @@ export type ColorName =
   | 'secondary'
   | 'text'
   | 'textMuted'
+  | 'textSecondary'
   | 'background'
   | 'surface'
+  | 'border'
   | 'error'
   | 'warning'
   | 'white'
   | 'black'
   | 'gold'
   | 'goldDark'
+  | 'goldBright'
   | 'yellowText'
   | 'tableGreen'
   | 'tableShadow'
@@ -36,8 +39,10 @@ export const colors: Record<ColorName, HexColor | RgbaColor> = {
   secondary: '#1E3A2F' as HexColor,
   text: '#F5E6D3' as HexColor,
   textMuted: '#A0A096' as HexColor,
+  textSecondary: '#C0C0B0' as HexColor,
   background: '#0A1810' as HexColor,
   surface: '#162920' as HexColor,
+  border: '#2A3F32' as HexColor,
   error: '#CF6679' as HexColor,
   warning: '#F9AA33' as HexColor,
   white: '#FFFFFF' as HexColor,
@@ -46,6 +51,7 @@ export const colors: Record<ColorName, HexColor | RgbaColor> = {
   // Spanish theme colors
   gold: '#FFD700' as HexColor,
   goldDark: '#DAA520' as HexColor,
+  goldBright: '#FFFF00' as HexColor,
   yellowText: '#FFEB3B' as HexColor,
   tableGreen: '#0F5F3F' as HexColor,
   tableShadow: '#063D24' as HexColor,

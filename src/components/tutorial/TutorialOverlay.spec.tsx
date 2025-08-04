@@ -16,20 +16,12 @@ describe('TutorialOverlay', () => {
     id: tutorialStepId('test-step'),
     title: 'Test Step',
     description: 'This is a test step description',
-    action: 'tap',
   };
 
   const mockStepWithHighlight: TutorialStep = {
     id: tutorialStepId('highlight-step'),
     title: 'Highlighted Step',
     description: 'This step has a highlight area',
-    highlightArea: {
-      x: 100,
-      y: 200,
-      width: 150,
-      height: 100,
-    },
-    action: 'observe',
   };
 
   const defaultProps = {
@@ -71,17 +63,9 @@ describe('TutorialOverlay', () => {
     expect(getByText('👆')).toBeTruthy();
     expect(getByText('Toca para continuar')).toBeTruthy();
 
-    const dragStep: TutorialStep = { ...mockStep, action: 'drag' };
-    rerender(<TutorialOverlay {...defaultProps} currentStep={dragStep} />);
-
-    expect(getByText('👋')).toBeTruthy();
-    expect(getByText('Arrastra la carta')).toBeTruthy();
-
-    const observeStep: TutorialStep = { ...mockStep, action: 'observe' };
-    rerender(<TutorialOverlay {...defaultProps} currentStep={observeStep} />);
-
-    expect(getByText('👀')).toBeTruthy();
-    expect(getByText('Observa')).toBeTruthy();
+    // Verify step content is shown
+    expect(getByText('Test Step')).toBeTruthy();
+    expect(getByText('This is a test step description')).toBeTruthy();
   });
 
   test('calls onNext when next button is pressed', () => {
@@ -148,12 +132,12 @@ describe('TutorialOverlay', () => {
   });
 
   test('shows correct progress dots', () => {
-    const { getAllByTestId } = render(
-      <TutorialOverlay {...defaultProps} testID="progress-dot" />,
+    const { getByText } = render(
+      <TutorialOverlay {...defaultProps} />,
     );
 
-    // Since we can't easily count dots without testID, we verify the component renders
-    expect(getAllByTestId).toBeTruthy();
+    // Verify we can see the step indicator text
+    expect(getByText('Test Step')).toBeTruthy();
   });
 
   test('calculates tooltip position correctly', () => {

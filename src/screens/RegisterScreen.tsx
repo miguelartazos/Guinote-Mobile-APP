@@ -4,63 +4,39 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
 } from 'react-native';
-import { ScreenContainer } from '../components/ScreenContainer';
-import { Button } from '../components/Button';
+import { useSignUp } from '@clerk/clerk-expo';
+import { useNavigation } from '@react-navigation/native';
 import { colors } from '../constants/colors';
-import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
-import { useAuth } from '../hooks/useAuth';
-import type { JugarStackScreenProps } from '../types/navigation';
+import { dimensions } from '../constants/dimensions';
+import { Button } from '../components/Button';
+import { ScreenContainer } from '../components/ScreenContainer';
 
-const AVATARS = ['👤', '👨', '👩', '🧔', '👱', '👨‍🦰', '👩‍🦰', '👴', '👵'];
+export function RegisterScreen() {
+  const { signUp, setActive, isLoaded } = useSignUp();
+  const navigation = useNavigation();
 
-export function RegisterScreen({
-  navigation,
-}: JugarStackScreenProps<'Register'>) {
-  const { register, error } = useAuth();
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
+  const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [pendingVerification, setPendingVerification] = useState(false);
 
-  const handleRegister = async () => {
+  const handleSignUp = async () => {
+    if (!isLoaded) return;
+
     // Validate inputs
-    if (!username.trim() || !email.trim() || !password.trim()) {
+    if (!email || !password || !username) {
       Alert.alert('Error', 'Por favor completa todos los campos');
-      return;
-    }
-
-    if (username.length < 3 || username.length > 20) {
-      Alert.alert(
-        'Error',
-        'El nombre de usuario debe tener entre 3 y 20 caracteres',
-      );
-      return;
-    }
-
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      Alert.alert(
-        'Error',
-        'El nombre de usuario solo puede contener letras, números y guiones bajos',
-      );
-      return;
-    }
-
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      Alert.alert('Error', 'Por favor ingresa un email válido');
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres');
       return;
     }
 
@@ -69,51 +45,148 @@ export function RegisterScreen({
       return;
     }
 
+    if (password.length < 8) {
+      Alert.alert('Error', 'La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+
     setIsLoading(true);
+
     try {
-      await register(username, email, password, selectedAvatar);
-      Alert.alert('¡Éxito!', 'Tu cuenta ha sido creada exitosamente', [
-        { text: 'OK', onPress: () => navigation.navigate('JugarHome') },
-      ]);
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Error al crear la cuenta');
+      // Create the user
+      await signUp.create({
+        emailAddress: email,
+        password,
+        username,
+      });
+
+      // Send email verification
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+
+      setPendingVerification(true);
+    } catch (error: any) {
+      console.error('Sign up error:', error);
+      let errorMessage = 'Verifica tus datos e intenta de nuevo';
+
+      // Check for specific Clerk test mode errors
+      if (error.errors?.[0]?.message?.includes('clerk_test')) {
+        errorMessage =
+          'Para registrarte en modo de prueba, usa un email con formato: tu_email+clerk_test@example.com';
+      } else if (error.errors?.[0]?.message) {
+        errorMessage = error.errors[0].message;
+      }
+
+      Alert.alert('Error al registrarse', errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleVerification = async () => {
+    if (!isLoaded) return;
+
+    if (!verificationCode) {
+      Alert.alert('Error', 'Por favor ingresa el código de verificación');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const result = await signUp.attemptEmailAddressVerification({
+        code: verificationCode,
+      });
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        // Navigation will be handled by auth state change
+      } else {
+        console.log('Verification status:', result.status);
+      }
+    } catch (error: any) {
+      console.error('Verification error:', error);
+      Alert.alert(
+        'Error de verificación',
+        error.errors?.[0]?.message || 'Código inválido',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignIn = () => {
+    navigation.goBack();
+  };
+
+  if (pendingVerification) {
+    return (
+      <ScreenContainer>
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.headerContainer}>
+            <Text style={styles.title}>Verificar Email</Text>
+            <Text style={styles.subtitle}>
+              Hemos enviado un código a {email}
+            </Text>
+          </View>
+
+          <View style={styles.formContainer}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Código de Verificación</Text>
+              <TextInput
+                style={styles.input}
+                value={verificationCode}
+                onChangeText={setVerificationCode}
+                placeholder="123456"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="number-pad"
+                editable={!isLoading}
+              />
+            </View>
+
+            <Button
+              title={isLoading ? 'Verificando...' : 'Verificar'}
+              onPress={handleVerification}
+              disabled={isLoading || !isLoaded}
+              style={styles.signInButton}
+            />
+
+            {isLoading && (
+              <ActivityIndicator style={styles.loader} color={colors.primary} />
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={styles.header}>
+          <View style={styles.headerContainer}>
             <Text style={styles.title}>Crear Cuenta</Text>
             <Text style={styles.subtitle}>Únete a la comunidad de Guiñote</Text>
           </View>
 
-          <View style={styles.form}>
+          <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Nombre de Usuario</Text>
               <TextInput
                 style={styles.input}
                 value={username}
                 onChangeText={setUsername}
-                placeholder="Elige un nombre único"
-                placeholderTextColor={colors.secondary}
+                placeholder="jugador123"
+                placeholderTextColor={colors.textSecondary}
                 autoCapitalize="none"
                 autoCorrect={false}
-                maxLength={20}
                 editable={!isLoading}
               />
-              <Text style={styles.helperText}>
-                3-20 caracteres, solo letras, números y _
-              </Text>
             </View>
 
             <View style={styles.inputContainer}>
@@ -122,8 +195,8 @@ export function RegisterScreen({
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="tu@email.com"
-                placeholderTextColor={colors.secondary}
+                placeholder="tu_email@example.com"
+                placeholderTextColor={colors.textSecondary}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -137,10 +210,9 @@ export function RegisterScreen({
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
-                placeholder="Mínimo 6 caracteres"
-                placeholderTextColor={colors.secondary}
+                placeholder="••••••••"
+                placeholderTextColor={colors.textSecondary}
                 secureTextEntry
-                autoCapitalize="none"
                 editable={!isLoading}
               />
             </View>
@@ -151,154 +223,99 @@ export function RegisterScreen({
                 style={styles.input}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                placeholder="Repite tu contraseña"
-                placeholderTextColor={colors.secondary}
+                placeholder="••••••••"
+                placeholderTextColor={colors.textSecondary}
                 secureTextEntry
-                autoCapitalize="none"
                 editable={!isLoading}
               />
             </View>
 
-            <View style={styles.avatarSection}>
-              <Text style={styles.label}>Elige tu Avatar</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.avatarScroll}
-              >
-                {AVATARS.map(avatar => (
-                  <TouchableOpacity
-                    key={avatar}
-                    onPress={() => setSelectedAvatar(avatar)}
-                    disabled={isLoading}
-                    style={[
-                      styles.avatarButton,
-                      selectedAvatar === avatar && styles.avatarButtonSelected,
-                    ]}
-                  >
-                    <Text style={styles.avatarText}>{avatar}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-
-            {error && <Text style={styles.errorText}>{error}</Text>}
-
             <Button
-              onPress={handleRegister}
-              disabled={isLoading}
-              style={styles.registerButton}
-            >
-              {isLoading ? 'Creando cuenta...' : 'Crear Cuenta'}
-            </Button>
+              title={isLoading ? 'Creando cuenta...' : 'Crear Cuenta'}
+              onPress={handleSignUp}
+              disabled={isLoading || !isLoaded}
+              style={styles.signInButton}
+            />
 
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Login')}
-              disabled={isLoading}
-              style={styles.linkButton}
-            >
-              <Text style={styles.linkText}>
-                ¿Ya tienes cuenta? Inicia sesión
-              </Text>
+            {isLoading && (
+              <ActivityIndicator style={styles.loader} color={colors.primary} />
+            )}
+          </View>
+
+          <View style={styles.footerContainer}>
+            <Text style={styles.footerText}>¿Ya tienes cuenta?</Text>
+            <TouchableOpacity onPress={handleSignIn} disabled={isLoading}>
+              <Text style={styles.signUpLink}>Inicia Sesión</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </ScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+  },
   container: {
     flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: dimensions.spacing.lg,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: dimensions.spacing.xl,
-    paddingVertical: dimensions.spacing.xxl,
-  },
-  header: {
+  headerContainer: {
     alignItems: 'center',
-    marginBottom: dimensions.spacing.xxl,
+    marginBottom: dimensions.spacing.xl,
   },
   title: {
-    fontSize: typography.fontSize.xxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.accent,
+    ...typography.largeTitle,
+    color: colors.primary,
     marginBottom: dimensions.spacing.sm,
   },
   subtitle: {
-    fontSize: typography.fontSize.lg,
-    color: colors.text,
+    ...typography.body,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
-  form: {
-    flex: 1,
+  formContainer: {
+    marginBottom: dimensions.spacing.xl,
   },
   inputContainer: {
-    marginBottom: dimensions.spacing.lg,
+    marginBottom: dimensions.spacing.md,
   },
   label: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.medium,
+    ...typography.caption,
     color: colors.text,
-    marginBottom: dimensions.spacing.sm,
+    marginBottom: dimensions.spacing.xs,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderRadius: dimensions.borderRadius.md,
-    paddingHorizontal: dimensions.spacing.lg,
-    paddingVertical: dimensions.spacing.md,
-    fontSize: typography.fontSize.md,
-    color: colors.text,
     borderWidth: 1,
-    borderColor: colors.secondary,
+    borderColor: colors.border,
+    borderRadius: dimensions.borderRadius.md,
+    padding: dimensions.spacing.md,
+    fontSize: 16,
+    color: colors.text,
+    backgroundColor: colors.cardBackground,
   },
-  helperText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.secondary,
-    marginTop: dimensions.spacing.xs,
-  },
-  avatarSection: {
-    marginBottom: dimensions.spacing.lg,
-  },
-  avatarScroll: {
-    marginTop: dimensions.spacing.sm,
-  },
-  avatarButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: dimensions.spacing.md,
-    borderWidth: 2,
-    borderColor: colors.secondary,
-  },
-  avatarButtonSelected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.primary,
-  },
-  avatarText: {
-    fontSize: 32,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: typography.fontSize.sm,
-    marginTop: dimensions.spacing.sm,
-    textAlign: 'center',
-  },
-  registerButton: {
+  signInButton: {
     marginTop: dimensions.spacing.lg,
   },
-  linkButton: {
+  loader: {
     marginTop: dimensions.spacing.md,
+  },
+  footerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  linkText: {
-    color: colors.accent,
-    fontSize: typography.fontSize.md,
-    textDecorationLine: 'underline',
+  footerText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginRight: dimensions.spacing.xs,
+  },
+  signUpLink: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: 'bold',
   },
 });

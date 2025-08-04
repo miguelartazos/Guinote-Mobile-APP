@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
-import type { Brand } from '../types/game.types';
+import type { VoiceRecordingId } from '../types/voice.types';
 
-export type VoiceRecordingId = Brand<string, 'VoiceRecordingId'>;
+export type { VoiceRecordingId } from '../types/voice.types';
 
 export type VoiceRecording = {
   id: VoiceRecordingId;
@@ -42,8 +42,13 @@ export function saveRecording(recording: VoiceRecording): void {
 
 export function getRecording(
   recordingId: VoiceRecordingId,
-): VoiceRecording | undefined {
-  return voiceRecordings.get(recordingId);
+): VoiceRecording & { uri: string } | undefined {
+  const recording = voiceRecordings.get(recordingId);
+  if (!recording) return undefined;
+  return {
+    ...recording,
+    uri: recording.filePath,
+  };
 }
 
 export function getAllRecordings(): VoiceRecording[] {
