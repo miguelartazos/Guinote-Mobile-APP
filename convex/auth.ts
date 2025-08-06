@@ -99,6 +99,30 @@ export const getUserByUsername = query({
   },
 });
 
+// Get current authenticated user
+export const getCurrentUser = query({
+  args: {},
+  handler: async ctx => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    // Get user by Clerk ID from the JWT token
+    const clerkId = identity.subject; // This is the Clerk user ID
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_id', q => q.eq('clerkId', clerkId))
+      .first();
+
+    return {
+      identity,
+      user,
+      isAuthenticated: true,
+    };
+  },
+});
+
 // Get top players by ELO
 export const getTopPlayers = query({
   args: {

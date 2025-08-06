@@ -7,7 +7,7 @@ import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
 import type { JugarStackScreenProps } from '../types/navigation';
 
-type TutorialType = 'complete' | 'basic' | 'cantes' | 'special';
+type TutorialType = 'complete' | 'basic' | 'cantes' | 'special' | 'practice';
 
 export function TutorialSetupScreen({
   navigation,
@@ -49,12 +49,34 @@ export function TutorialSetupScreen({
       duration: '4 min',
       icon: '⭐',
     },
+    {
+      type: 'practice' as const,
+      title: 'Modo Práctica 📚',
+      description:
+        'Juega con ayuda visual - Ve las cartas de todos y recibe consejos en tiempo real',
+      duration: 'Ilimitado',
+      icon: '📚',
+      features: [
+        '✓ Ver cartas de todos',
+        '✓ Deshacer jugadas',
+        '✓ Explicaciones de IA',
+        '✓ Consejos en tiempo real',
+      ],
+    },
   ];
 
   const startTutorial = () => {
-    navigation.navigate('TutorialViewer', {
-      tutorialType: selectedTutorial,
-    });
+    if (selectedTutorial === 'practice') {
+      navigation.navigate('Game', {
+        gameMode: 'tutorial',
+        practiceMode: true,
+        tutorialMode: 'practice',
+      });
+    } else {
+      navigation.navigate('TutorialViewer', {
+        tutorialType: selectedTutorial,
+      });
+    }
   };
 
   return (
@@ -114,6 +136,15 @@ export function TutorialSetupScreen({
                 >
                   ⏱ {tutorial.duration}
                 </Text>
+                {tutorial.features && selectedTutorial === tutorial.type && (
+                  <View style={styles.practiceFeatures}>
+                    {tutorial.features.map((feature, index) => (
+                      <Text key={index} style={styles.featureItem}>
+                        {feature}
+                      </Text>
+                    ))}
+                  </View>
+                )}
               </View>
             </Button>
           ))}
@@ -129,7 +160,11 @@ export function TutorialSetupScreen({
         </View>
 
         <View style={styles.buttonContainer}>
-          <Button onPress={startTutorial}>Comenzar Tutorial</Button>
+          <Button onPress={startTutorial}>
+            {selectedTutorial === 'practice'
+              ? 'Comenzar Práctica'
+              : 'Comenzar Tutorial'}
+          </Button>
           <Button
             variant="secondary"
             onPress={() => navigation.goBack()}
@@ -253,5 +288,16 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginTop: dimensions.spacing.md,
+  },
+  practiceFeatures: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: dimensions.spacing.md,
+    marginTop: dimensions.spacing.md,
+  },
+  featureItem: {
+    fontSize: typography.fontSize.md,
+    color: colors.cantarGreen,
+    marginVertical: dimensions.spacing.xs,
   },
 });

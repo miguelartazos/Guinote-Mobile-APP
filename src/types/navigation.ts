@@ -22,6 +22,7 @@ export type JugarStackParamList = {
     }>;
   };
   LocalMultiplayer: undefined;
+  OfflineMode: undefined;
   TutorialSetup: undefined;
   TutorialViewer: {
     tutorialType: 'complete' | 'basic' | 'cantes' | 'special';
@@ -34,11 +35,11 @@ export type JugarStackParamList = {
     roomCode: string;
   };
   Game: {
-    gameMode: 'quick' | 'friends' | 'ai' | 'local' | 'tutorial';
+    gameMode: 'quick' | 'friends' | 'ai' | 'local' | 'tutorial' | 'offline';
     difficulty?: 'easy' | 'medium' | 'hard' | 'expert';
     playerName?: string;
     playerNames?: string[];
-    tutorialMode?: 'complete' | 'basic' | 'cantes' | 'special';
+    tutorialMode?: 'complete' | 'basic' | 'cantes' | 'special' | 'practice';
     practiceMode?: boolean;
     roomId?: string;
     roomCode?: string;

@@ -1,8 +1,20 @@
 module.exports = {
   presets: ['module:@react-native/babel-preset'],
   plugins: [
-    ...(process.env.NODE_ENV === 'production' 
-      ? ['transform-remove-console'] 
-      : [])
+    [
+      'module:react-native-dotenv',
+      {
+        moduleName: '@env',
+        path: '.env',
+        blocklist: null,
+        allowlist: null,
+        safe: false,
+        allowUndefined: true,
+        verbose: false,
+      },
+    ],
+    ...(process.env.NODE_ENV === 'production'
+      ? ['transform-remove-console']
+      : []),
   ],
 };

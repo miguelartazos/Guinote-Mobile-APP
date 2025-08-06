@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ConvexReactClient } from 'convex/react';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { useAuth } from '@clerk/clerk-expo';
-import { Text, View, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet, ActivityIndicator } from 'react-native';
 import { APP_CONFIG } from '../config/appConfig';
 
-// Create Convex client
+// Create Convex client singleton
 const convex = new ConvexReactClient(APP_CONFIG.CONVEX_URL, {
   unsavedChangesWarning: false,
 });
@@ -44,6 +44,14 @@ export function ConvexClientProvider({
           Please check appConfig.ts
         </Text>
       </View>
+    );
+  }
+
+  // Log when provider is ready
+  if (APP_CONFIG.SHOW_AUTH_LOGS) {
+    console.log(
+      '[ConvexClientProvider] Initializing ConvexProviderWithClerk with URL:',
+      APP_CONFIG.CONVEX_URL,
     );
   }
 

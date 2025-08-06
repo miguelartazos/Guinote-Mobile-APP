@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Switch,
 } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Button } from '../components/Button';
@@ -26,7 +25,6 @@ export function OfflineModeScreen({
   const { user } = useConvexAuth();
   const [selectedDifficulty, setSelectedDifficulty] =
     useState<DifficultyLevel>('medium');
-  const [practiceMode, setPracticeMode] = useState(false);
 
   useEffect(() => {
     if (settings?.difficulty) {
@@ -39,21 +37,18 @@ export function OfflineModeScreen({
       level: 'easy' as const,
       title: 'Fácil',
       description: 'Perfecto para principiantes',
-      winRate: '30%',
       icon: '🟢',
     },
     {
       level: 'medium' as const,
       title: 'Medio',
       description: 'Para jugadores casuales',
-      winRate: '45%',
       icon: '🟡',
     },
     {
       level: 'hard' as const,
       title: 'Difícil',
       description: 'Para jugadores experimentados',
-      winRate: '55%',
       icon: '🟠',
     },
     // Removed expert difficulty as it's not in the game types
@@ -124,46 +119,8 @@ export function OfflineModeScreen({
                 </Text>
               </View>
             </View>
-            <View style={styles.infoStats}>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>Tasa de Victoria IA</Text>
-                <Text style={styles.statValue}>{selectedDiff.winRate}</Text>
-              </View>
-            </View>
           </Card>
         )}
-
-        {/* Practice Mode */}
-        <Card style={styles.practiceCard}>
-          <View style={styles.practiceHeader}>
-            <View style={styles.practiceLeft}>
-              <Text style={styles.practiceIcon}>🎓</Text>
-              <View>
-                <Text style={styles.practiceTitle}>Modo Práctica</Text>
-                <Text style={styles.practiceSubtitle}>
-                  Aprende con ayuda visual
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={practiceMode}
-              onValueChange={setPracticeMode}
-              trackColor={{
-                false: colors.secondary,
-                true: colors.accent,
-              }}
-              thumbColor={practiceMode ? colors.white : colors.textMuted}
-            />
-          </View>
-          {practiceMode && (
-            <View style={styles.practiceFeatures}>
-              <Text style={styles.featureItem}>✓ Ver cartas de todos</Text>
-              <Text style={styles.featureItem}>✓ Deshacer jugadas</Text>
-              <Text style={styles.featureItem}>✓ Explicaciones de IA</Text>
-              <Text style={styles.featureItem}>✓ Consejos en tiempo real</Text>
-            </View>
-          )}
-        </Card>
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
@@ -175,13 +132,12 @@ export function OfflineModeScreen({
                 gameMode: 'offline',
                 difficulty: selectedDifficulty,
                 playerName: user?.username || 'Jugador',
-                practiceMode,
               })
             }
-            icon={practiceMode ? '📚' : '🎮'}
+            icon="🎮"
             style={styles.mainButton}
           >
-            {practiceMode ? 'Comenzar Práctica' : 'Comenzar Partida'}
+            Comenzar Partida
           </Button>
 
           <Button
@@ -303,62 +259,6 @@ const styles = StyleSheet.create({
   infoDescription: {
     fontSize: typography.fontSize.md,
     color: colors.text,
-  },
-  infoStats: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: dimensions.spacing.md,
-  },
-  statItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  statValue: {
-    fontSize: typography.fontSize.lg,
-    color: colors.accent,
-    fontWeight: typography.fontWeight.bold,
-  },
-  practiceCard: {
-    marginVertical: dimensions.spacing.lg,
-    backgroundColor: colors.surface,
-  },
-  practiceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: dimensions.spacing.md,
-  },
-  practiceLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  practiceIcon: {
-    fontSize: 28,
-    marginRight: dimensions.spacing.md,
-  },
-  practiceTitle: {
-    fontSize: typography.fontSize.lg,
-    color: colors.text,
-    fontWeight: typography.fontWeight.bold,
-  },
-  practiceSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  practiceFeatures: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: dimensions.spacing.md,
-  },
-  featureItem: {
-    fontSize: typography.fontSize.md,
-    color: colors.cantarGreen,
-    marginVertical: dimensions.spacing.xs,
   },
   buttonContainer: {
     marginTop: dimensions.spacing.xl,
