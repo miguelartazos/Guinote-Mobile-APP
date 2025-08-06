@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth as useClerkAuth, useUser } from '@clerk/clerk-expo';
+import { useConvexAuth } from 'convex/react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { APP_CONFIG } from '../config/appConfig';
@@ -37,6 +38,9 @@ export function useAuth(): AuthState {
   // Clerk hooks
   const clerkAuth = useClerkAuth();
   const { user: clerkUser } = useUser();
+  
+  // Convex auth state
+  const convexAuth = useConvexAuth();
 
   // Convex hooks
   const syncUser = useMutation(api.auth.syncUser);
@@ -102,10 +106,9 @@ export function useAuth(): AuthState {
 
   const clearError = () => setError(null);
 
-  // Determine auth state
-  const isAuthenticated = !!(clerkAuth.isSignedIn && convexUser);
-  const isLoading =
-    !clerkAuth.isLoaded || (clerkAuth.isSignedIn && !convexUser);
+  // Determine auth state - use Convex auth state which already handles the sync
+  const isAuthenticated = convexAuth.isAuthenticated && !!convexUser;
+  const isLoading = convexAuth.isLoading || (convexAuth.isAuthenticated && !convexUser);
 
   // Log auth state in development
   if (APP_CONFIG.SHOW_AUTH_LOGS) {
@@ -115,6 +118,7 @@ export function useAuth(): AuthState {
         isSignedIn: clerkAuth.isSignedIn,
         hasClerkUser: !!clerkUser,
         hasConvexUser: !!convexUser,
+        convexAuthState: convexAuth,
         isAuthenticated,
         isLoading,
       });
@@ -123,6 +127,7 @@ export function useAuth(): AuthState {
       clerkAuth.isSignedIn,
       clerkUser,
       convexUser,
+      convexAuth,
       isAuthenticated,
       isLoading,
     ]);
@@ -135,11 +140,11 @@ export function useAuth(): AuthState {
 
     // Loading states
     isLoading,
-    isLoaded: clerkAuth.isLoaded,
+    isLoaded: !convexAuth.isLoading,
 
     // Auth states
     isAuthenticated,
-    isSignedIn: clerkAuth.isSignedIn,
+    isSignedIn: convexAuth.isAuthenticated,
 
     // Actions
     signIn,

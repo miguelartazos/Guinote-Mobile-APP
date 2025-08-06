@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Button } from '../components/Button';
+import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 import { colors } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
@@ -27,7 +29,7 @@ export function QuickMatchScreen({
   useEffect(() => {
     // Check authentication
     if (!isAuthenticated || !user) {
-      navigation.navigate('Login');
+      navigation.navigate('Login', { returnTo: 'QuickMatch' });
       return;
     }
 
@@ -96,24 +98,28 @@ export function QuickMatchScreen({
         <View style={styles.content}>
           {status.status === 'searching' && (
             <>
-              <View style={styles.onlineStats}>
-                <Text style={styles.onlineIcon}>🌐</Text>
-                <Text style={styles.onlineNumber}>{status.playersInQueue}</Text>
-                <Text style={styles.onlineLabel}>jugadores en cola</Text>
-              </View>
+              <Card variant="filled" elevated>
+                <View style={styles.onlineStats}>
+                  <Text style={styles.onlineIcon}>🌐</Text>
+                  <Text style={styles.onlineNumber}>{status.playersInQueue}</Text>
+                  <Text style={styles.onlineLabel}>jugadores en cola</Text>
+                </View>
+              </Card>
 
-              <View style={styles.searchCard}>
-                <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                  <ActivityIndicator size="large" color={colors.accent} />
-                </Animated.View>
-                <Text style={styles.searchText}>Buscando partida...</Text>
-                <Text style={styles.searchSubtext}>
-                  ELO: {user?.elo || 1000} (±{status.eloRange})
-                </Text>
-                <Text style={styles.waitTime}>
-                  Tiempo: {formatTime(status.waitTime)}
-                </Text>
-              </View>
+              <Card elevated>
+                <View style={styles.searchContent}>
+                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                    <ActivityIndicator size="large" color={colors.accent} />
+                  </Animated.View>
+                  <Text style={styles.searchText}>Buscando partida...</Text>
+                  <Text style={styles.searchSubtext}>
+                    ELO: {user?.elo || 1000} (±{status.eloRange})
+                  </Text>
+                  <Text style={styles.waitTime}>
+                    Tiempo: {formatTime(status.waitTime)}
+                  </Text>
+                </View>
+              </Card>
 
               <View style={styles.playersContainer}>
                 <Text style={styles.playersTitle}>
@@ -130,11 +136,11 @@ export function QuickMatchScreen({
                     <Text style={styles.playerStatus}>Listo</Text>
                   </View>
                   {[1, 2, 3].map(i => (
-                    <View key={i} style={[styles.playerSlot, styles.emptySlot]}>
+                    <Card key={i} style={[styles.playerSlot, styles.emptySlot]} variant="outlined">
                       <Text style={styles.playerIcon}>⏳</Text>
                       <Text style={styles.playerName}>Buscando...</Text>
                       <Text style={styles.playerStatus}>—</Text>
-                    </View>
+                    </Card>
                   ))}
                 </View>
               </View>
@@ -161,18 +167,23 @@ export function QuickMatchScreen({
           )}
 
           {status.status === 'error' && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorIcon}>❌</Text>
-              <Text style={styles.errorText}>
-                {error || 'Error al buscar partida'}
-              </Text>
-            </View>
+            <EmptyState
+              type="error"
+              title="Error al buscar partida"
+              message={error || 'No se pudo conectar con el servidor'}
+              actionLabel="Reintentar"
+              onAction={() => {
+                if (user) {
+                  startMatchmaking(user._id);
+                }
+              }}
+            />
           )}
         </View>
 
         <View style={styles.buttonContainer}>
           <Button
-            variant="secondary"
+            variant="danger"
             onPress={() => {
               if (user) {
                 cancelMatchmaking(user._id);
@@ -180,11 +191,13 @@ export function QuickMatchScreen({
               navigation.goBack();
             }}
             style={styles.button}
+            icon="❌"
           >
             Cancelar Búsqueda
           </Button>
 
           <Button
+            variant="secondary"
             onPress={() =>
               navigation.navigate('Game', {
                 gameMode: 'offline',
@@ -192,6 +205,7 @@ export function QuickMatchScreen({
               })
             }
             style={styles.button}
+            icon="🤖"
           >
             Jugar Offline
           </Button>
@@ -227,13 +241,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: dimensions.spacing.lg,
   },
   onlineStats: {
-    backgroundColor: colors.surface,
-    borderRadius: dimensions.borderRadius.lg,
-    padding: dimensions.spacing.lg,
     alignItems: 'center',
-    marginBottom: dimensions.spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.secondary,
   },
   onlineIcon: {
     fontSize: typography.fontSize.xl,
@@ -250,14 +258,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'center',
   },
-  searchCard: {
-    backgroundColor: colors.surface,
-    borderRadius: dimensions.borderRadius.lg,
-    padding: dimensions.spacing.xl,
+  searchContent: {
     alignItems: 'center',
-    marginBottom: dimensions.spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.secondary,
   },
   searchText: {
     fontSize: typography.fontSize.xl,
@@ -292,17 +294,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   playerSlot: {
-    backgroundColor: colors.surface,
-    borderRadius: dimensions.borderRadius.md,
-    padding: dimensions.spacing.md,
     alignItems: 'center',
     width: '48%',
     marginBottom: dimensions.spacing.md,
-    borderWidth: 1,
-    borderColor: colors.accent,
   },
   emptySlot: {
-    borderColor: colors.secondary,
     opacity: 0.6,
   },
   playerIcon: {

@@ -22,79 +22,82 @@ export function ClerkAuthSync({ children, convexClient }: ClerkAuthSyncProps) {
       return;
     }
 
-    async function syncAuth() {
-      try {
-        if (isSignedIn && user) {
-          if (APP_CONFIG.SHOW_AUTH_LOGS) {
-            console.log(
-              '[ClerkAuthSync] User signed in, syncing with Convex...',
-            );
-          }
+    if (isSignedIn && user) {
+      if (APP_CONFIG.SHOW_AUTH_LOGS) {
+        console.log('[ClerkAuthSync] User signed in, syncing with Convex...');
+      }
 
-          // Get token for Convex
+      // Create async function to fetch token
+      // This function will be called by Convex whenever it needs a fresh token
+      const fetchToken = async () => {
+        try {
+          // Try to get token with convex template first
           const token = await getToken({ template: 'convex' });
-
           if (token) {
-            // Set auth on Convex client
-            convexClient.setAuth(token);
-            setIsAuthSynced(true);
-            setAuthError(null);
-
             if (APP_CONFIG.SHOW_AUTH_LOGS) {
-              console.log('[ClerkAuthSync] Auth synced successfully');
+              console.log('[ClerkAuthSync] Fetched token with convex template');
             }
-          } else {
-            // Try without template if that fails
-            const basicToken = await getToken();
-            if (basicToken) {
-              convexClient.setAuth(basicToken);
-              setIsAuthSynced(true);
-              setAuthError(null);
-
-              if (APP_CONFIG.SHOW_AUTH_LOGS) {
-                console.log('[ClerkAuthSync] Auth synced with basic token');
-              }
-            } else {
-              throw new Error('Unable to get auth token from Clerk');
-            }
+            return token;
           }
-        } else {
-          // User not signed in, clear Convex auth
+
+          // Fallback to basic token
+          const basicToken = await getToken();
+          if (basicToken) {
+            if (APP_CONFIG.SHOW_AUTH_LOGS) {
+              console.log('[ClerkAuthSync] Fetched basic token');
+            }
+            return basicToken;
+          }
+
+          // No token available
           if (APP_CONFIG.SHOW_AUTH_LOGS) {
-            console.log('[ClerkAuthSync] User not signed in, clearing auth');
+            console.log('[ClerkAuthSync] No token available');
           }
+          return null;
+        } catch (error) {
+          console.error('[ClerkAuthSync] Error fetching token:', error);
+          setAuthError(
+            error instanceof Error
+              ? error.message
+              : 'Failed to fetch auth token',
+          );
+          return null;
+        }
+      };
 
-          convexClient.clearAuth();
-          setIsAuthSynced(false);
-          setAuthError(null);
+      try {
+        // Set auth with async function
+        convexClient.setAuth(fetchToken);
+        setIsAuthSynced(true);
+        setAuthError(null);
+
+        if (APP_CONFIG.SHOW_AUTH_LOGS) {
+          console.log('[ClerkAuthSync] Auth function set successfully');
         }
       } catch (error) {
-        console.error('[ClerkAuthSync] Auth sync error:', error);
+        console.error('[ClerkAuthSync] Error setting auth:', error);
         setAuthError(
-          error instanceof Error ? error.message : 'Auth sync failed',
+          error instanceof Error ? error.message : 'Failed to set auth',
         );
-
-        // Clear auth on error
-        convexClient.clearAuth();
         setIsAuthSynced(false);
       }
+    } else {
+      // User not signed in, clear Convex auth
+      if (APP_CONFIG.SHOW_AUTH_LOGS) {
+        console.log('[ClerkAuthSync] User not signed in, clearing auth');
+      }
+
+      convexClient.clearAuth();
+      setIsAuthSynced(false);
+      setAuthError(null);
     }
 
-    syncAuth();
-
-    // Set up interval to refresh token
-    const interval = setInterval(() => {
-      if (isSignedIn) {
-        syncAuth();
-      }
-    }, 50 * 60 * 1000); // Refresh every 50 minutes
-
-    return () => clearInterval(interval);
+    // No need for manual token refresh interval - Convex will call fetchToken as needed
   }, [isLoaded, isSignedIn, user, getToken, convexClient]);
 
   // Log auth state in development
-  if (APP_CONFIG.SHOW_AUTH_LOGS) {
-    useEffect(() => {
+  useEffect(() => {
+    if (APP_CONFIG.SHOW_AUTH_LOGS) {
       console.log('[ClerkAuthSync] State:', {
         isLoaded,
         isSignedIn,
@@ -102,8 +105,8 @@ export function ClerkAuthSync({ children, convexClient }: ClerkAuthSyncProps) {
         hasUser: !!user,
         authError,
       });
-    }, [isLoaded, isSignedIn, isAuthSynced, user, authError]);
-  }
+    }
+  }, [isLoaded, isSignedIn, isAuthSynced, user, authError]);
 
   return <>{children}</>;
 }

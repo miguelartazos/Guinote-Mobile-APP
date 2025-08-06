@@ -4,17 +4,23 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Clipboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { JugarStackNavigationProp } from '../types/navigation';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
+import { dimensions } from '../constants/dimensions';
+import { Button } from '../components/Button';
+import { Card } from '../components/ui/Card';
+import { InputField } from '../components/ui/InputField';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Divider } from '../components/ui/Divider';
+import { LoadingOverlay } from '../components/ui/LoadingOverlay';
 // Using Convex for backend
 import { useConvexAuth } from '../hooks/useConvexAuth';
 import { useConvexRooms } from '../hooks/useConvexRooms';
@@ -98,47 +104,72 @@ export function FriendsLobbyScreen() {
     }
   };
 
+  const handleCopyCode = (code: string) => {
+    Clipboard.setString(code);
+    Alert.alert('Copiado', 'Código copiado al portapapeles');
+  };
+
   const renderOnlineFriends = () => {
     if (!convexUser) {
-      return <Text style={styles.comingSoon}>Próximamente...</Text>;
+      return (
+        <EmptyState
+          icon="🔒"
+          title="Inicia sesión"
+          message="Necesitas iniciar sesión para ver tus amigos"
+        />
+      );
     }
 
     if (onlineFriends.length === 0) {
       return (
-        <Text style={styles.noFriendsText}>
-          No hay amigos en línea en este momento
-        </Text>
+        <EmptyState
+          icon="👥"
+          title="Sin amigos en línea"
+          message="Invita a tus amigos a jugar Guiñote"
+          actionLabel="Invitar Amigos"
+          onAction={() => {
+            // TODO: Implement share functionality
+            Alert.alert('Próximamente', 'Función de compartir en desarrollo');
+          }}
+        />
       );
     }
 
     return (
-      <ScrollView style={styles.friendsList}>
+      <View style={styles.friendsList}>
         {onlineFriends.map((friend: any) => (
-          <View key={friend.id} style={styles.friendItem}>
+          <Card key={friend.id} style={styles.friendCard}>
             <View style={styles.friendInfo}>
-              <Text style={styles.friendAvatar}>{friend.avatar}</Text>
-              <View>
+              <View style={styles.avatarContainer}>
+                <Text style={styles.friendAvatar}>{friend.avatar || '👤'}</Text>
+                <View style={styles.onlineIndicator} />
+              </View>
+              <View style={styles.friendDetails}>
                 <Text style={styles.friendName}>
                   {friend.displayName || friend.username}
                 </Text>
-                <Text style={styles.friendElo}>ELO: {friend.elo}</Text>
+                <View style={styles.friendStats}>
+                  <Text style={styles.friendElo}>⭐ {friend.elo}</Text>
+                  <Text style={styles.friendStatus}>En línea</Text>
+                </View>
               </View>
             </View>
-            <TouchableOpacity
-              style={styles.inviteButton}
+            <Button
+              variant="primary"
+              size="small"
               onPress={() => {
-                // TODO: Implement invite functionality
                 Alert.alert(
                   'Próximamente',
                   'Función de invitación en desarrollo',
                 );
               }}
+              icon="📨"
             >
-              <Text style={styles.inviteButtonText}>Invitar</Text>
-            </TouchableOpacity>
-          </View>
+              Invitar
+            </Button>
+          </Card>
         ))}
-      </ScrollView>
+      </View>
     );
   };
 
@@ -147,80 +178,130 @@ export function FriendsLobbyScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Create Room Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Crear Nueva Sala</Text>
-          <Text style={styles.sectionDescription}>
-            Crea una sala privada y comparte el código con tus amigos
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Jugar con Amigos</Text>
+          <Text style={styles.headerSubtitle}>
+            Crea o únete a una sala privada
           </Text>
-          <TouchableOpacity
-            style={[styles.button, styles.createButton]}
-            onPress={handleCreateRoom}
-            disabled={isCreating}
-          >
-            {isCreating ? (
-              <ActivityIndicator color={colors.background} />
-            ) : (
-              <>
-                <Text style={styles.buttonIcon}>🏠</Text>
-                <Text style={styles.buttonText}>Crear Sala</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {convexUser && (
+            <View style={styles.userBadge}>
+              <Text style={styles.userIcon}>👤</Text>
+              <Text style={styles.userName}>
+                {convexUser.username || 'Jugador'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Divider */}
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>O</Text>
-          <View style={styles.dividerLine} />
-        </View>
+        {/* Create Room Section */}
+        <Card elevated style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardIcon}>🎮</Text>
+            <View style={styles.cardTitleContainer}>
+              <Text style={styles.cardTitle}>Crear Nueva Sala</Text>
+              <Text style={styles.cardDescription}>
+                Invita hasta 3 amigos a jugar
+              </Text>
+            </View>
+          </View>
+          <Button
+            variant="primary"
+            size="large"
+            onPress={handleCreateRoom}
+            loading={isCreating}
+            disabled={isCreating}
+            icon="➕"
+            style={styles.mainButton}
+          >
+            Crear Sala
+          </Button>
+          <Text style={styles.hint}>
+            📍 Se generará un código único para compartir
+          </Text>
+        </Card>
+
+        <Divider text="o" spacing="medium" />
 
         {/* Join Room Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Unirse a Sala</Text>
-          <Text style={styles.sectionDescription}>
-            Introduce el código de 6 caracteres
-          </Text>
-          <TextInput
-            style={styles.input}
+        <Card elevated style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardIcon}>🔑</Text>
+            <View style={styles.cardTitleContainer}>
+              <Text style={styles.cardTitle}>Unirse a Sala</Text>
+              <Text style={styles.cardDescription}>
+                Ingresa el código de invitación
+              </Text>
+            </View>
+          </View>
+
+          <InputField
+            icon="🎯"
             value={roomCode}
-            onChangeText={setRoomCode}
+            onChangeText={text => setRoomCode(text.toUpperCase())}
             placeholder="ABC123"
-            placeholderTextColor={colors.textSecondary}
             maxLength={6}
             autoCapitalize="characters"
             autoCorrect={false}
+            style={styles.codeInput}
+            validation={{
+              isValid: roomCode.length === 6,
+              message:
+                roomCode.length > 0
+                  ? `${roomCode.length}/6 caracteres`
+                  : undefined,
+            }}
           />
-          <TouchableOpacity
-            style={[
-              styles.button,
-              styles.joinButton,
-              roomCode.length !== 6 && styles.buttonDisabled,
-            ]}
-            onPress={handleJoinRoom}
-            disabled={isJoining || roomCode.length !== 6}
-          >
-            {isJoining ? (
-              <ActivityIndicator color={colors.text} />
-            ) : (
-              <>
-                <Text style={styles.buttonIcon}>🚪</Text>
-                <Text style={[styles.buttonText, styles.joinButtonText]}>
-                  Unirse
-                </Text>
-              </>
+
+          <View style={styles.buttonRow}>
+            <Button
+              variant={roomCode.length === 6 ? 'primary' : 'secondary'}
+              onPress={handleJoinRoom}
+              loading={isJoining}
+              disabled={isJoining || roomCode.length !== 6}
+              icon="🚪"
+              style={styles.joinButton}
+            >
+              Unirse
+            </Button>
+            {roomCode.length === 6 && (
+              <Button
+                variant="secondary"
+                size="small"
+                onPress={() => handleCopyCode(roomCode)}
+                icon="📋"
+              >
+                Copiar
+              </Button>
             )}
-          </TouchableOpacity>
-        </View>
+          </View>
+        </Card>
 
         {/* Friends List Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Amigos en Línea</Text>
+        <Card style={styles.friendsSection}>
+          <View style={styles.friendsHeader}>
+            <Text style={styles.friendsTitle}>👥 Amigos en Línea</Text>
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={() => {
+                // TODO: Refresh friends list
+              }}
+            >
+              <Text style={styles.refreshIcon}>🔄</Text>
+            </TouchableOpacity>
+          </View>
           {renderOnlineFriends()}
-        </View>
+        </Card>
       </ScrollView>
+
+      <LoadingOverlay
+        visible={isCreating || isJoining}
+        message={isCreating ? 'Creando sala...' : 'Uniéndose a sala...'}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -232,132 +313,165 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 20,
+    paddingHorizontal: dimensions.spacing.lg,
+    paddingBottom: dimensions.spacing.xxl,
   },
-  section: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: typography.fontSize['2xl'],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-    marginBottom: 8,
-  },
-  sectionDescription: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
-    marginBottom: 16,
-  },
-  button: {
-    flexDirection: 'row',
+  header: {
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
+    paddingTop: dimensions.spacing.xl,
+    paddingBottom: dimensions.spacing.lg,
   },
-  createButton: {
-    backgroundColor: colors.accent,
+  headerTitle: {
+    fontSize: typography.fontSize.xxxl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.accent,
+    marginBottom: dimensions.spacing.xs,
   },
-  joinButton: {
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.accent,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonIcon: {
-    fontSize: 24,
-  },
-  buttonText: {
+  headerSubtitle: {
     fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.background,
+    color: colors.textSecondary,
+    marginBottom: dimensions.spacing.md,
   },
-  joinButtonText: {
-    color: colors.text,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    textAlign: 'center',
-    color: colors.text,
-    marginBottom: 16,
-    letterSpacing: 2,
-  },
-  divider: {
+  userBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 20,
+    backgroundColor: colors.surface,
+    paddingHorizontal: dimensions.spacing.lg,
+    paddingVertical: dimensions.spacing.sm,
+    borderRadius: dimensions.borderRadius.lg,
+    marginTop: dimensions.spacing.sm,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
+  userIcon: {
+    fontSize: 20,
+    marginRight: dimensions.spacing.sm,
   },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+  userName: {
+    fontSize: typography.fontSize.md,
+    color: colors.text,
     fontWeight: typography.fontWeight.medium,
   },
-  comingSoon: {
-    fontSize: typography.fontSize.base,
+  card: {
+    marginVertical: dimensions.spacing.md,
+    padding: dimensions.spacing.lg,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: dimensions.spacing.lg,
+  },
+  cardIcon: {
+    fontSize: 32,
+    marginRight: dimensions.spacing.md,
+  },
+  cardTitleContainer: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+    marginBottom: dimensions.spacing.xs,
+  },
+  cardDescription: {
+    fontSize: typography.fontSize.md,
     color: colors.textSecondary,
+  },
+  mainButton: {
+    marginBottom: dimensions.spacing.md,
+  },
+  hint: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textMuted,
     fontStyle: 'italic',
     textAlign: 'center',
-    marginTop: 20,
   },
-  noFriendsText: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+  codeInput: {
+    marginBottom: dimensions.spacing.md,
+    fontSize: typography.fontSize.xxl,
+    letterSpacing: 4,
     textAlign: 'center',
-    marginTop: 20,
+    fontWeight: typography.fontWeight.bold,
   },
-  friendsList: {
-    maxHeight: 200,
+  buttonRow: {
+    flexDirection: 'row',
+    gap: dimensions.spacing.md,
   },
-  friendItem: {
+  joinButton: {
+    flex: 1,
+  },
+  friendsSection: {
+    marginTop: dimensions.spacing.lg,
+    marginBottom: dimensions.spacing.xl,
+    minHeight: 200,
+  },
+  friendsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: dimensions.spacing.lg,
+  },
+  friendsTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+  },
+  refreshButton: {
+    padding: dimensions.spacing.sm,
+  },
+  refreshIcon: {
+    fontSize: 24,
+  },
+  friendsList: {
+    gap: dimensions.spacing.sm,
+  },
+  friendCard: {
+    marginBottom: dimensions.spacing.sm,
+    padding: dimensions.spacing.md,
   },
   friendInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    flex: 1,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: dimensions.spacing.md,
   },
   friendAvatar: {
-    fontSize: 24,
+    fontSize: 32,
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.cantarGreen,
+    borderWidth: 2,
+    borderColor: colors.background,
+  },
+  friendDetails: {
+    flex: 1,
   },
   friendName: {
-    fontSize: typography.fontSize.base,
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
+    marginBottom: dimensions.spacing.xs,
+  },
+  friendStats: {
+    flexDirection: 'row',
+    gap: dimensions.spacing.md,
   },
   friendElo: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.accent,
+    fontWeight: typography.fontWeight.medium,
   },
-  inviteButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  inviteButtonText: {
+  friendStatus: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
+    color: colors.cantarGreen,
+    fontWeight: typography.fontWeight.medium,
   },
 });

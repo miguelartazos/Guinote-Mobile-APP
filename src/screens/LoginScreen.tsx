@@ -1,31 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
   ScrollView,
   SafeAreaView,
+  Switch,
 } from 'react-native';
 import { useSignIn } from '@clerk/clerk-expo';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
 import { dimensions } from '../constants/dimensions';
 import { Button } from '../components/Button';
+import { InputField } from '../components/ui/InputField';
+import { LoadingOverlay } from '../components/ui/LoadingOverlay';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export function LoginScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const navigation = useNavigation();
+  const route = useRoute();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Load saved credentials if remember me was checked
+  useEffect(() => {
+    loadSavedCredentials();
+  }, []);
+
+  const loadSavedCredentials = async () => {
+    try {
+      const savedEmail = await AsyncStorage.getItem('savedEmail');
+      const savedRememberMe = await AsyncStorage.getItem('rememberMe');
+
+      if (savedRememberMe === 'true' && savedEmail) {
+        setEmail(savedEmail);
+        setRememberMe(true);
+      }
+    } catch (error) {
+      console.error('Error loading saved credentials:', error);
+    }
+  };
 
   const handleSignIn = async () => {
     if (!isLoaded) return;
@@ -44,17 +70,30 @@ export function LoginScreen() {
       });
 
       if (result.status === 'complete') {
+        // Save email if remember me is checked
+        if (rememberMe) {
+          await AsyncStorage.setItem('savedEmail', email);
+          await AsyncStorage.setItem('rememberMe', 'true');
+        } else {
+          await AsyncStorage.removeItem('savedEmail');
+          await AsyncStorage.setItem('rememberMe', 'false');
+        }
+
         await setActive({ session: result.createdSessionId });
-        // Navigation will be handled by auth state change
+
+        // Navigate back to QuickMatch or previous screen
+        if (route.params?.returnTo) {
+          navigation.navigate(route.params.returnTo as never);
+        } else {
+          navigation.goBack();
+        }
       } else {
-        // Handle other statuses if needed
         console.log('Sign in status:', result.status);
       }
     } catch (error: any) {
       console.error('Sign in error:', error);
       let errorMessage = 'Verifica tus credenciales e intenta de nuevo';
 
-      // Check for specific Clerk test mode errors
       if (error.errors?.[0]?.message?.includes('clerk_test')) {
         errorMessage =
           'Para iniciar sesión en modo de prueba, usa un email con formato: tu_email+clerk_test@example.com';
@@ -75,11 +114,72 @@ export function LoginScreen() {
     navigation.navigate('Register' as never);
   };
 
-  const handleForgotPassword = () => {
-    Alert.alert(
-      'Recuperar Contraseña',
-      'Esta función estará disponible pronto',
-    );
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert('Error', 'Por favor ingresa tu email primero');
+      return;
+    }
+
+    if (!isLoaded || !signIn) return;
+
+    setIsLoading(true);
+    try {
+      await signIn.create({
+        strategy: 'reset_password_email_code',
+        identifier: email,
+      });
+
+      Alert.alert(
+        'Correo enviado',
+        'Te hemos enviado un correo con instrucciones para restablecer tu contraseña',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Navigate to password reset screen if you have one
+              // navigation.navigate('ResetPassword' as never);
+            },
+          },
+        ],
+      );
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+      Alert.alert(
+        'Error',
+        error.errors?.[0]?.message ||
+          'No se pudo enviar el correo de recuperación',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOAuthSignIn = async (
+    strategy: 'oauth_google' | 'oauth_apple',
+  ) => {
+    if (!isLoaded) return;
+
+    try {
+      const { createdSessionId, setActive: setActiveSession } =
+        await signIn.create({ strategy });
+
+      if (createdSessionId) {
+        await setActiveSession({ session: createdSessionId });
+
+        // Navigate back
+        if (route.params?.returnTo) {
+          navigation.navigate(route.params.returnTo as never);
+        } else {
+          navigation.goBack();
+        }
+      }
+    } catch (error: any) {
+      console.error('OAuth sign in error:', error);
+      Alert.alert(
+        'Error de autenticación',
+        'No se pudo iniciar sesión con este proveedor',
+      );
+    }
   };
 
   return (
@@ -99,37 +199,48 @@ export function LoginScreen() {
           </View>
 
           <View style={styles.formContainer}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="tu_email@example.com"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
-            </View>
+            <InputField
+              label="Email"
+              icon="✉️"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="tu_email@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isLoading}
+              validation={{
+                isValid: email.includes('@') && email.includes('.'),
+                message: email.length > 0 ? 'Formato de email válido' : undefined,
+              }}
+            />
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Contraseña</Text>
-              <TextInput
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor={colors.textSecondary}
-                secureTextEntry
-                editable={!isLoading}
+            <InputField
+              label="Contraseña"
+              icon="🔒"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              secureTextEntry
+              showPasswordToggle
+              editable={!isLoading}
+            />
+
+            <View style={styles.rememberContainer}>
+              <Switch
+                value={rememberMe}
+                onValueChange={setRememberMe}
+                trackColor={{ false: colors.border, true: colors.accent }}
+                thumbColor={rememberMe ? colors.white : colors.textSecondary}
+                disabled={isLoading}
               />
+              <Text style={styles.rememberText}>Recordarme</Text>
             </View>
 
             <TouchableOpacity
               onPress={handleForgotPassword}
               disabled={isLoading}
+              style={styles.forgotPasswordButton}
             >
               <Text style={styles.forgotPassword}>
                 ¿Olvidaste tu contraseña?
@@ -137,39 +248,78 @@ export function LoginScreen() {
             </TouchableOpacity>
 
             <Button
-              title={isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+              variant="white"
               onPress={handleSignIn}
               disabled={isLoading || !isLoaded}
+              loading={isLoading}
               style={styles.signInButton}
-            />
-
-            {isLoading && (
-              <ActivityIndicator style={styles.loader} color={colors.primary} />
-            )}
+              icon="➡️"
+              iconPosition="right"
+            >
+              {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+            </Button>
 
             <View style={styles.orContainer}>
               <View style={styles.orLine} />
-              <Text style={styles.orText}>o</Text>
+              <Text style={styles.orText}>o continúa con</Text>
               <View style={styles.orLine} />
             </View>
+
+            <View style={styles.socialButtonsContainer}>
+              <Button
+                variant="white"
+                onPress={() => handleOAuthSignIn('oauth_google')}
+                disabled={isLoading}
+                style={styles.socialButton}
+                icon="🌐"
+              >
+                Google
+              </Button>
+
+              <Button
+                variant="white"
+                onPress={() => handleOAuthSignIn('oauth_apple')}
+                disabled={isLoading}
+                style={styles.socialButton}
+                icon="🍎"
+              >
+                Apple
+              </Button>
+            </View>
+
+            <View style={styles.divider} />
 
             <TouchableOpacity
               style={styles.registerButton}
               onPress={handleSignUp}
               disabled={isLoading}
             >
-              <Text style={styles.registerButtonText}>Crear Cuenta Nueva</Text>
+              <Text style={styles.registerButtonText}>
+                ¿No tienes cuenta? Regístrate
+              </Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.footerContainer}>
-            <Text style={styles.footerText}>¿No tienes cuenta?</Text>
-            <TouchableOpacity onPress={handleSignUp} disabled={isLoading}>
-              <Text style={styles.signUpLink}>Regístrate</Text>
-            </TouchableOpacity>
+            <Text style={styles.footerText}>
+              Al continuar, aceptas nuestros{' '}
+            </Text>
+            <View style={styles.footerLinks}>
+              <TouchableOpacity>
+                <Text style={styles.footerLink}>Términos de Servicio</Text>
+              </TouchableOpacity>
+              <Text style={styles.footerText}> y </Text>
+              <TouchableOpacity>
+                <Text style={styles.footerLink}>Política de Privacidad</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <LoadingOverlay
+        visible={isLoading}
+        message="Iniciando sesión..."
+      />
     </SafeAreaView>
   );
 }
@@ -193,77 +343,45 @@ const styles = StyleSheet.create({
     marginBottom: dimensions.spacing.xxl,
   },
   title: {
-    ...typography.largeTitle,
-    color: colors.primary,
+    fontSize: typography.fontSize.xxxl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
     marginBottom: dimensions.spacing.sm,
   },
   subtitle: {
-    ...typography.body,
+    fontSize: typography.fontSize.md,
     color: colors.textSecondary,
   },
   formContainer: {
     marginBottom: dimensions.spacing.xl,
   },
-  inputContainer: {
+  rememberContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: dimensions.spacing.sm,
     marginBottom: dimensions.spacing.md,
   },
-  label: {
-    ...typography.caption,
+  rememberText: {
+    marginLeft: dimensions.spacing.sm,
+    fontSize: typography.fontSize.sm,
     color: colors.text,
-    marginBottom: dimensions.spacing.xs,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: dimensions.borderRadius.md,
-    padding: dimensions.spacing.md,
-    fontSize: 16,
-    color: colors.text,
-    backgroundColor: colors.cardBackground,
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginBottom: dimensions.spacing.lg,
   },
   forgotPassword: {
-    ...typography.caption,
-    color: colors.primary,
-    textAlign: 'right',
-    marginTop: dimensions.spacing.sm,
-    marginBottom: dimensions.spacing.lg,
+    fontSize: typography.fontSize.sm,
+    color: colors.accent,
+    fontWeight: typography.fontWeight.medium,
   },
   signInButton: {
     marginTop: dimensions.spacing.md,
   },
-  loader: {
-    marginTop: dimensions.spacing.md,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: dimensions.spacing.lg,
-  },
-  footerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: dimensions.spacing.lg,
-    backgroundColor: colors.cardBackground,
-    borderRadius: dimensions.borderRadius.md,
-    marginBottom: dimensions.spacing.md,
-  },
-  footerText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginRight: dimensions.spacing.xs,
-  },
-  signUpLink: {
-    ...typography.body,
-    color: colors.primary,
-    fontWeight: 'bold',
-    fontSize: typography.fontSize.lg,
-    textDecorationLine: 'underline',
-  },
   orContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: dimensions.spacing.lg,
+    marginVertical: dimensions.spacing.xl,
   },
   orLine: {
     flex: 1,
@@ -271,22 +389,48 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   orText: {
-    ...typography.caption,
+    fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
     marginHorizontal: dimensions.spacing.md,
   },
+  socialButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: dimensions.spacing.lg,
+    gap: dimensions.spacing.sm,
+  },
+  socialButton: {
+    flex: 1,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: dimensions.spacing.lg,
+  },
   registerButton: {
-    backgroundColor: colors.accent,
-    paddingVertical: dimensions.spacing.md,
-    paddingHorizontal: dimensions.spacing.lg,
-    borderRadius: dimensions.borderRadius.md,
     alignItems: 'center',
-    marginBottom: dimensions.spacing.md,
+    paddingVertical: dimensions.spacing.sm,
   },
   registerButtonText: {
-    ...typography.body,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
     fontSize: typography.fontSize.md,
+    color: colors.accent,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  footerContainer: {
+    alignItems: 'center',
+    paddingTop: dimensions.spacing.lg,
+  },
+  footerText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
+  },
+  footerLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  footerLink: {
+    fontSize: typography.fontSize.xs,
+    color: colors.accent,
+    textDecorationLine: 'underline',
   },
 });

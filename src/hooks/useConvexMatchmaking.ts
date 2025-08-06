@@ -70,19 +70,9 @@ export function useConvexMatchmaking() {
 
         await joinQueue({ userId, gameMode });
 
-        // Note: In a real implementation, you'd subscribe to room creation
-        // For now, we'll simulate finding a match after some time
-        setTimeout(() => {
-          setStatus(prev => ({ ...prev, status: 'found' }));
-          // Navigate to game
-          setTimeout(() => {
-            // This would be replaced with actual room navigation
-            navigation.navigate('NetworkGame', {
-              roomId: 'CONVEX123', // Would come from actual match
-              roomCode: 'ABC123', // Would come from actual match
-            });
-          }, 1000);
-        }, 5000 + Math.random() * 10000); // 5-15 seconds
+        // TODO: Subscribe to match results from Convex
+        // For now, just show searching status
+        // The actual room creation will be handled by the matchmaking system
       } catch (err) {
         console.error('Failed to start matchmaking:', err);
         setError('Error al buscar partida');

@@ -18,6 +18,25 @@ export function NetworkGameScreen() {
   const profile = convexUser;
   const [isReady, setIsReady] = useState(false);
 
+  // Validate roomId
+  useEffect(() => {
+    if (!route.params?.roomId) {
+      Alert.alert('Error', 'No se proporcionó ID de sala', [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
+      return;
+    }
+
+    // Check if roomId looks like a valid Convex ID (basic validation)
+    const roomId = route.params.roomId;
+    if (!roomId.startsWith('k') && roomId !== 'CONVEX123') {
+      console.warn('Invalid roomId format:', roomId);
+    }
+  }, [route.params, navigation]);
+
   const { gameState, isConnected, isLoading, networkError, ...gameActions } =
     useNetworkGameState({
       gameMode: 'online',

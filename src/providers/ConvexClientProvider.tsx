@@ -1,8 +1,9 @@
 import React from 'react';
-import { ConvexProvider, ConvexReactClient } from 'convex/react';
+import { ConvexReactClient } from 'convex/react';
+import { ConvexProviderWithClerk } from 'convex/react-clerk';
+import { useAuth } from '@clerk/clerk-expo';
 import { Text, View, StyleSheet } from 'react-native';
 import { APP_CONFIG } from '../config/appConfig';
-import { ClerkAuthSync } from './ClerkAuthSync';
 
 // Create Convex client
 const convex = new ConvexReactClient(APP_CONFIG.CONVEX_URL, {
@@ -47,8 +48,8 @@ export function ConvexClientProvider({
   }
 
   return (
-    <ClerkAuthSync convexClient={convex}>
-      <ConvexProvider client={convex}>{children}</ConvexProvider>
-    </ClerkAuthSync>
+    <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+      {children}
+    </ConvexProviderWithClerk>
   );
 }

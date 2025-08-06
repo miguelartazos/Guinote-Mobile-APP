@@ -2,13 +2,24 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 
-export function useConvexGame(roomId?: Id<'rooms'>) {
+export function useConvexGame(roomId?: Id<'rooms'> | string) {
+  // Validate roomId format
+  const validRoomId =
+    roomId &&
+    typeof roomId === 'string' &&
+    (roomId.startsWith('k') || roomId.startsWith('j'))
+      ? (roomId as Id<'rooms'>)
+      : undefined;
+
   // Queries
-  const room = useQuery(api.rooms.getRoom, roomId ? { roomId } : 'skip');
+  const room = useQuery(
+    api.rooms.getRoom,
+    validRoomId ? { roomId: validRoomId } : 'skip',
+  );
 
   const gameState = useQuery(
     api.gameQueries.getGameState,
-    roomId ? { roomId } : 'skip',
+    validRoomId ? { roomId: validRoomId } : 'skip',
   );
 
   // Mutations
@@ -30,36 +41,36 @@ export function useConvexGame(roomId?: Id<'rooms'>) {
     // Actions
     actions: {
       playCard: async (cardId: string, userId: Id<'users'>) => {
-        if (!roomId) throw new Error('No room ID');
-        await playCard({ roomId, userId, cardId });
+        if (!validRoomId) throw new Error('No valid room ID');
+        await playCard({ roomId: validRoomId, userId, cardId });
       },
 
       cantar: async (
         suit: 'oros' | 'copas' | 'espadas' | 'bastos',
         userId: Id<'users'>,
       ) => {
-        if (!roomId) throw new Error('No room ID');
-        await cantar({ roomId, userId, suit });
+        if (!validRoomId) throw new Error('No valid room ID');
+        await cantar({ roomId: validRoomId, userId, suit });
       },
 
       cambiar7: async (userId: Id<'users'>) => {
-        if (!roomId) throw new Error('No room ID');
-        await cambiar7({ roomId, userId });
+        if (!validRoomId) throw new Error('No valid room ID');
+        await cambiar7({ roomId: validRoomId, userId });
       },
 
       toggleReady: async (userId: Id<'users'>) => {
-        if (!roomId) throw new Error('No room ID');
-        await toggleReady({ roomId, userId });
+        if (!validRoomId) throw new Error('No valid room ID');
+        await toggleReady({ roomId: validRoomId, userId });
       },
 
       leaveRoom: async (userId: Id<'users'>) => {
-        if (!roomId) throw new Error('No room ID');
-        await leaveRoom({ roomId, userId });
+        if (!validRoomId) throw new Error('No valid room ID');
+        await leaveRoom({ roomId: validRoomId, userId });
       },
 
       addAI: async (difficulty: 'easy' | 'medium' | 'hard') => {
-        if (!roomId) throw new Error('No room ID');
-        await addAIPlayer({ roomId, difficulty });
+        if (!validRoomId) throw new Error('No valid room ID');
+        await addAIPlayer({ roomId: validRoomId, difficulty });
       },
     },
   };
