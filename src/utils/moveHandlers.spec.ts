@@ -12,13 +12,15 @@ import {
 } from './moveHandlers';
 
 describe('moveHandlers', () => {
+  const FIXED_TIMESTAMP = 1640995200000; // 2022-01-01T00:00:00.000Z
+  
   describe('Type Guards', () => {
     it('should correctly identify play_card moves', () => {
       const validMove: GameMove = {
         type: 'play_card',
         playerId: 'player1' as any,
         data: { cardId: 'card123' },
-        timestamp: Date.now(),
+        timestamp: FIXED_TIMESTAMP,
       };
       const invalidMove: GameMove = { type: 'play_card' } as any;
 
@@ -31,7 +33,7 @@ describe('moveHandlers', () => {
         type: 'declare_cante',
         playerId: 'player1' as any,
         data: { suit: 'oros' },
-        timestamp: Date.now(),
+        timestamp: FIXED_TIMESTAMP,
       };
       const invalidMove: GameMove = { type: 'declare_cante' } as any;
 
@@ -44,7 +46,7 @@ describe('moveHandlers', () => {
         type: 'cambiar_7',
         playerId: 'player1' as any,
         data: {},
-        timestamp: Date.now(),
+        timestamp: FIXED_TIMESTAMP,
       };
       const invalidMove: GameMove = { type: 'OTHER' } as any;
 
@@ -57,7 +59,7 @@ describe('moveHandlers', () => {
         type: 'declare_victory',
         playerId: 'player1' as any,
         data: {},
-        timestamp: Date.now(),
+        timestamp: FIXED_TIMESTAMP,
       };
       const invalidMove: GameMove = { type: 'OTHER' } as any;
 

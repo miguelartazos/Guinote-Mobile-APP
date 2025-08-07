@@ -46,14 +46,17 @@ describe('voiceStorage', () => {
       id: 'voice_123' as VoiceRecordingId,
       playerId: 'player1',
       filePath: 'voice_123.m4a',
-      timestamp: Date.now(),
+      timestamp: 1640995200000, // Fixed timestamp: 2022-01-01T00:00:00.000Z
       duration: 3500,
     };
 
     test('saves and retrieves recording', () => {
       saveRecording(mockRecording);
       const retrieved = getRecording(mockRecording.id);
-      expect(retrieved).toEqual(mockRecording);
+      expect(retrieved).toEqual({
+        ...mockRecording,
+        uri: mockRecording.filePath, // getRecording adds uri field
+      });
     });
 
     test('returns undefined for non-existent recording', () => {
@@ -122,11 +125,12 @@ describe('voiceStorage', () => {
     });
 
     test('gets recent recordings with limit', () => {
+      const baseTimestamp = 1640995200000; // Fixed timestamp: 2022-01-01T00:00:00.000Z
       for (let i = 0; i < 15; i++) {
         saveRecording({
           ...mockRecording,
           id: `voice_${i}` as VoiceRecordingId,
-          timestamp: Date.now() - i * 1000,
+          timestamp: baseTimestamp - i * 1000,
         });
       }
 

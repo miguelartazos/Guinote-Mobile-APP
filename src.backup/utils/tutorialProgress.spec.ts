@@ -12,6 +12,19 @@ import { tutorialStepId, tutorialType } from './brandedTypes';
 
 jest.mock('@react-native-async-storage/async-storage');
 
+// Mock Date globally for consistent timestamps
+const RealDate = Date;
+const mockDate = new Date('2024-01-01T11:00:00.000Z');
+global.Date = jest.fn((...args) => {
+  if (args.length) {
+    return new RealDate(...args);
+  }
+  return mockDate;
+}) as any;
+global.Date.now = jest.fn(() => mockDate.getTime());
+global.Date.parse = RealDate.parse;
+global.Date.UTC = RealDate.UTC;
+
 describe('tutorialProgress', () => {
   const mockProgress = {
     tutorialType: tutorialType('complete'),

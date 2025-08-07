@@ -12,7 +12,7 @@ import type { SpanishSuit } from '../types/cardTypes';
 import { CARD_POINTS } from '../types/game.types';
 import { isValidPlay, calculateTrickWinner } from './gameLogic';
 import type { CardMemory } from './aiMemory';
-import { getRemainingHighCards } from './aiMemory';
+import { getRemainingHighCards, getMemorySize } from './aiMemory';
 import {
   AI_DECISION_THRESHOLDS as AI_THRESHOLDS,
   AI_PROBABILITIES,
@@ -106,9 +106,17 @@ function playEasyAI(
   _currentTrick: readonly TrickCard[],
   _trumpSuit: SpanishSuit,
 ): Card {
-  // Easy AI: Random valid card
-  const randomIndex = Math.floor(Math.random() * validCards.length);
-  return validCards[randomIndex];
+  // Easy AI: Random with slight preference for lower cards
+  // Makes obvious mistakes, plays randomly 80% of the time
+  if (Math.random() < 0.8) {
+    // 80% random play
+    const randomIndex = Math.floor(Math.random() * validCards.length);
+    return validCards[randomIndex];
+  } else {
+    // 20% prefer lower cards to seem less threatening
+    const sortedCards = [...validCards].sort((a, b) => getCardPower(a) - getCardPower(b));
+    return sortedCards[0];
+  }
 }
 
 function playMediumAI(
@@ -152,12 +160,19 @@ function playHardAI(
 ): Card {
   const { currentTrick, trumpSuit, phase } = gameState;
 
-  // Count remaining high cards in each suit
+  // Advanced card counting with memory optimization
   const suits: SpanishSuit[] = ['oros', 'copas', 'espadas', 'bastos'];
   const suitStrengths = new Map<SpanishSuit, number>();
+  
+  // Only use memory if it's not too large (prevent performance issues)
+  const memorySize = getMemorySize(memory);
+  const useMemory = memorySize < 30; // Limit memory usage
 
   suits.forEach(suit => {
-    const remaining = getRemainingHighCards(memory, suit);
+    // Use memory if available and not too large, otherwise use heuristics
+    const remaining = useMemory 
+      ? getRemainingHighCards(memory, suit)
+      : suit === trumpSuit ? 3 : 2; // Estimate if no memory
     suitStrengths.set(suit, remaining);
   });
 
@@ -781,17 +796,17 @@ export function getAIThinkingTime(
 ): number {
   const difficulty = player.difficulty || 'medium';
 
-  // Base times in milliseconds
+  // Base times in milliseconds - optimized for responsive gameplay
   const baseTimes: Record<DifficultyLevel, [number, number]> = {
-    easy: [500, 1000],
-    medium: [800, 1500],
-    hard: [1000, 2000],
+    easy: [200, 600],    // Reduced from [500, 1000]
+    medium: [400, 900],   // Reduced from [800, 1500]
+    hard: [600, 1200],    // Reduced from [1000, 2000]
   };
 
   const [min, max] = baseTimes[difficulty];
 
-  // Add extra time for complex decisions
-  const complexityBonus = isComplexDecision ? 500 : 0;
+  // Add extra time for complex decisions - reduced for better flow
+  const complexityBonus = isComplexDecision ? 200 : 0; // Reduced from 500
 
   // Personality affects thinking time
   let personalityMultiplier = 1;

@@ -3,11 +3,11 @@ import { typography } from './typography';
 
 describe('typography', () => {
   test('defines large font sizes for older users', () => {
-    expect(typography.fontSize.xs).toBe(14);
-    expect(typography.fontSize.sm).toBe(16);
+    expect(typography.fontSize.xs).toBe(12);
+    expect(typography.fontSize.sm).toBe(14);
     expect(typography.fontSize.md).toBe(18);
-    expect(typography.fontSize.lg).toBe(22);
-    expect(typography.fontSize.xl).toBe(28);
+    expect(typography.fontSize.lg).toBe(20);
+    expect(typography.fontSize.xl).toBe(24);
     expect(typography.fontSize.xxl).toBe(36);
     expect(typography.fontSize.xxxl).toBe(48);
   });
