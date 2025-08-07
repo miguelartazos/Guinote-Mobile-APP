@@ -17,7 +17,7 @@ import { GameModals } from '../components/game/GameModals';
 import { AnimatedButton } from '../components/ui/AnimatedButton';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ConnectionStatus } from '../components/game/ConnectionStatus';
-import { VoiceMessaging } from '../components/game/VoiceMessaging';
+// import { VoiceMessaging } from '../components/game/VoiceMessaging'; // Disabled until online works
 import { haptics } from '../utils/haptics';
 import type { JugarStackScreenProps } from '../types/navigation';
 import { useGameState } from '../hooks/useGameState';
@@ -30,9 +30,6 @@ import { useSounds } from '../hooks/useSounds';
 import { useGameSettings } from '../hooks/useGameSettings';
 import { useGameStatistics } from '../hooks/useGameStatistics';
 import { useConvexStatistics } from '../hooks/useConvexStatistics';
-import { useAudioReactions } from '../hooks/useAudioReactions';
-import { useBackgroundMusic } from '../hooks/useBackgroundMusic';
-import { useAudioAccessibility } from '../hooks/useAudioAccessibility';
 
 const RENUNCIO_REASONS = [
   {
@@ -627,13 +624,13 @@ export function GameScreen({
       {/* Connection status for online games */}
       {isOnline && <ConnectionStatus />}
 
-      {/* Voice messaging for online games */}
-      {isOnline && (
+      {/* Voice messaging for online games - disabled until online works */}
+      {/* {isOnline && (
         <VoiceMessaging
           roomId={roomId}
           gameMode={gameMode as 'online' | 'friends' | 'offline'}
         />
-      )}
+      )} */}
 
       {/* Card dealing animation */}
       {gameState?.phase === 'dealing' && (

@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: dimensions.spacing.xxl,
-    paddingVertical: dimensions.spacing.xxxl,
+    paddingVertical: dimensions.spacing.xxl,
   },
   iconContainer: {
     marginBottom: dimensions.spacing.lg,
