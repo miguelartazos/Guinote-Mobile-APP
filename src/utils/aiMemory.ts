@@ -69,3 +69,29 @@ export function countPlayedPoints(memory: CardMemory): number {
     0,
   );
 }
+
+export function clearMemory(): CardMemory {
+  return new Map();
+}
+
+export function clearMemoryForPlayer(
+  memory: CardMemory,
+  playerId: PlayerId,
+): CardMemory {
+  const newMemory = new Map(memory);
+  newMemory.delete(playerId);
+  return newMemory;
+}
+
+export function getMemorySize(memory: CardMemory): number {
+  let totalCards = 0;
+  memory.forEach(cards => {
+    totalCards += cards.length;
+  });
+  return totalCards;
+}
+
+export function shouldClearMemory(memory: CardMemory): boolean {
+  // Clear memory after a full hand (40 cards) or when vueltas starts
+  return getMemorySize(memory) >= 40;
+}

@@ -59,10 +59,10 @@ export function isValidMove(gameState: GameState, move: GameMove): boolean {
         if (!playerHand) return false;
 
         const hasKing = playerHand.some(
-          c => c.suit === move.data.suit && c.value === 10,
+          c => c.suit === move.data.suit && c.value === 12,
         );
         const hasKnight = playerHand.some(
-          c => c.suit === move.data.suit && c.value === 11,
+          c => c.suit === move.data.suit && c.value === 10,
         );
 
         return hasKing && hasKnight;

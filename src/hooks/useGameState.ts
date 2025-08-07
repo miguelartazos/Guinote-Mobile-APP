@@ -31,7 +31,7 @@ import {
   canDeclareVictory,
   getValidCards,
 } from '../utils/gameLogic';
-import { createMemory, updateMemory } from '../utils/aiMemory';
+import { createMemory, updateMemory, clearMemory, shouldClearMemory } from '../utils/aiMemory';
 import type { CardMemory } from '../utils/aiMemory';
 import { useAITurn } from './useAITurn';
 // Game constants are available in '../constants/gameConstants' when needed
@@ -370,7 +370,15 @@ export function useGameState({
         });
 
         // Update AI memory for all played cards
-        setAIMemory(prev => updateMemory(prev, currentPlayer.id, card));
+        setAIMemory(prev => {
+          const updated = updateMemory(prev, currentPlayer.id, card);
+          // Clear memory if it's getting too large to prevent memory leaks
+          if (shouldClearMemory(updated)) {
+            console.log('🧹 Clearing AI memory - too many cards tracked');
+            return clearMemory();
+          }
+          return updated;
+        });
 
         // Check if trick is complete
         if (newTrick.length === 4) {
@@ -885,6 +893,9 @@ export function useGameState({
           canCambiar7: true,
         };
       });
+      
+      // Clear AI memory when starting vueltas
+      setAIMemory(clearMemory());
     }
   }, [gameState]);
 

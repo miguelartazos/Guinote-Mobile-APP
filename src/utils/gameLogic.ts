@@ -313,18 +313,22 @@ export function canDeclareVictory(
   const otherTeam = gameState.teams.find(t => t.id !== teamId);
   if (!team || !otherTeam) return false;
 
+  // Team must have won the last trick in the first hand to declare victory
+  if (gameState.lastTrickWinnerTeam !== teamId) return false;
+
   // Calculate total scores (initial + current)
   const teamTotal = (gameState.initialScores.get(teamId) || 0) + team.score;
   const otherTeamTotal =
     (gameState.initialScores.get(otherTeam.id) || 0) + otherTeam.score;
 
   // Win if:
-  // 1. Total score > 100
-  // 2. Have more total points than opponent OR have higher current score in case of tie
+  // 1. Total score >= 101 (not just > 100)
+  // 2. Have more total points than opponent
+  // 3. In case of tie, the team that won last trick in first hand wins
   return (
-    teamTotal > 100 &&
+    teamTotal >= 101 &&
     (teamTotal > otherTeamTotal ||
-      (teamTotal === otherTeamTotal && team.score > otherTeam.score))
+      (teamTotal === otherTeamTotal && gameState.lastTrickWinnerTeam === teamId))
   );
 }
 

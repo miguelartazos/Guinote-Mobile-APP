@@ -68,8 +68,8 @@ export function isValidMove(
     return { valid: false, error: 'Debes seguir el palo' };
   }
 
-  // If can't follow suit, must play trump if possible (in arrastre phase)
-  if (gameState.phase === 'final' && !hasSuit) {
+  // If can't follow suit, must play trump if possible (in arrastre/final phase)
+  if ((gameState.phase === 'final' || gameState.phase === 'arrastre') && !hasSuit) {
     const hasTrump = playerHand.some(cId => {
       const c = getCardFromId(cId, gameState.deck);
       return c?.suit === gameState.trump.suit;

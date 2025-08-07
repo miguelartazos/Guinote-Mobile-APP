@@ -687,11 +687,12 @@ describe('Partida de Vueltas', () => {
         ['team2' as TeamId, 85],
       ]),
       isVueltas: true,
+      lastTrickWinnerTeam: 'team1' as TeamId, // Team1 won last trick in first hand
     } as unknown as GameState;
 
     // Team1: 80 + 95 = 175 total
     // Team2: 85 + 90 = 175 total
-    // Team1 wins because higher current score
+    // Team1 wins because they won last trick in first hand
     expect(canDeclareVictory('team1' as TeamId, mockGameState)).toBe(true);
     expect(canDeclareVictory('team2' as TeamId, mockGameState)).toBe(false);
   });
