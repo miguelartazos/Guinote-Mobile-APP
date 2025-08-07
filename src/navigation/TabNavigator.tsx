@@ -2,9 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
 import { JugarStackNavigator } from './JugarStackNavigator';
-import { AmigosScreen } from '../screens/AmigosScreen';
 import { RankingScreen } from '../screens/RankingScreen';
-import { TiendaScreen } from '../screens/TiendaScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
@@ -39,17 +37,7 @@ export function TabNavigator() {
               🎮
             </Text>
           ),
-        }}
-      />
-      <Tab.Screen
-        name="Amigos"
-        component={AmigosScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>
-              👥
-            </Text>
-          ),
+          tabBarLabel: 'Jugar',
         }}
       />
       <Tab.Screen
@@ -58,20 +46,10 @@ export function TabNavigator() {
         options={{
           tabBarIcon: ({ focused }) => (
             <Text style={{ color: focused ? colors.accent : colors.text }}>
-              📈
+              📊
             </Text>
           ),
-        }}
-      />
-      <Tab.Screen
-        name="Tienda"
-        component={TiendaScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>
-              🛍️
-            </Text>
-          ),
+          tabBarLabel: 'Estadísticas',
         }}
       />
       <Tab.Screen
@@ -83,6 +61,7 @@ export function TabNavigator() {
               ⚙️
             </Text>
           ),
+          tabBarLabel: 'Ajustes',
         }}
       />
     </Tab.Navigator>

@@ -21,7 +21,6 @@ import { VoiceMessaging } from '../components/game/VoiceMessaging';
 import { haptics } from '../utils/haptics';
 import type { JugarStackScreenProps } from '../types/navigation';
 import { useGameState } from '../hooks/useGameState';
-import { useNetworkGameState } from '../hooks/useNetworkGameState';
 import { useConvexAuth } from '../hooks/useConvexAuth';
 import { canCantar, shouldStartVueltas } from '../utils/gameLogic';
 import { colors } from '../constants/colors';
@@ -70,26 +69,15 @@ export function GameScreen({
   // Get user for online games
   const { user: convexUser } = useConvexAuth();
 
-  // Use local game state for offline modes
-  const localGameState = useGameState({
-    playerName: playerName || 'Tú',
+  // Use single game state hook for all modes
+  const gameStateHook = useGameState({
+    playerName: playerName || convexUser?.username || 'Tú',
     difficulty:
       difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
     playerNames: playerNames,
+    // TODO: Add network support in the future
+    // gameId: roomId,
   });
-
-  // Use network game state for online modes
-  const networkGameState = useNetworkGameState({
-    gameMode: isOnline ? 'online' : 'offline',
-    roomId: roomId,
-    userId: convexUser?._id,
-    playerName: playerName || convexUser?.username || 'Player',
-    difficulty: difficulty as any,
-    playerNames: playerNames,
-  });
-
-  // Select the appropriate game state based on mode
-  const gameStateHook = isOnline ? networkGameState : localGameState;
 
   const {
     gameState,

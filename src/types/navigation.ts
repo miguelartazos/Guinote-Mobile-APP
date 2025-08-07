@@ -3,9 +3,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
 export type MainTabParamList = {
   Jugar: undefined;
-  Amigos: undefined;
   Ranking: undefined;
-  Tienda: undefined;
   Ajustes: undefined;
 };
 
@@ -14,13 +12,6 @@ export type JugarStackParamList = {
   QuickMatch: undefined;
   FriendsLobby: undefined;
   CreateRoom: undefined;
-  JoinRoom: { roomCode?: string };
-  AIGame: {
-    aiPlayers: Array<{
-      name: string;
-      difficulty: 'easy' | 'medium' | 'hard';
-    }>;
-  };
   LocalMultiplayer: undefined;
   OfflineMode: undefined;
   TutorialSetup: undefined;
@@ -30,12 +21,8 @@ export type JugarStackParamList = {
   Login: undefined;
   Register: undefined;
   OnlineLobby: undefined;
-  NetworkGame: {
-    roomId: string;
-    roomCode: string;
-  };
   Game: {
-    gameMode: 'quick' | 'friends' | 'ai' | 'local' | 'tutorial' | 'offline';
+    gameMode: 'quick' | 'friends' | 'ai' | 'local' | 'tutorial' | 'offline' | 'online';
     difficulty?: 'easy' | 'medium' | 'hard' | 'expert';
     playerName?: string;
     playerNames?: string[];
@@ -51,18 +38,9 @@ export type JugarStackParamList = {
   };
 };
 
-export type AmigosStackParamList = {
-  FriendsList: undefined;
-  Profile: { userId?: string };
-};
-
 export type RankingStackParamList = {
   Leaderboard: undefined;
   PlayerProfile: { playerId: string };
-};
-
-export type TiendaStackParamList = {
-  Store: undefined;
 };
 
 export type AjustesStackParamList = {
@@ -75,14 +53,8 @@ export type MainTabScreenProps<T extends keyof MainTabParamList> =
 export type JugarStackScreenProps<T extends keyof JugarStackParamList> =
   StackScreenProps<JugarStackParamList, T>;
 
-export type AmigosStackScreenProps<T extends keyof AmigosStackParamList> =
-  StackScreenProps<AmigosStackParamList, T>;
-
 export type RankingStackScreenProps<T extends keyof RankingStackParamList> =
   StackScreenProps<RankingStackParamList, T>;
-
-export type TiendaStackScreenProps<T extends keyof TiendaStackParamList> =
-  StackScreenProps<TiendaStackParamList, T>;
 
 export type AjustesStackScreenProps<T extends keyof AjustesStackParamList> =
   StackScreenProps<AjustesStackParamList, T>;

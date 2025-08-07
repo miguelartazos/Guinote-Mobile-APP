@@ -10,11 +10,9 @@ import { LocalMultiplayerScreen } from '../screens/LocalMultiplayerScreen';
 import { TutorialSetupScreen } from '../screens/TutorialSetupScreen';
 import { TutorialViewerScreen } from '../screens/TutorialViewerScreen';
 import { GameScreen } from '../screens/GameScreen';
-import { RoomScreen } from '../screens/RoomScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
 import { OnlineLobbyScreen } from '../screens/OnlineLobbyScreen';
-import { NetworkGameScreen } from '../screens/NetworkGameScreen';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
 import type { JugarStackParamList } from '../types/navigation';
@@ -92,11 +90,6 @@ export function JugarStackNavigator() {
         }}
       />
       <Stack.Screen
-        name="Room"
-        component={RoomScreen}
-        options={{ title: 'Sala Multijugador' }}
-      />
-      <Stack.Screen
         name="Login"
         component={LoginScreen}
         options={{ title: 'Iniciar Sesión' }}
@@ -110,14 +103,6 @@ export function JugarStackNavigator() {
         name="OnlineLobby"
         component={OnlineLobbyScreen}
         options={{ title: 'Lobby Online' }}
-      />
-      <Stack.Screen
-        name="NetworkGame"
-        component={NetworkGameScreen}
-        options={{
-          title: 'Partida Online',
-          headerShown: false,
-        }}
       />
     </Stack.Navigator>
   );
