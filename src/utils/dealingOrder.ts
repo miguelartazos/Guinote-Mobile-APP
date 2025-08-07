@@ -1,31 +1,32 @@
 import type { PlayerId } from '../types/game.types';
+import type { Card } from '../types/game.types';
 
 /**
  * Calculate counter-clockwise order starting from the player after the dealer
  * In Spanish card games, cards are dealt counter-clockwise starting with the player to the dealer's right
  *
  * Player positions in our layout:
- * - 0: Bottom (current player)
- * - 1: Top-left
- * - 2: Top-right
- * - 3: Bottom-left
+ * - 0: Bottom (current player/user)
+ * - 1: Right (counter-clockwise from bottom)
+ * - 2: Top
+ * - 3: Left
  *
  * Counter-clockwise order from each position:
- * - From 0: [3, 1, 2, 0] (left, top-left, top-right, bottom)
- * - From 1: [0, 2, 3, 1] (bottom, top-right, left, top-left)
- * - From 2: [1, 3, 0, 2] (top-left, left, bottom, top-right)
- * - From 3: [2, 0, 1, 3] (top-right, bottom, top-left, left)
+ * - From 0 (Bottom): [1, 2, 3, 0] (right, top, left, bottom)
+ * - From 1 (Right): [2, 3, 0, 1] (top, left, bottom, right)
+ * - From 2 (Top): [3, 0, 1, 2] (left, bottom, right, top)
+ * - From 3 (Left): [0, 1, 2, 3] (bottom, right, top, left)
  */
 export function getCounterClockwiseOrder(dealerIndex: number): number[] {
   const order: number[] = [];
 
   // Start with player to the right of dealer (counter-clockwise)
-  let current = (dealerIndex + 3) % 4; // Move one position counter-clockwise
+  // Counter-clockwise: 0->1->2->3->0
+  let current = (dealerIndex + 1) % 4;
 
   for (let i = 0; i < 4; i++) {
     order.push(current);
-    // Move counter-clockwise: 0->3->2->1->0
-    current = current === 0 ? 3 : current - 1;
+    current = (current + 1) % 4; // Move counter-clockwise
   }
 
   return order;
@@ -44,8 +45,8 @@ export function getPostTrickDealingOrder(
 
   for (let i = 0; i < 4; i++) {
     order.push(players[current].id);
-    // Move counter-clockwise
-    current = current === 0 ? 3 : current - 1;
+    // Move counter-clockwise: 0->1->2->3->0
+    current = (current + 1) % 4;
   }
 
   return order;
@@ -58,29 +59,85 @@ export function getPostTrickDealingOrder(
 export function getInitialDealingRounds(
   dealerIndex: number,
   players: { id: PlayerId }[],
-  deck: any[],
-): Array<{ playerId: PlayerId; cards: any[] }> {
+  deck: Card[],
+): Array<{ playerId: PlayerId; cards: Card[]; cardIndices: number[] }> {
   const order = getCounterClockwiseOrder(dealerIndex);
-  const rounds: Array<{ playerId: PlayerId; cards: any[] }> = [];
+  const rounds: Array<{
+    playerId: PlayerId;
+    cards: Card[];
+    cardIndices: number[];
+  }> = [];
   let deckIndex = 0;
 
   // Two rounds of dealing
   for (let round = 0; round < 2; round++) {
     // Deal to each player in order
     for (const playerIndex of order) {
-      const cards = [];
+      const cards: Card[] = [];
+      const cardIndices: number[] = [];
+
       // Deal 3 cards
       for (let i = 0; i < 3; i++) {
         if (deckIndex < deck.length) {
-          cards.push(deck[deckIndex++]);
+          cards.push(deck[deckIndex]);
+          // Card position within player's hand (0-5)
+          cardIndices.push(round * 3 + i);
+          deckIndex++;
         }
       }
+
       rounds.push({
         playerId: players[playerIndex].id,
         cards,
+        cardIndices,
       });
     }
   }
 
   return rounds;
+}
+
+/**
+ * Get animation sequence for initial dealing
+ * Returns detailed information for each card animation
+ */
+export interface DealAnimationStep {
+  playerIndex: number;
+  cardIndex: number; // Position in player's hand (0-5)
+  card: Card;
+  delay: number; // Milliseconds before starting this animation
+}
+
+export function getInitialDealAnimationSequence(
+  dealerIndex: number,
+  players: { id: PlayerId }[],
+  deck: Card[],
+): DealAnimationStep[] {
+  const order = getCounterClockwiseOrder(dealerIndex);
+  const animations: DealAnimationStep[] = [];
+  let deckIndex = 0;
+  let totalDelay = 0;
+  const ANIMATION_DURATION = 100; // 100ms delay between cards for faster dealing
+
+  // Two rounds of dealing
+  for (let round = 0; round < 2; round++) {
+    // Deal to each player in order
+    for (const playerIndex of order) {
+      // Deal 3 cards to this player
+      for (let i = 0; i < 3; i++) {
+        if (deckIndex < deck.length) {
+          animations.push({
+            playerIndex,
+            cardIndex: round * 3 + i, // 0-2 for first round, 3-5 for second round
+            card: deck[deckIndex],
+            delay: totalDelay,
+          });
+          deckIndex++;
+          totalDelay += ANIMATION_DURATION;
+        }
+      }
+    }
+  }
+
+  return animations;
 }

@@ -36,6 +36,8 @@ export const scaleFont = (size: number): number => {
   return Math.round(newSize);
 };
 
+export const getResponsiveFontSize = scaleFont;
+
 export const isSmallScreen = (): boolean => {
   const { width } = Dimensions.get('window');
   return width < 375;

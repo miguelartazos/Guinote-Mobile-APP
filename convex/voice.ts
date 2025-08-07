@@ -29,19 +29,22 @@ export const uploadVoiceMessage = action({
     audioData: v.string(), // Base64 encoded audio
     duration: v.number(),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ messageId: any; storageId: string }> => {
     // Convert base64 to blob
-    const base64Data = args.audioData.includes(',') 
-      ? args.audioData.split(',')[1] 
+    const base64Data = args.audioData.includes(',')
+      ? args.audioData.split(',')[1]
       : args.audioData;
-    
+
     // Decode base64 to bytes
     const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
     const blob = new Blob([bytes], { type: 'audio/mp4' });
-    
+
     // Store in Convex storage
     const storageId = await ctx.storage.store(blob);
-    
+
     // Create message record via mutation
     const messageId = await ctx.runMutation(api.voice.createVoiceMessage, {
       roomId: args.roomId,
@@ -49,11 +52,10 @@ export const uploadVoiceMessage = action({
       storageId,
       duration: args.duration,
     });
-    
+
     return { messageId, storageId };
   },
 });
-
 
 // Get voice messages for a room
 export const getVoiceMessages = query({
@@ -108,13 +110,13 @@ export const cleanupOldVoiceMessages = action({
   args: {
     olderThanHours: v.number(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ deleted: number }> => {
     const cutoffTime = Date.now() - args.olderThanHours * 60 * 60 * 1000;
 
     // Get old messages via query
-    const oldMessages = await ctx.runQuery(api.voice.getOldVoiceMessages, {
+    const oldMessages = (await ctx.runQuery(api.voice.getOldVoiceMessages, {
       cutoffTime,
-    });
+    })) as any[];
 
     // Delete storage and records
     for (const message of oldMessages) {

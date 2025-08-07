@@ -1,5 +1,6 @@
 export const dimensions = {
   touchTarget: {
+    small: 40,
     minimum: 48,
     comfortable: 56,
     large: 64,

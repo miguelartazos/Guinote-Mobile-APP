@@ -354,6 +354,9 @@ export const playCardInternal = internalMutation({
     position: v.number(),
   },
   handler: async (ctx, args) => {
+    // Get the userId from roomPlayer
+    const roomPlayer = await ctx.db.get(args.playerId);
+
     // Get game state
     const gameState = await ctx.db
       .query('gameStates')
@@ -436,7 +439,7 @@ export const playCardInternal = internalMutation({
         phase: newPhase,
         lastAction: {
           type: 'PLAY_CARD',
-          playerId: args.playerId,
+          playerId: roomPlayer?.userId || (args.playerId as any),
           data: { cardId: args.cardId },
           timestamp: Date.now(),
         },
@@ -454,7 +457,7 @@ export const playCardInternal = internalMutation({
         currentPlayer: (args.position + 1) % 4,
         lastAction: {
           type: 'PLAY_CARD',
-          playerId: args.playerId,
+          playerId: roomPlayer?.userId || (args.playerId as any),
           data: { cardId: args.cardId },
           timestamp: Date.now(),
         },
@@ -464,7 +467,7 @@ export const playCardInternal = internalMutation({
     // Log action
     await ctx.db.insert('gameActions', {
       roomId: args.roomId,
-      playerId: args.playerId,
+      playerId: roomPlayer?.userId,
       actionType: 'PLAY_CARD',
       actionData: { cardId: args.cardId },
       timestamp: Date.now(),
@@ -486,6 +489,9 @@ export const cantarInternal = internalMutation({
     position: v.number(),
   },
   handler: async (ctx, args) => {
+    // Get the userId from roomPlayer
+    const roomPlayer = await ctx.db.get(args.playerId);
+
     const gameState = await ctx.db
       .query('gameStates')
       .withIndex('by_room', q => q.eq('roomId', args.roomId))
@@ -522,7 +528,7 @@ export const cantarInternal = internalMutation({
       scores: newScores,
       lastAction: {
         type: 'CANTAR',
-        playerId: args.playerId,
+        playerId: roomPlayer?.userId || (args.playerId as any),
         data: { suit: args.suit, points },
         timestamp: Date.now(),
       },
@@ -531,7 +537,7 @@ export const cantarInternal = internalMutation({
     // Log action
     await ctx.db.insert('gameActions', {
       roomId: args.roomId,
-      playerId: args.playerId,
+      playerId: roomPlayer?.userId,
       actionType: 'CANTAR',
       actionData: { suit: args.suit },
       timestamp: Date.now(),
@@ -547,6 +553,9 @@ export const cambiar7Internal = internalMutation({
     position: v.number(),
   },
   handler: async (ctx, args) => {
+    // Get the userId from roomPlayer
+    const roomPlayer = await ctx.db.get(args.playerId);
+
     const gameState = await ctx.db
       .query('gameStates')
       .withIndex('by_room', q => q.eq('roomId', args.roomId))
@@ -591,7 +600,7 @@ export const cambiar7Internal = internalMutation({
       },
       lastAction: {
         type: 'CAMBIAR_7',
-        playerId: args.playerId,
+        playerId: roomPlayer?.userId || (args.playerId as any),
         data: {},
         timestamp: Date.now(),
       },
@@ -600,7 +609,7 @@ export const cambiar7Internal = internalMutation({
     // Log action
     await ctx.db.insert('gameActions', {
       roomId: args.roomId,
-      playerId: args.playerId,
+      playerId: roomPlayer?.userId,
       actionType: 'CAMBIAR_7',
       actionData: {},
       timestamp: Date.now(),

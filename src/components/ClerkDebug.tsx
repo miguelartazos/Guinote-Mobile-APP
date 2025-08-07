@@ -36,11 +36,10 @@ export function ClerkDebug() {
       : null,
     signIn: {
       exists: !!signIn,
-      isLoaded: signIn?.isLoaded,
+      status: (signIn as any)?.status,
     },
     signUp: {
       exists: !!signUp,
-      isLoaded: signUp?.isLoaded,
       status: signUp?.status,
       id: signUp?.id,
     },

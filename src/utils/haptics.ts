@@ -54,3 +54,5 @@ export const haptics = {
   // Selection haptic for UI interactions
   selection: () => triggerHaptic('selection', 'soft'),
 };
+
+export const hapticFeedback = haptics;

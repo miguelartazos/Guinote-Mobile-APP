@@ -90,6 +90,7 @@ export function CollapsibleGameMenu({
         transparent
         animationType="none"
         onRequestClose={() => setIsOpen(false)}
+        supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       >
         <TouchableWithoutFeedback onPress={() => setIsOpen(false)}>
           <Animated.View

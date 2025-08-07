@@ -30,4 +30,14 @@ export const typography = {
     fontSize: 12,
     lineHeight: 1.2,
   },
+  title: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    lineHeight: 1.2,
+  },
+  button: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    lineHeight: 1.5,
+  },
 } as const;

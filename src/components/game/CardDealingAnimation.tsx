@@ -228,7 +228,7 @@ export function CardDealingAnimation({
               Animated.timing(
                 cardAnimations.current[cardIndexForPlayer].scale,
                 {
-                  toValue: 1,
+                  toValue: 1, // No scale transform needed, using large cards for bottom player
                   duration: CARD_DEAL_DURATION / 2,
                   useNativeDriver: true,
                 },
@@ -337,8 +337,8 @@ export function CardDealingAnimation({
           style={[
             styles.deckContainer,
             {
-              top: centerY - 50,
-              left: centerX - 35,
+              top: screenDimensions.height * 0.4 - 50, // 40% from top (middle-left, slightly elevated)
+              left: screenDimensions.width * 0.2 - 35, // 20% from left
               transform: [
                 {
                   rotate: shuffleAnimation.rotation.interpolate({
@@ -387,9 +387,9 @@ export function CardDealingAnimation({
             ]}
           >
             {showCard ? (
-              <SpanishCard card={playerCards[cardInHandIndex]} size="small" />
+              <SpanishCard card={playerCards[cardInHandIndex]} size={playerIndex === 0 ? "large" : "small"} />
             ) : (
-              <SpanishCard faceDown size="small" />
+              <SpanishCard faceDown size={playerIndex === 0 ? "large" : "small"} />
             )}
           </Animated.View>
         );
@@ -456,28 +456,29 @@ function getCardFinalPosition(
 
   switch (playerIndex) {
     case 0: {
-      // Bottom player - simple horizontal layout
-      const overlap = 0.45; // 45% overlap matching GameTable
-      const cardWidth = cardDimensions.hand.width;
-      const visibleWidth = cardWidth * (1 - overlap);
-      const totalWidth = cardWidth + (totalCards - 1) * visibleWidth;
+      // Bottom player - NO overlap, using large cards, side-by-side
+      const scaledCardWidth = cardDimensions.large.width; // Use actual large card width (65px)
+      const totalWidth = scaledCardWidth * totalCards; // No overlap - cards side by side
 
       // Center the hand horizontally
       const startX = (screenDimensions.width - totalWidth) / 2;
-      const cardX = startX + cardIndex * visibleWidth;
+      const cardX = startX + cardIndex * scaledCardWidth;
 
       return {
-        endX: cardX + cardWidth / 2, // Center of card position
-        endY: screenDimensions.height - 60,
+        endX: cardX + scaledCardWidth / 2, // Center of card position
+        endY: screenDimensions.height - 70, // Match GameTable positioning
         rotation: 0, // No rotation for horizontal layout
       };
     }
 
     case 1: {
-      // Left player - vertical stack
-      const leftX = 40;
+      // Left player - vertical stack with 10% overlap
+      const leftX = 10; // Match GameTable positioning
       const leftCenterY = centerY;
-      const verticalSpacing = 35;
+      const cardHeight = cardDimensions.small.height;
+      const overlap = 0.1; // 10% overlap
+      const visibleHeight = cardHeight * (1 - overlap);
+      const verticalSpacing = visibleHeight;
       const leftStartY = leftCenterY - ((totalCards - 1) * verticalSpacing) / 2;
 
       return {
@@ -488,8 +489,8 @@ function getCardFinalPosition(
     }
 
     case 2: {
-      // Top player - horizontal with overlap
-      const overlap = 0.6;
+      // Top player - horizontal with 10% overlap only
+      const overlap = 0.1; // Only 10% overlap (90% visible)
       const cardWidth = cardDimensions.small.width;
       const visibleWidth = cardWidth * (1 - overlap);
       const totalWidth = cardWidth + (totalCards - 1) * visibleWidth;
@@ -497,16 +498,19 @@ function getCardFinalPosition(
 
       return {
         endX: topStartX + cardIndex * visibleWidth,
-        endY: 25,
+        endY: -5, // Match GameTable positioning
         rotation: 0,
       };
     }
 
     case 3: {
-      // Right player - vertical stack
-      const rightX = screenDimensions.width - 40;
+      // Right player - vertical stack with 10% overlap
+      const rightX = screenDimensions.width - 10; // Match GameTable positioning
       const rightCenterY = centerY;
-      const verticalSpacing = 35;
+      const cardHeight = cardDimensions.small.height;
+      const overlap = 0.1; // 10% overlap
+      const visibleHeight = cardHeight * (1 - overlap);
+      const verticalSpacing = visibleHeight;
       const rightStartY =
         rightCenterY - ((totalCards - 1) * verticalSpacing) / 2;
 

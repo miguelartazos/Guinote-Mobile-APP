@@ -3,8 +3,9 @@ import { View, StyleSheet, Text } from 'react-native';
 import { InitialDealAnimation } from './InitialDealAnimation';
 import { PostTrickDealAnimation } from './PostTrickDealAnimation';
 import { TrumpRevealAnimation } from './TrumpRevealAnimation';
-import type { SpanishCardData } from './SpanishCard';
-import type { PlayerId } from '../../types/game.types';
+import type { Card, PlayerId } from '../../types/game.types';
+import type { SlotIndex } from '../../types/slots.types';
+import { playerRegistry } from '../../utils/playerRegistry';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 
@@ -12,33 +13,29 @@ type DealingPhase = 'initial' | 'trump' | 'postTrick' | null;
 
 type DealingAnimationCoordinatorProps = {
   dealingPhase: DealingPhase;
-  initialDealCards?: Array<
-    Array<{
-      card: SpanishCardData;
-      playerId: PlayerId;
-      targetPosition: { x: number; y: number; rotation: number };
-    }>
-  >;
+  deck?: Card[];
+  players?: { id: PlayerId }[];
+  dealerIndex?: number;
   postTrickDealCards?: Array<{
-    card: SpanishCardData;
+    card: Card;
     playerId: PlayerId;
-    index: number;
+    slotIndex: SlotIndex;
   }>;
-  trumpCard?: SpanishCardData;
-  deckPosition: { x: number; y: number };
-  playerPositions: Record<PlayerId, { x: number; y: number; rotation: number }>;
+  trumpCard?: Card;
   onComplete: () => void;
+  onCardDealt?: (playerId: PlayerId, slotIndex: SlotIndex, card: Card) => void;
   showLastTrickMessage?: boolean;
 };
 
 export function DealingAnimationCoordinator({
   dealingPhase,
-  initialDealCards,
+  deck,
+  players,
+  dealerIndex = 0,
   postTrickDealCards,
   trumpCard,
-  deckPosition,
-  playerPositions,
   onComplete,
+  onCardDealt,
   showLastTrickMessage,
 }: DealingAnimationCoordinatorProps) {
   const [currentPhase, setCurrentPhase] = useState<DealingPhase>(dealingPhase);
@@ -46,13 +43,18 @@ export function DealingAnimationCoordinator({
 
   useEffect(() => {
     setCurrentPhase(dealingPhase);
+    // Register players with the position registry when we have them
+    if (players && players.length === 4) {
+      const playerIds = players.map(p => p.id) as [PlayerId, PlayerId, PlayerId, PlayerId];
+      playerRegistry.registerPlayers(playerIds);
+    }
     if (dealingPhase === 'postTrick' && showLastTrickMessage) {
       setShowMessage(true);
       // Hide message after 2 seconds
       const timer = setTimeout(() => setShowMessage(false), 2000);
       return () => clearTimeout(timer);
     }
-  }, [dealingPhase, showLastTrickMessage]);
+  }, [dealingPhase, showLastTrickMessage, players]);
 
   const handleInitialDealComplete = () => {
     if (trumpCard) {
@@ -72,18 +74,19 @@ export function DealingAnimationCoordinator({
 
   return (
     <>
-      {currentPhase === 'initial' && initialDealCards && (
+      {currentPhase === 'initial' && deck && players && (
         <InitialDealAnimation
-          dealingCards={initialDealCards}
-          deckPosition={deckPosition}
+          deck={deck.slice(0, 24)} // First 24 cards for initial deal
+          players={players}
+          dealerIndex={dealerIndex}
           onComplete={handleInitialDealComplete}
+          onCardDealt={onCardDealt}
         />
       )}
 
       {currentPhase === 'trump' && trumpCard && (
         <TrumpRevealAnimation
           trumpCard={trumpCard}
-          deckPosition={deckPosition}
           onComplete={handleTrumpRevealComplete}
         />
       )}
@@ -91,8 +94,6 @@ export function DealingAnimationCoordinator({
       {currentPhase === 'postTrick' && postTrickDealCards && (
         <PostTrickDealAnimation
           dealingCards={postTrickDealCards}
-          deckPosition={deckPosition}
-          playerPositions={playerPositions}
           onComplete={onComplete}
         />
       )}

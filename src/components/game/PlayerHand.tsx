@@ -3,139 +3,125 @@ import { View, StyleSheet, Dimensions } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withSpring,
-  interpolate,
-  Extrapolation,
   useSharedValue,
-  withTiming,
 } from 'react-native-reanimated';
 import Card from './Card';
 import { Card as CardType } from '../../types/game';
-import { LAYOUT } from './PlayerPositions';
-import { getBottomPlayerCardPosition } from '../../utils/cardPositions';
+import {
+  getBottomPlayerCardPosition,
+  getCardWidth,
+  getCardHeight,
+  BOTTOM_PLAYER_SCALE,
+} from '../../utils/cardPositions';
+import type { CardSlot } from '../../types/slots.types';
 
 interface PlayerHandProps {
-  cards: CardType[];
-  onCardPress: (card: CardType, index: number) => void;
+  slots: CardSlot[]; // Always 6 slots
+  onCardPress: (card: CardType, slotIndex: number) => void;
   canPlay: (card: CardType) => boolean;
   isCurrentPlayer?: boolean;
+  isDealing?: boolean;
 }
 
 export const PlayerHand: React.FC<PlayerHandProps> = ({
-  cards,
+  slots,
   onCardPress,
   canPlay,
   isCurrentPlayer = true,
+  isDealing = false,
 }) => {
-  const totalCards = cards.length;
   const { width } = Dimensions.get('window');
-
-  const getCardPosition = (index: number) => {
-    // Use the same positioning as dealing animations
-    const position = getBottomPlayerCardPosition(index, totalCards, width);
-
-    // Convert absolute positions to relative positions from center
-    const centerX = width / 2;
-    const centerY = Dimensions.get('window').height - 100;
-
-    return {
-      x: position.x - centerX,
-      y: position.y - centerY,
-      rotation: position.rotation,
-    };
-  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.handContainer}>
-        {cards.map((card, index) => {
-          return (
-            <AnimatedCard
-              key={card.id}
-              card={card}
-              index={index}
-              totalCards={totalCards}
-              getCardPosition={getCardPosition}
-              isPlayable={canPlay(card)}
-              isCurrentPlayer={isCurrentPlayer}
-              onPress={() => onCardPress(card, index)}
-            />
-          );
-        })}
-      </View>
+      {slots.map(slot => {
+        // Get absolute position for this slot
+        const position = getBottomPlayerCardPosition(slot.slotIndex, 6, width);
+
+        // Skip rendering empty slots but maintain their space
+        if (slot.card === null) {
+          return null;
+        }
+
+        const isPlayable = canPlay(slot.card) && isCurrentPlayer;
+
+        return (
+          <AnimatedCard
+            key={slot.card.id}
+            card={slot.card}
+            position={position}
+            isPlayable={isPlayable}
+            onPress={() => onCardPress(slot.card, slot.slotIndex)}
+            isDealing={isDealing}
+          />
+        );
+      })}
     </View>
   );
 };
 
 interface AnimatedCardProps {
   card: CardType;
-  index: number;
-  totalCards: number;
-  getCardPosition: (index: number) => {
-    x: number;
-    y: number;
-    rotation: number;
-  };
+  position: { x: number; y: number; rotation: number; zIndex: number };
   isPlayable: boolean;
-  isCurrentPlayer: boolean;
   onPress: () => void;
+  isDealing: boolean;
 }
 
 const AnimatedCard: React.FC<AnimatedCardProps> = ({
   card,
-  index,
-  totalCards,
-  getCardPosition,
+  position,
   isPlayable,
-  isCurrentPlayer,
   onPress,
+  isDealing,
 }) => {
-  const position = getCardPosition(index);
-
-  // Animated values for smooth transitions
+  // Use absolute positioning directly
   const translateX = useSharedValue(position.x);
   const translateY = useSharedValue(position.y);
   const rotation = useSharedValue(position.rotation);
+  const scale = useSharedValue(1); // No additional scale needed
+  const opacity = useSharedValue(isDealing ? 0 : 1);
 
-  // Update position when index changes
   useEffect(() => {
-    const newPosition = getCardPosition(index);
-    translateX.value = withSpring(newPosition.x, {
+    // Animate to position if it changes
+    translateX.value = withSpring(position.x, {
       damping: 15,
       stiffness: 120,
     });
-    translateY.value = withSpring(newPosition.y, {
+    translateY.value = withSpring(position.y, {
       damping: 15,
       stiffness: 120,
     });
-    rotation.value = withSpring(newPosition.rotation, {
+    rotation.value = withSpring(position.rotation, {
       damping: 15,
       stiffness: 120,
     });
-  }, [index, totalCards, getCardPosition, translateX, translateY, rotation]);
+    opacity.value = withSpring(isDealing ? 0 : 1, {
+      damping: 15,
+      stiffness: 120,
+    });
+  }, [position, isDealing, translateX, translateY, rotation, opacity]);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { rotate: `${rotation.value}deg` },
-      ],
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    position: 'absolute',
+    left: translateX.value, // Use position directly as LEFT edge
+    top: translateY.value, // Use position directly as TOP edge
+    transform: [{ rotate: `${rotation.value}deg` }, { scale: scale.value }],
+    opacity: opacity.value,
+    zIndex: position.zIndex,
+  }));
 
   return (
-    <Animated.View
-      style={[styles.cardWrapper, animatedStyle, { zIndex: index }]}
-    >
+    <Animated.View style={animatedStyle}>
       <Card
         card={card}
-        index={index}
-        total={totalCards}
+        index={0}
+        total={1}
         isPlayerCard={true}
-        isPlayable={isPlayable && isCurrentPlayer}
+        isPlayable={isPlayable}
         onPress={onPress}
         faceUp={true}
-        animationDelay={index * 50}
+        animationDelay={0}
       />
     </Animated.View>
   );
@@ -143,25 +129,8 @@ const AnimatedCard: React.FC<AnimatedCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: LAYOUT.players.bottom.y + 100,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 20,
-  },
-  handContainer: {
-    position: 'relative',
-    width: LAYOUT.players.bottom.handWidth,
-    height: 150,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardWrapper: {
-    position: 'absolute',
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
+    pointerEvents: 'box-none',
   },
 });
 

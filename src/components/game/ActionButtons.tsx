@@ -36,7 +36,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
   ) => {
     if (!enabled) return;
 
-    hapticFeedback('medium');
+    hapticFeedback.medium();
     scale.value = withSpring(0.9, { damping: 15 }, () => {
       scale.value = withSpring(1, { damping: 15 });
     });

@@ -235,13 +235,13 @@ describe('gameStateAdapter', () => {
       const serialized = serializeGameState(gameState);
 
       expect(serialized.hands).toBeInstanceOf(Object);
-      expect(serialized.hands['p1']).toHaveLength(2);
-      expect(serialized.hands['p1'][0]).toEqual({
+      expect(serialized.hands.p1).toHaveLength(2);
+      expect(serialized.hands.p1[0]).toEqual({
         id: 'c1',
         suit: 'oros',
         value: 1,
       });
-      expect(serialized.hands['p3']).toHaveLength(0);
+      expect(serialized.hands.p3).toHaveLength(0);
     });
 
     it('converts trickWins Map to object', () => {
@@ -249,17 +249,17 @@ describe('gameStateAdapter', () => {
       const serialized = serializeGameState(gameState);
 
       expect(serialized.trickWins).toBeInstanceOf(Object);
-      expect(serialized.trickWins['team1']).toBe(3);
-      expect(serialized.trickWins['team2']).toBe(5);
+      expect(serialized.trickWins.team1).toBe(3);
+      expect(serialized.trickWins.team2).toBe(5);
     });
 
     it('serializes collectedTricks correctly', () => {
       const gameState = createCompleteGameState();
       const serialized = serializeGameState(gameState);
 
-      expect(serialized.collectedTricks['p1']).toHaveLength(1);
-      expect(serialized.collectedTricks['p1'][0]).toHaveLength(4);
-      expect(serialized.collectedTricks['p1'][0][0]).toEqual({
+      expect(serialized.collectedTricks.p1).toHaveLength(1);
+      expect(serialized.collectedTricks.p1[0]).toHaveLength(4);
+      expect(serialized.collectedTricks.p1[0][0]).toEqual({
         playerId: 'p1',
         card: { id: 'old1', suit: 'oros', value: 10 },
       });
@@ -394,7 +394,10 @@ describe('gameStateAdapter', () => {
       gameState.pendingTrickWinner = {
         playerId: 'p1' as PlayerId,
         points: 20,
-        cards: [createTestCard('c1', 'oros', 1), createTestCard('c2', 'copas', 12)],
+        cards: [
+          createTestCard('c1', 'oros', 1),
+          createTestCard('c2', 'copas', 12),
+        ],
       };
 
       const serialized = serializeGameState(gameState);
@@ -423,7 +426,7 @@ describe('gameStateAdapter', () => {
     it('handles undefined animation states', () => {
       const gameState = createCompleteGameState();
       // Animation states are undefined by default
-      
+
       const serialized = serializeGameState(gameState);
       expect(serialized.trickAnimating).toBeUndefined();
       expect(serialized.pendingTrickWinner).toBeUndefined();

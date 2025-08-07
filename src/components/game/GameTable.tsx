@@ -12,6 +12,7 @@ import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
 import { getCardDimensions } from '../../utils/responsive';
 import { useOrientation } from '../../hooks/useOrientation';
+import { getPlayerCardPosition } from '../../utils/cardPositions';
 
 type Player = {
   id: string;
@@ -142,17 +143,27 @@ export function GameTable({
         >
           <View style={styles.topPlayerCards}>
             {topPlayer.cards.map((_, index) => {
-              const cardDimensions = getCardDimensions();
-              const overlap = 0.6;
-              const cardWidth = cardDimensions.small.width;
-              const visibleWidth = cardWidth * (1 - overlap);
+              const position = getPlayerCardPosition(
+                2,
+                index,
+                topPlayer.cards.length,
+                'small',
+              );
 
               return (
                 <SpanishCard
                   key={`top-${index}`}
                   faceDown
                   size="small"
-                  style={[styles.topCard, { left: index * visibleWidth }]}
+                  style={[
+                    styles.topCard,
+                    {
+                      left: position.x,
+                      top: position.y,
+                      zIndex: position.zIndex,
+                      transform: [{ rotate: `${position.rotation}deg` }],
+                    },
+                  ]}
                 />
               );
             })}
@@ -170,7 +181,12 @@ export function GameTable({
           ]}
         >
           {leftPlayer.cards.map((_, index) => {
-            const verticalSpacing = 35;
+            const position = getPlayerCardPosition(
+              3,
+              index,
+              leftPlayer.cards.length,
+              'small',
+            );
 
             return (
               <SpanishCard
@@ -180,9 +196,10 @@ export function GameTable({
                 style={[
                   styles.leftCard,
                   {
-                    top: index * verticalSpacing,
-                    zIndex: 5 + index,
-                    transform: [{ rotate: '90deg' }],
+                    left: position.x,
+                    top: position.y,
+                    zIndex: position.zIndex,
+                    transform: [{ rotate: `${position.rotation}deg` }],
                   },
                 ]}
               />
@@ -201,7 +218,12 @@ export function GameTable({
           ]}
         >
           {rightPlayer.cards.map((_, index) => {
-            const verticalSpacing = 35;
+            const position = getPlayerCardPosition(
+              1,
+              index,
+              rightPlayer.cards.length,
+              'small',
+            );
 
             return (
               <SpanishCard
@@ -211,9 +233,10 @@ export function GameTable({
                 style={[
                   styles.rightCard,
                   {
-                    top: index * verticalSpacing,
-                    zIndex: 5 + index,
-                    transform: [{ rotate: '-90deg' }],
+                    left: position.x,
+                    top: position.y,
+                    zIndex: position.zIndex,
+                    transform: [{ rotate: `${position.rotation}deg` }],
                   },
                 ]}
               />
@@ -335,66 +358,63 @@ export function GameTable({
         </View>
       )}
 
-      {/* Bottom Player Hand */}
-      <View
-        style={[
-          styles.bottomPlayerHand,
-          landscape && styles.bottomPlayerHandLandscape,
-        ]}
-      >
-        {bottomPlayer.cards.map((card, index) => {
-          const isValidCard =
-            !validCardIndices || validCardIndices.includes(index);
-          const isPlayerTurn = currentPlayerIndex === 0;
-          const cardDimensions = getCardDimensions();
-          const cardCount = bottomPlayer.cards.length;
-          const screenWidth = Dimensions.get('window').width;
+      {/* Bottom Player Hand - Only render when not dealing */}
+      {!isDealing && (
+        <View
+          style={[
+            styles.bottomPlayerHand,
+            landscape && styles.bottomPlayerHandLandscape,
+          ]}
+        >
+          {bottomPlayer.cards.map((card, index) => {
+            const isValidCard =
+              !validCardIndices || validCardIndices.includes(index);
+            const isPlayerTurn = currentPlayerIndex === 0;
+            const position = getPlayerCardPosition(
+              0,
+              index,
+              bottomPlayer.cards.length,
+              'large',
+            );
+            const cardDimensions = getCardDimensions();
+            const scaledCardWidth = cardDimensions.large.width;
 
-          // Simple horizontal layout with less overlap for better visibility
-          const overlap = 0.45; // 45% overlap
-          const cardWidth = cardDimensions.hand.width;
-          const visibleWidth = cardWidth * (1 - overlap);
-          const totalWidth = cardWidth + (cardCount - 1) * visibleWidth;
-
-          // Center the hand horizontally
-          const startX = (screenWidth - totalWidth) / 2;
-          const cardX = startX + index * visibleWidth;
-
-          return (
-            <DraggableCard
-              key={`hand-${index}`}
-              card={card}
-              index={index}
-              onCardPlay={onCardPlay}
-              onReorder={
-                onCardReorder
-                  ? (fromIndex, toIndex) =>
-                      onCardReorder(bottomPlayer.id, fromIndex, toIndex)
-                  : undefined
-              }
-              dropZoneBounds={dropZoneBounds || undefined}
-              isEnabled={
-                !isDealing && !!dropZoneBounds && isPlayerTurn && isValidCard
-              }
-              cardSize="medium"
-              totalCards={bottomPlayer.cards.length}
-              cardWidth={cardWidth}
-              style={[
-                styles.handCardContainer,
-                {
-                  left: cardX,
-                  bottom: -10,
-                  zIndex: 20 + index,
-                  opacity: isDealing ? 0 : 1,
-                },
-                styles.handCard,
-                landscape && styles.handCardLandscape,
-                !isValidCard && isPlayerTurn && styles.invalidCard,
-              ]}
-            />
-          );
-        })}
-      </View>
+            return (
+              <DraggableCard
+                key={`hand-${index}`}
+                card={card}
+                index={index}
+                onCardPlay={onCardPlay}
+                onReorder={
+                  onCardReorder
+                    ? (fromIndex, toIndex) =>
+                        onCardReorder(bottomPlayer.id, fromIndex, toIndex)
+                    : undefined
+                }
+                dropZoneBounds={dropZoneBounds || undefined}
+                isEnabled={
+                  !isDealing && !!dropZoneBounds && isPlayerTurn && isValidCard
+                }
+                cardSize="large" // Use large size since we're scaling up
+                totalCards={bottomPlayer.cards.length}
+                cardWidth={scaledCardWidth}
+                style={[
+                  styles.handCardContainer,
+                  {
+                    left: position.x,
+                    top: position.y,
+                    zIndex: position.zIndex,
+                    opacity: isDealing ? 0 : 1,
+                  },
+                  styles.handCard,
+                  landscape && styles.handCardLandscape,
+                  !isValidCard && isPlayerTurn && styles.invalidCard,
+                ]}
+              />
+            );
+          })}
+        </View>
+      )}
 
       {/* Collapsible Game Menu */}
       <CollapsibleGameMenu
@@ -444,59 +464,57 @@ const styles = StyleSheet.create({
   },
   topPlayerCardsContainer: {
     position: 'absolute',
-    top: -5,
+    top: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 5,
+    bottom: 0,
+    pointerEvents: 'none',
   },
   topPlayerCardsLandscape: {
-    top: 80,
-    left: 20,
+    // Removed positioning adjustments
   },
   topPlayerCards: {
-    flexDirection: 'row',
-    position: 'relative',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   topCard: {
     position: 'absolute',
   },
   leftPlayerCards: {
     position: 'absolute',
-    left: 10,
-    top: '50%',
-    transform: [{ translateY: -87.5 }],
-    flexDirection: 'column',
-    zIndex: 5,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'none',
   },
   leftPlayerCardsLandscape: {
-    bottom: 200,
-    left: 20,
+    // Removed positioning adjustments
   },
   leftCard: {
     position: 'absolute',
   },
   rightPlayerCards: {
     position: 'absolute',
-    right: 10,
-    top: '50%',
-    transform: [{ translateY: -87.5 }],
-    flexDirection: 'column',
-    zIndex: 5,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'none',
   },
   rightPlayerCardsLandscape: {
-    top: 80,
-    right: 20,
+    // Removed positioning adjustments
   },
   rightCard: {
     position: 'absolute',
   },
   deckPileContainer: {
     position: 'absolute',
-    top: '50%',
-    left: '25%',
+    top: '40%', // Middle-left, slightly elevated
+    left: '20%',
     transform: [{ translateY: -70 }, { translateX: -70 }],
     zIndex: 15,
   },
@@ -531,12 +549,11 @@ const styles = StyleSheet.create({
   },
   bottomPlayerHand: {
     position: 'absolute',
-    bottom: 80,
+    top: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    zIndex: 20,
-    height: 120, // Fixed height for card area
+    bottom: 0,
+    pointerEvents: 'box-none',
   },
   handCardContainer: {
     position: 'absolute',

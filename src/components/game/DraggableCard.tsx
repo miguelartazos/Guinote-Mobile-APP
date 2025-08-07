@@ -49,7 +49,21 @@ export function DraggableCard({
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
+
+  // Extract initial opacity from style if provided
+  const getInitialOpacity = () => {
+    if (style) {
+      const styles = Array.isArray(style) ? style : [style];
+      for (const s of styles) {
+        if (s && typeof s === 'object' && 'opacity' in s) {
+          return s.opacity as number;
+        }
+      }
+    }
+    return 1;
+  };
+
+  const opacity = useRef(new Animated.Value(getInitialOpacity())).current;
   const startX = useRef(0);
   const startY = useRef(0);
   const isDraggingHorizontally = useRef(false);
@@ -215,8 +229,8 @@ export function DraggableCard({
                 .filter(Boolean)
                 .flatMap((s: any) => s.transform || []),
             ],
-            opacity,
           },
+          { opacity }, // Apply opacity last to override style opacity
         ]}
       >
         <TouchableOpacity
