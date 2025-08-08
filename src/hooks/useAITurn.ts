@@ -39,10 +39,15 @@ export function useAITurn({
   const [thinkingPlayer, setThinkingPlayer] = useState<PlayerId | null>(null);
   const botRecoveryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTurnKeyRef = useRef<string>('');
+  const retryAttemptsRef = useRef<number>(0);
+  const lastPlayedCardRef = useRef<string | null>(null);
+  const mainTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isCleaningUpRef = useRef<boolean>(false);
 
   // Use refs to prevent stale closures
   const playCardRef = useRef(playCard);
   const cantarRef = useRef(cantar);
+  const aiMemoryRef = useRef(aiMemory);
 
   // Update refs when callbacks change
   useEffect(() => {
@@ -53,11 +58,30 @@ export function useAITurn({
     cantarRef.current = cantar;
   }, [cantar]);
 
+  // Keep AI memory in a ref so main effect does not depend on aiMemory
+  useEffect(() => {
+    aiMemoryRef.current = aiMemory;
+  }, [aiMemory]);
+
   // Main AI turn logic
   useEffect(() => {
+    // Prevent running if we're cleaning up
+    if (isCleaningUpRef.current) {
+      return;
+    }
+
     // Early validation with detailed logging
     if (!gameState) {
       console.log('🚫 AI Turn: No game state');
+      return;
+    }
+
+    // Do not make AI decisions while trick animation is running
+    if (gameState.trickAnimating) {
+      console.log('🎬 AI Turn: Skipping - trick animation in progress', {
+        player: gameState.players[gameState.currentPlayerIndex].name,
+        currentTrickLength: gameState.currentTrick.length,
+      });
       return;
     }
 
@@ -66,10 +90,8 @@ export function useAITurn({
       return;
     }
 
-    if (gameState.trickAnimating) {
-      console.log('🚫 AI Turn: Trick animation in progress');
-      return;
-    }
+    // Don't block on animations - queue the move instead
+    // The animation system should handle queuing properly
 
     if (mockData) {
       console.log('🚫 AI Turn: Mock data present');
@@ -91,6 +113,17 @@ export function useAITurn({
       timestamp: Date.now(),
     });
 
+    // Extra diagnostics for right-side bot (index 3)
+    if (gameState.currentPlayerIndex === 3) {
+      console.log('🧭 RIGHT BOT (index 3) DIAGNOSTICS:', {
+        trickAnimating: gameState.trickAnimating,
+        isVueltas: gameState.isVueltas,
+        trickCount: gameState.trickCount,
+        currentTrickLength: gameState.currentTrick.length,
+        deckSize: gameState.deck.length,
+      });
+    }
+
     if (!currentPlayer.isBot) {
       console.log('🚫 AI Turn: Not a bot turn');
       return;
@@ -107,18 +140,45 @@ export function useAITurn({
       console.warn('⚠️ AI Turn: Same turn key detected, bot might be stuck', {
         playerId: currentPlayer.id,
         turnKey: currentTurnKey,
+        retryAttempts: retryAttemptsRef.current,
       });
+
+      // Increment retry attempts for exponential backoff
+      retryAttemptsRef.current++;
+
+      if (retryAttemptsRef.current > AI_TIMING.MAX_RETRY_ATTEMPTS) {
+        console.error('❌ AI Turn: Max retry attempts reached, forcing play');
+        // Force immediate play to unstick the game
+        const validCards = getValidCards(
+          playerHand,
+          gameState,
+          currentPlayer.id,
+        );
+        if (validCards.length > 0) {
+          playCardRef.current(validCards[0].id);
+        }
+        setThinkingPlayer(null);
+        retryAttemptsRef.current = 0;
+        return;
+      }
+    } else {
+      // Reset retry attempts for new turn
+      retryAttemptsRef.current = 0;
     }
     lastTurnKeyRef.current = currentTurnKey;
 
-    // Set thinking indicator
-    setThinkingPlayer(currentPlayer.id);
-
-    // Clear any existing recovery timer
+    // Clear any existing timers BEFORE setting thinking state
     if (botRecoveryTimerRef.current) {
       clearTimeout(botRecoveryTimerRef.current);
       botRecoveryTimerRef.current = null;
     }
+    if (mainTimerRef.current) {
+      clearTimeout(mainTimerRef.current);
+      mainTimerRef.current = null;
+    }
+
+    // Set thinking indicator after clearing timers
+    setThinkingPlayer(currentPlayer.id);
 
     // Capture all necessary data in closure to prevent stale references
     const botId = currentPlayer.id;
@@ -127,12 +187,27 @@ export function useAITurn({
     // const currentTrumpSuit = gameState.trumpSuit; // Not used in recovery
     const botHand = [...(gameState.hands.get(botId) || [])]; // Make a copy
 
-    // Calculate thinking time based on AI difficulty and complexity
+    // Calculate thinking time based on AI difficulty and complexity with exponential backoff
     const isComplexDecision =
       gameState.currentTrick.length > 0 ||
       currentPhase === 'arrastre' ||
       botHand.length < 5;
-    const thinkingTime = getAIThinkingTime(currentPlayer, isComplexDecision);
+    const baseThinkingTime = getAIThinkingTime(
+      currentPlayer,
+      isComplexDecision,
+    );
+    // Apply exponential backoff if we're retrying
+    const thinkingTime =
+      retryAttemptsRef.current > 0
+        ? Math.min(
+            baseThinkingTime /
+              Math.pow(
+                AI_TIMING.EXPONENTIAL_BACKOFF_BASE,
+                retryAttemptsRef.current,
+              ),
+            AI_TIMING.MIN_THINKING_TIME,
+          )
+        : baseThinkingTime;
 
     // Add extra logging for debugging
     console.log('🎯 AI DECISION CONTEXT:', {
@@ -151,12 +226,30 @@ export function useAITurn({
       thinkingTime: thinkingTime,
     });
 
+    // Calculate dynamic recovery timeout based on actual max thinking time
+    const maxPossibleThinkingTime = (() => {
+      // Max base time (hard difficulty) + complexity bonus
+      const maxBase = 1200 + 200; // 1400ms
+      // Max personality multiplier (prudent = 1.2)
+      const maxMultiplier = 1.2;
+      // Calculate max time + 50% safety margin
+      return Math.ceil(maxBase * maxMultiplier * 1.5);
+    })();
+
+    // Use the larger of configured timeout or calculated max
+    const recoveryTimeout = Math.max(
+      AI_TIMING.RECOVERY_TIMEOUT,
+      maxPossibleThinkingTime,
+    );
+
     // Set recovery timer with defensive checks
     const recovery = setTimeout(() => {
       console.error('⚠️ BOT STUCK - Forcing play for:', botName, {
         botId,
         playerIndex: gameState.currentPlayerIndex,
         turnKey: currentTurnKey,
+        thinkingTime: thinkingTime,
+        recoveryTimeout: recoveryTimeout,
         timestamp: Date.now(),
       });
 
@@ -171,6 +264,12 @@ export function useAITurn({
         const latestState = gameState;
         if (!latestState) {
           console.error('❌ RECOVERY: Game state is null');
+          return;
+        }
+
+        // Don't recover-play during animations
+        if (latestState.trickAnimating) {
+          console.log('🎬 RECOVERY: Skipping - trick animation in progress');
           return;
         }
 
@@ -240,11 +339,12 @@ export function useAITurn({
         setThinkingPlayer(null);
         botRecoveryTimerRef.current = null;
       }
-    }, AI_TIMING.RECOVERY_TIMEOUT);
+    }, recoveryTimeout);
 
     console.log('⏰ RECOVERY TIMER SET:', {
       bot: botName,
-      timeout: AI_TIMING.RECOVERY_TIMEOUT,
+      actualThinkingTime: thinkingTime,
+      recoveryTimeout: recoveryTimeout,
       timerId: recovery,
     });
     botRecoveryTimerRef.current = recovery;
@@ -252,8 +352,8 @@ export function useAITurn({
     // Smart AI logic with memory
     const timer = setTimeout(() => {
       // Clear recovery timer if bot plays normally
-      if (recovery) {
-        clearTimeout(recovery);
+      if (botRecoveryTimerRef.current) {
+        clearTimeout(botRecoveryTimerRef.current);
         botRecoveryTimerRef.current = null;
       }
 
@@ -268,6 +368,13 @@ export function useAITurn({
         ...gameState,
         hands: new Map(gameState.hands), // Ensure we have the current hands
       };
+
+      // Abort if trick is animating
+      if (capturedGameState.trickAnimating) {
+        console.log('🎬 MAIN TIMER: Skipping - trick animation in progress');
+        setThinkingPlayer(null);
+        return;
+      }
 
       // Check for cante opportunities
       const cantesuit = shouldAICante(
@@ -287,16 +394,29 @@ export function useAITurn({
         botHand,
         capturedGameState,
         currentPlayer, // Pass full player object
-        aiMemory,
+        aiMemoryRef.current,
       );
 
       if (cardToPlay) {
-        console.log('🤖 BOT PLAYING:', {
-          bot: botName,
-          card: `${cardToPlay.value} de ${cardToPlay.suit}`,
-          validMoves: botHand.length,
-        });
-        playCardRef.current?.(cardToPlay.id);
+        // Check if we're trying to play the same card again (stuck state)
+        if (lastPlayedCardRef.current === cardToPlay.id) {
+          console.error(
+            '❌ AI trying to play same card again, selecting different card',
+          );
+          const alternativeCards = botHand.filter(c => c.id !== cardToPlay.id);
+          const alternativeCard =
+            alternativeCards.length > 0 ? alternativeCards[0] : cardToPlay;
+          lastPlayedCardRef.current = alternativeCard.id;
+          playCardRef.current?.(alternativeCard.id);
+        } else {
+          console.log('🤖 BOT PLAYING:', {
+            bot: botName,
+            card: `${cardToPlay.value} de ${cardToPlay.suit}`,
+            validMoves: botHand.length,
+          });
+          lastPlayedCardRef.current = cardToPlay.id;
+          playCardRef.current?.(cardToPlay.id);
+        }
         // Update AI memory with played card
         setAIMemory(prev => updateMemory(prev, botId, cardToPlay));
       } else {
@@ -315,22 +435,28 @@ export function useAITurn({
       setThinkingPlayer(null);
     }, thinkingTime);
 
+    mainTimerRef.current = timer;
+
     return () => {
-      clearTimeout(timer);
-      if (recovery) {
-        clearTimeout(recovery);
+      isCleaningUpRef.current = true;
+      if (mainTimerRef.current) {
+        clearTimeout(mainTimerRef.current);
+        mainTimerRef.current = null;
+      }
+      if (botRecoveryTimerRef.current) {
+        clearTimeout(botRecoveryTimerRef.current);
         botRecoveryTimerRef.current = null;
       }
       setThinkingPlayer(null);
+      isCleaningUpRef.current = false;
     };
   }, [
     // Use stable turn key instead of individual properties
     currentTurnKey,
     mockData,
-    gameState,
-    aiMemory,
-    setAIMemory,
-    // Remove thinkingPlayer to prevent re-render loops
+    gameState?.currentPlayerIndex, // CRITICAL: React to turn changes
+    gameState?.trickAnimating, // React to animation state
+    // Still avoid full gameState to prevent excessive re-renders
   ]);
 
   return {

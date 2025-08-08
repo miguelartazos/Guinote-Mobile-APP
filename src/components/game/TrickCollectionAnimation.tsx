@@ -40,6 +40,10 @@ export function TrickCollectionAnimation({
     scale: new Animated.Value(0.5),
   }).current;
 
+  // Track if onComplete has been called to prevent double-calling
+  const hasCompletedRef = useRef(false);
+  const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     const runAnimation = async () => {
       playSound?.();
@@ -51,10 +55,30 @@ export function TrickCollectionAnimation({
       await showSparkleEffect();
 
       // Complete
-      setTimeout(onComplete, 300);
+      animationTimeoutRef.current = setTimeout(() => {
+        if (!hasCompletedRef.current) {
+          hasCompletedRef.current = true;
+          onComplete?.();
+        }
+      }, 300);
     };
 
     runAnimation();
+
+    // CRITICAL: Cleanup function ensures onComplete is ALWAYS called
+    return () => {
+      // Clear any pending timeout
+      if (animationTimeoutRef.current) {
+        clearTimeout(animationTimeoutRef.current);
+      }
+
+      // Ensure onComplete is called if component unmounts before animation completes
+      if (!hasCompletedRef.current) {
+        hasCompletedRef.current = true;
+        console.log('⚠️ TrickCollectionAnimation cleanup: calling onComplete');
+        onComplete?.();
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
