@@ -266,10 +266,6 @@ export function canCambiar7(
   // Can only exchange if trump card is not a 7
   if (trumpCard.value === 7) return false;
 
-  // Can only exchange if pinta has points (As, 3, Rey, Sota, or Caballo)
-  const pintaHasPoints = CARD_POINTS[trumpCard.value] > 0;
-  if (!pintaHasPoints) return false;
-
   // Must have 7 of trump suit
   return hand.some(c => c.suit === trumpCard.suit && c.value === 7);
 }

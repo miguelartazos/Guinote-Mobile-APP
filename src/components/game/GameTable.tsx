@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ViewStyle, Dimensions } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
 import { DraggableCard } from './DraggableCard';
 import { MinimalPlayerPanel } from './MinimalPlayerPanel';
@@ -12,7 +12,13 @@ import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
 import { getCardDimensions } from '../../utils/responsive';
 import { useOrientation } from '../../hooks/useOrientation';
-import { getPlayerCardPosition } from '../../utils/cardPositions';
+import { useTableLayout } from '../../hooks/useTableLayout';
+import {
+  getPlayerCardPosition,
+  getDeckPosition,
+  type LayoutInfo,
+} from '../../utils/cardPositions';
+import { getTrickCardPositionWithinBoard } from '../../utils/trickCardPositions';
 
 type Player = {
   id: string;
@@ -87,13 +93,20 @@ export function GameTable({
     height: number;
   } | null>(null);
 
+  // Use table layout hook for responsive positioning
+  const { layout, onTableLayout, onBoardLayout } = useTableLayout();
+  const layoutInfo: LayoutInfo = {
+    parentLayout: layout.table,
+    boardLayout: layout.board,
+  };
+
   // Create mapping of player IDs to their positions
   const playerIdToPosition = {
     [bottomPlayer.id]: 0, // bottom
     [leftPlayer.id]: 1, // left
     [topPlayer.id]: 2, // top
     [rightPlayer.id]: 3, // right
-  };
+  } as const;
 
   return (
     <View
@@ -102,91 +115,94 @@ export function GameTable({
         { backgroundColor: getTableColor(tableColor) },
         landscape && styles.landscapeTable,
       ]}
+      onLayout={onTableLayout}
     >
       {/* Player Panels */}
       <MinimalPlayerPanel
         playerName={topPlayer.name}
         position="top"
-        isCurrentPlayer={currentPlayerIndex === 2}
+        isCurrentPlayer={
+          currentPlayerIndex === playerIdToPosition[topPlayer.id]
+        }
         teamId="team1"
-        isThinking={thinkingPlayerId === 'bot2'}
+        isThinking={thinkingPlayerId === topPlayer.id}
       />
       <MinimalPlayerPanel
         playerName={leftPlayer.name}
         position="left"
-        isCurrentPlayer={currentPlayerIndex === 1}
+        isCurrentPlayer={
+          currentPlayerIndex === playerIdToPosition[leftPlayer.id]
+        }
         teamId="team2"
-        isThinking={thinkingPlayerId === 'bot1'}
+        isThinking={thinkingPlayerId === leftPlayer.id}
       />
       <MinimalPlayerPanel
         playerName={rightPlayer.name}
         position="right"
-        isCurrentPlayer={currentPlayerIndex === 3}
+        isCurrentPlayer={
+          currentPlayerIndex === playerIdToPosition[rightPlayer.id]
+        }
         teamId="team2"
-        isThinking={thinkingPlayerId === 'bot3'}
+        isThinking={thinkingPlayerId === rightPlayer.id}
       />
       <MinimalPlayerPanel
         playerName={bottomPlayer.name}
         position="bottom"
-        isCurrentPlayer={currentPlayerIndex === 0}
+        isCurrentPlayer={
+          currentPlayerIndex === playerIdToPosition[bottomPlayer.id]
+        }
         teamId="team1"
-        isThinking={thinkingPlayerId === 'player'}
+        isThinking={thinkingPlayerId === bottomPlayer.id}
       />
 
       {/* Top Player Cards (Teammate) with Icon */}
-      {!isDealing && (
-        <View
-          style={[
-            styles.topPlayerCardsContainer,
-            landscape && styles.topPlayerCardsLandscape,
-          ]}
-        >
-          <View style={styles.topPlayerCards}>
-            {topPlayer.cards.map((_, index) => {
-              const position = getPlayerCardPosition(
-                2,
-                index,
-                topPlayer.cards.length,
-                'small',
-              );
+      {!isDealing && layout.isReady && (
+        <View style={styles.topPlayerCardsContainer}>
+          {topPlayer.cards.map((_, index) => {
+            const position = getPlayerCardPosition(
+              2,
+              index,
+              topPlayer.cards.length,
+              'small',
+              layoutInfo,
+            );
 
-              return (
-                <SpanishCard
-                  key={`top-${index}`}
-                  faceDown
-                  size="small"
-                  style={[
-                    styles.topCard,
-                    {
-                      left: position.x,
-                      top: position.y,
-                      zIndex: position.zIndex,
-                      transform: [{ rotate: `${position.rotation}deg` }],
-                    },
-                  ]}
-                />
-              );
-            })}
-            <CardCountBadge count={topPlayer.cards.length} position="top" />
-          </View>
+            return (
+              <SpanishCard
+                key={`top-${index}`}
+                faceDown
+                size="small"
+                style={[
+                  styles.opponentCard,
+                  {
+                    left: position.x,
+                    top: position.y,
+                    zIndex: position.zIndex,
+                    transform: [{ rotate: `${position.rotation}deg` }],
+                  },
+                ]}
+              />
+            );
+          })}
+          <CardCountBadge count={topPlayer.cards.length} position="top" />
         </View>
       )}
 
       {/* Left Player Cards */}
-      {!isDealing && (
-        <View
-          style={[
-            styles.leftPlayerCards,
-            landscape && styles.leftPlayerCardsLandscape,
-          ]}
-        >
+      {!isDealing && layout.isReady && (
+        <View style={styles.leftPlayerCards}>
           {leftPlayer.cards.map((_, index) => {
-            const position = getPlayerCardPosition(
+            const pos = getPlayerCardPosition(
               3,
               index,
               leftPlayer.cards.length,
               'small',
+              layoutInfo,
             );
+            const dims = getCardDimensions().small;
+            const rotatedWidth = dims.height; // 90deg rotated
+            const containerWidth = 120; // matches leftPlayerCards width
+            const x = Math.max(0, (containerWidth - rotatedWidth) / 2);
 
             return (
               <SpanishCard
@@ -194,12 +210,12 @@ export function GameTable({
                 faceDown
                 size="small"
                 style={[
-                  styles.leftCard,
+                  styles.opponentCard,
                   {
-                    left: position.x,
-                    top: position.y,
-                    zIndex: position.zIndex,
-                    transform: [{ rotate: `${position.rotation}deg` }],
+                    left: x,
+                    top: pos.y,
+                    zIndex: pos.zIndex,
+                    transform: [{ rotate: `${pos.rotation}deg` }],
                   },
                 ]}
               />
@@ -210,20 +226,20 @@ export function GameTable({
       )}
 
       {/* Right Player Cards */}
-      {!isDealing && (
-        <View
-          style={[
-            styles.rightPlayerCards,
-            landscape && styles.rightPlayerCardsLandscape,
-          ]}
-        >
+      {!isDealing && layout.isReady && (
+        <View style={styles.rightPlayerCards}>
           {rightPlayer.cards.map((_, index) => {
-            const position = getPlayerCardPosition(
+            const pos = getPlayerCardPosition(
               1,
               index,
               rightPlayer.cards.length,
               'small',
+              layoutInfo,
             );
+            const dims = getCardDimensions().small;
+            const rotatedWidth = dims.height; // -90deg rotated
+            const containerWidth = 120; // matches rightPlayerCards width
+            const x = Math.max(0, (containerWidth - rotatedWidth) / 2);
 
             return (
               <SpanishCard
@@ -231,12 +247,12 @@ export function GameTable({
                 faceDown
                 size="small"
                 style={[
-                  styles.rightCard,
+                  styles.opponentCard,
                   {
-                    left: position.x,
-                    top: position.y,
-                    zIndex: position.zIndex,
-                    transform: [{ rotate: `${position.rotation}deg` }],
+                    left: x,
+                    top: pos.y,
+                    zIndex: pos.zIndex,
+                    transform: [{ rotate: `${pos.rotation}deg` }],
                   },
                 ]}
               />
@@ -246,14 +262,15 @@ export function GameTable({
         </View>
       )}
 
-      {/* Central Game Area */}
+      {/* Central Game Area - Responsive Board */}
       <View style={styles.centralArea}>
         {/* Playing Area - Show current trick cards */}
         <View
           ref={playAreaRef}
           style={styles.playingArea}
-          onLayout={() => {
-            // Add delay to ensure proper measurement
+          onLayout={event => {
+            onBoardLayout(event);
+            // Also measure for drop zone
             setTimeout(() => {
               playAreaRef.current?.measureInWindow((x, y, width, height) => {
                 setDropZoneBounds({ x, y, width, height });
@@ -270,7 +287,10 @@ export function GameTable({
                     key={`trick-${index}`}
                     card={play.card}
                     size="medium"
-                    style={[styles.trickCard, getTrickCardPosition(position)]}
+                    style={[
+                      styles.trickCard,
+                      getTrickCardPositionWithinBoard(position, layout.board),
+                    ]}
                   />
                 );
               })}
@@ -297,8 +317,24 @@ export function GameTable({
       )}
 
       {/* Deck and Trump Display */}
-      {deckCount > 0 && trumpCard && !isDealing && (
-        <View style={styles.deckPileContainer}>
+      {deckCount > 0 && trumpCard && !isDealing && layout.isReady && (
+        <View
+          style={[
+            styles.deckPileContainer,
+            {
+              left: getDeckPosition(
+                layout.table.width,
+                layout.table.height,
+                layoutInfo,
+              ).x,
+              top: getDeckPosition(
+                layout.table.width,
+                layout.table.height,
+                layoutInfo,
+              ).y,
+            },
+          ]}
+        >
           <DeckPile
             cardsRemaining={deckCount}
             trumpCard={trumpCard}
@@ -359,7 +395,7 @@ export function GameTable({
       )}
 
       {/* Bottom Player Hand - Only render when not dealing */}
-      {!isDealing && (
+      {!isDealing && layout.isReady && (
         <View
           style={[
             styles.bottomPlayerHand,
@@ -375,9 +411,10 @@ export function GameTable({
               index,
               bottomPlayer.cards.length,
               'large',
+              layoutInfo,
             );
             const cardDimensions = getCardDimensions();
-            const scaledCardWidth = cardDimensions.large.width;
+            const scaledCardWidth = cardDimensions.medium.width;
 
             return (
               <DraggableCard
@@ -395,7 +432,7 @@ export function GameTable({
                 isEnabled={
                   !isDealing && !!dropZoneBounds && isPlayerTurn && isValidCard
                 }
-                cardSize="large" // Use large size since we're scaling up
+                cardSize="medium" // match dealing size for consistency
                 totalCards={bottomPlayer.cards.length}
                 cardWidth={scaledCardWidth}
                 style={[
@@ -455,11 +492,11 @@ const styles = StyleSheet.create({
   },
   centralArea: {
     position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -200 }, { translateY: -150 }],
-    width: 400,
-    height: 300,
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'stretch',
     backgroundColor: 'transparent',
   },
   topPlayerCardsContainer: {
@@ -467,8 +504,10 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
+    height: 120,
     pointerEvents: 'none',
+    alignItems: 'center',
+    zIndex: 10,
   },
   topPlayerCardsLandscape: {
     // Removed positioning adjustments
@@ -483,13 +522,18 @@ const styles = StyleSheet.create({
   topCard: {
     position: 'absolute',
   },
+  opponentCard: {
+    position: 'absolute',
+  },
   leftPlayerCards: {
     position: 'absolute',
+    left: 8,
     top: 0,
-    left: 0,
-    right: 0,
     bottom: 0,
+    width: 120,
     pointerEvents: 'none',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   leftPlayerCardsLandscape: {
     // Removed positioning adjustments
@@ -499,11 +543,13 @@ const styles = StyleSheet.create({
   },
   rightPlayerCards: {
     position: 'absolute',
+    right: 8,
     top: 0,
-    left: 0,
-    right: 0,
     bottom: 0,
+    width: 120,
     pointerEvents: 'none',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   rightPlayerCardsLandscape: {
     // Removed positioning adjustments
@@ -513,29 +559,29 @@ const styles = StyleSheet.create({
   },
   deckPileContainer: {
     position: 'absolute',
-    top: '40%', // Middle-left, slightly elevated
-    left: '20%',
-    transform: [{ translateY: -70 }, { translateX: -70 }],
     zIndex: 15,
   },
   trumpCard: {
     marginRight: 10,
   },
   playingArea: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: dimensions.borderRadius.xl,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
     borderColor: colors.gold,
-    minHeight: 280,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 15,
     elevation: 10,
     overflow: 'hidden',
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
   playingAreaText: {
     color: colors.gold,
@@ -579,7 +625,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tableGreen,
   },
   bottomPlayerHandLandscape: {
-    bottom: 60,
+    bottom: 10,
     // Centered positioning maintained from base style
   },
   handCardLandscape: {
@@ -658,37 +704,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
-
-// Helper function to position trick cards based on player position
-function getTrickCardPosition(position: number): ViewStyle {
-  const positions: ViewStyle[] = [
-    // Bottom player - card closer to bottom edge
-    {
-      bottom: 60,
-      left: '50%',
-      transform: [{ translateX: -35 }],
-    },
-    // Left player - card closer to left edge
-    {
-      left: 60,
-      top: '50%',
-      transform: [{ translateY: -45 }],
-    },
-    // Top player - card closer to top edge
-    {
-      top: 60,
-      left: '50%',
-      transform: [{ translateX: -35 }],
-    },
-    // Right player - card closer to right edge
-    {
-      right: 60,
-      top: '50%',
-      transform: [{ translateY: -45 }],
-    },
-  ];
-  return positions[position] || positions[0];
-}
 
 // Helper function to get player position for animation
 function getPlayerPosition(position: number): { x: number; y: number } {

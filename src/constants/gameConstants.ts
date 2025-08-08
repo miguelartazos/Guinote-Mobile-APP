@@ -24,9 +24,11 @@ export const TRUMP_CARD_ID = 'trump_card' as CardId;
 // Game timing constants
 export const AI_TIMING = {
   MIN_THINKING_TIME: 200, // Further reduced for snappier gameplay
-  MAX_THINKING_TIME: 1200, // Reduced to prevent stuck states
-  RECOVERY_TIMEOUT: 2000, // 2 seconds - aggressive recovery
+  MAX_THINKING_TIME: 1400, // Align with aiTiming tests upper bounds
+  RECOVERY_TIMEOUT: 3000, // Ensure > 80% margin over max thinking time
   COMPLEXITY_BONUS: 200, // Minimal bonus to prevent delays
+  EXPONENTIAL_BACKOFF_BASE: 1.5, // For retry attempts
+  MAX_RETRY_ATTEMPTS: 3, // Maximum recovery attempts
 } as const;
 
 // Game rules constants
@@ -43,7 +45,7 @@ export const GAME_RULES = {
 // AI thresholds
 export const AI_DECISION_THRESHOLDS = {
   VALUABLE_TRICK: 10,
-  HIGH_VALUE_TRICK: 15,
+  HIGH_VALUE_TRICK: 16,
   LOW_POWER_CARD: 5,
   MANY_CARDS_LEFT: 20,
   LOW_VALUE_TRICK: 5,
@@ -58,10 +60,10 @@ export const AI_DECISION_THRESHOLDS = {
 export const AI_PROBABILITIES = {
   DUCK_LOW_TRICK: 0.5,
   AGGRESSIVE_CANTE: 0.8,
-  AGGRESSIVE_TRUMP: 0.15, // Reduced from 0.7 - only 15% chance
+  AGGRESSIVE_TRUMP: 0.1, // Even lower; never in robada when leading
   TRICKY_RANDOM: 0.3,
   TRICKY_CANTE: 0.6,
-  SAVE_TRUMP_DRAW: 0.85, // 85% chance to save trumps in draw phase
+  SAVE_TRUMP_DRAW: 0.9, // Stronger conservation early
   SAVE_TRUMP_EARLY: 0.7, // 70% chance to save trumps early game
 } as const;
 

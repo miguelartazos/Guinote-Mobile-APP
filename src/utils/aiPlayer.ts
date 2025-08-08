@@ -12,7 +12,12 @@ import type { SpanishSuit } from '../types/cardTypes';
 import { CARD_POINTS } from '../types/game.types';
 import { isValidPlay, calculateTrickWinner } from './gameLogic';
 import type { CardMemory } from './aiMemory';
-import { getRemainingHighCards, getMemorySize } from './aiMemory';
+import {
+  getRemainingHighCards,
+  getMemorySize,
+  getRemainingTrumps,
+  hasHighestTrump,
+} from './aiMemory';
 import {
   AI_DECISION_THRESHOLDS as AI_THRESHOLDS,
   AI_PROBABILITIES,
@@ -114,7 +119,9 @@ function playEasyAI(
     return validCards[randomIndex];
   } else {
     // 20% prefer lower cards to seem less threatening
-    const sortedCards = [...validCards].sort((a, b) => getCardPower(a) - getCardPower(b));
+    const sortedCards = [...validCards].sort(
+      (a, b) => getCardPower(a) - getCardPower(b),
+    );
     return sortedCards[0];
   }
 }
@@ -163,16 +170,18 @@ function playHardAI(
   // Advanced card counting with memory optimization
   const suits: SpanishSuit[] = ['oros', 'copas', 'espadas', 'bastos'];
   const suitStrengths = new Map<SpanishSuit, number>();
-  
+
   // Only use memory if it's not too large (prevent performance issues)
   const memorySize = getMemorySize(memory);
   const useMemory = memorySize < 30; // Limit memory usage
 
   suits.forEach(suit => {
     // Use memory if available and not too large, otherwise use heuristics
-    const remaining = useMemory 
+    const remaining = useMemory
       ? getRemainingHighCards(memory, suit)
-      : suit === trumpSuit ? 3 : 2; // Estimate if no memory
+      : suit === trumpSuit
+      ? 3
+      : 2; // Estimate if no memory
     suitStrengths.set(suit, remaining);
   });
 
@@ -186,15 +195,25 @@ function playHardAI(
       playableCards.length > 0 ? playableCards : validCards;
 
     // Phase-aware leading
-    if (phase === 'arrastre' || phase === 'vueltas') {
-      // Never lead trumps in arrastre
+    if (phase === 'arrastre') {
+      // In arrastre, prefer bleeding trumps when strong
+      const trumps = cardsToConsider.filter(c => c.suit === trumpSuit);
       const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
+
+      // We do not have reliable memory in medium AI; use simple heuristics
+      const haveManyTrumps = trumps.length >= 3;
+      if (trumps.length > 0 && haveManyTrumps) {
+        return [...trumps].sort((a, b) => getCardPower(b) - getCardPower(a))[0];
+      }
+
       if (nonTrumps.length > 0) {
-        // Lead with low cards to avoid giving points
+        // Lead with lowest non-trump
         return [...nonTrumps].sort(
           (a, b) => getCardPower(a) - getCardPower(b),
         )[0];
       }
+      // Only trumps left
+      return [...trumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
     } else {
       // Draw phase - use memory to lead intelligently
       const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
@@ -225,7 +244,7 @@ function playHardAI(
     }
   }
 
-  // Following with perfect memory
+  // Following with phase-aware logic and (for hard AI) memory
   if (currentTrick.length > 0) {
     const trickValue = getTrickPoints(currentTrick);
     const winningCards = validCards.filter(card =>
@@ -235,11 +254,19 @@ function playHardAI(
     // Partner is winning the trick
     const currentWinner = calculateTrickWinner(currentTrick, trumpSuit);
     if (currentWinner === partnerId) {
-      // Give points to partner, but avoid trumps
+      if (phase === 'arrastre') {
+        // Cargar in arrastre
+        const nonTrumps = validCards.filter(c => c.suit !== trumpSuit);
+        const cardsToGive = nonTrumps.length > 0 ? nonTrumps : validCards;
+        return [...cardsToGive].sort(
+          (a, b) => getCardPoints(b) - getCardPoints(a),
+        )[0];
+      }
+      // Robada: avoid cargar; discard lowest points
       const nonTrumps = validCards.filter(c => c.suit !== trumpSuit);
-      const cardsToGive = nonTrumps.length > 0 ? nonTrumps : validCards;
-      return [...cardsToGive].sort(
-        (a, b) => getCardPoints(b) - getCardPoints(a),
+      const safeDiscards = nonTrumps.length > 0 ? nonTrumps : validCards;
+      return [...safeDiscards].sort(
+        (a, b) => getCardPoints(a) - getCardPoints(b),
       )[0];
     }
 
@@ -313,15 +340,8 @@ function applyPersonality(
     case 'aggressive': {
       // Aggressive: prefer high cards but STILL conserve trumps in arrastre
       if (currentTrick.length === 0) {
-        // In arrastre, even aggressive players should avoid leading trumps
-        if (gameState.phase === 'arrastre' || gameState.phase === 'vueltas') {
-          const nonTrumpHighCards = validCards.filter(
-            c => c.suit !== trumpSuit && getCardPower(c) >= 8,
-          );
-          if (nonTrumpHighCards.length > 0) {
-            return nonTrumpHighCards[0];
-          }
-        } else {
+        // In arrastre, do not override base strategy (let bleeding logic stand)
+        if (gameState.phase !== 'arrastre') {
           // Draw phase - can be more aggressive
           const highCards = validCards.filter(c => getCardPower(c) >= 8);
           if (highCards.length > 0) {
@@ -343,7 +363,11 @@ function applyPersonality(
 
     case 'tricky': {
       // Unpredictable: sometimes make unexpected plays
-      if (randomValue < AI_PROBABILITIES.TRICKY_RANDOM) {
+      if (
+        randomValue < AI_PROBABILITIES.TRICKY_RANDOM &&
+        // Avoid random overrides when leading in arrastre
+        !(gameState.phase === 'arrastre' && currentTrick.length === 0)
+      ) {
         // 30% chance of random play
         const randomIndex = Math.floor(randomValue * validCards.length);
         return validCards[randomIndex];
@@ -363,22 +387,44 @@ function selectLeadingCard(
 ): Card {
   const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
   const trumps = cardsToConsider.filter(c => c.suit === trumpSuit);
+  const opponentHasForty = gameState.teams.some(team =>
+    // Opponent team:
+    !team.playerIds.includes(gameState.players[gameState.currentPlayerIndex]?.id as PlayerId) &&
+    team.cantes?.some(c => c.suit === trumpSuit && c.points === 40),
+  );
 
-  // ARRASTRE PHASE - Very conservative play
-  if (phase === 'arrastre' || phase === 'vueltas') {
-    // Never lead with trumps unless forced
-    if (nonTrumps.length > 0) {
-      // Lead with lowest non-trump cards
-      return [...nonTrumps].sort(
-        (a, b) => getCardPower(a) - getCardPower(b),
-      )[0];
+  // ARRASTRE PHASE - Prefer bleeding trumps when strong
+  if (phase === 'arrastre') {
+    if (trumps.length > 0 && (trumps.length >= 3 || opponentHasForty)) {
+      return [...trumps].sort((a, b) => getCardPower(b) - getCardPower(a))[0];
     }
-    // Only trumps left - play lowest
+    if (nonTrumps.length > 0) {
+      return [...nonTrumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
+    }
     return [...trumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
   }
 
   // DRAW PHASE - Strategic freedom
   if (phase === 'playing' && nonTrumps.length > 0) {
+    // If opponent has declared 40 in trump, occasionally lead trump to pressure
+    if (opponentHasForty && trumps.length >= 2) {
+      return [...trumps].sort((a, b) => getCardPower(b) - getCardPower(a))[0];
+    }
+    // Early game: prioritize descartarse by shedding a short non-trump suit
+    if (gameState.deck.length > AI_THRESHOLDS.MANY_CARDS_LEFT) {
+      const suitCounts = new Map<SpanishSuit, number>();
+      nonTrumps.forEach(c => {
+        suitCounts.set(c.suit, (suitCounts.get(c.suit) || 0) + 1);
+      });
+      const targetSuit = [...suitCounts.entries()].sort((a, b) => a[1] - b[1])[0]?.[0];
+      const targetSuitCards = targetSuit
+        ? nonTrumps.filter(c => c.suit === targetSuit)
+        : nonTrumps;
+      // Play lowest power in that suit to avoid winning
+      return [...targetSuitCards].sort(
+        (a, b) => getCardPower(a) - getCardPower(b),
+      )[0];
+    }
     // Early game with many cards left
     if (gameState.deck.length > AI_THRESHOLDS.MANY_CARDS_LEFT) {
       // Lead with medium strength cards to probe
@@ -545,6 +591,12 @@ function playStrategicCard(
 
   // Starting a trick
   if (currentTrick.length === 0) {
+    // Avoid winning the 4th trick (últimas) of robada to not lead arrastre
+    if (gameState.trickCount === 3 && phase === 'playing') {
+      const nonTrumps = validCards.filter(c => c.suit !== trumpSuit);
+      const candidates = nonTrumps.length > 0 ? nonTrumps : validCards;
+      return [...candidates].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
+    }
     // Filter out cards that are part of cantes we want to preserve
     const playableCards = validCards.filter(
       card => !shouldPreserveCante(card, hand, gameState),
@@ -790,40 +842,86 @@ export function shouldAICante(
   return null;
 }
 
+function gaussianRandom(): number {
+  // Box-Muller transform for normal distribution
+  let u = 0,
+    v = 0;
+  while (u === 0) u = Math.random(); // Converting [0,1) to (0,1)
+  while (v === 0) v = Math.random();
+  const num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  // Normalize to 0-1 range with most values around 0.5
+  return Math.max(0, Math.min(1, num / 4 + 0.5));
+}
+
 export function getAIThinkingTime(
   player: Player,
   isComplexDecision: boolean = false,
 ): number {
   const difficulty = player.difficulty || 'medium';
 
-  // Base times in milliseconds - optimized for responsive gameplay
+  // Base times in milliseconds - more human-like ranges
   const baseTimes: Record<DifficultyLevel, [number, number]> = {
-    easy: [200, 600],    // Reduced from [500, 1000]
-    medium: [400, 900],   // Reduced from [800, 1500]
-    hard: [600, 1200],    // Reduced from [1000, 2000]
+    easy: [300, 800], // Quick but not instant
+    medium: [500, 1400], // More deliberate
+    hard: [700, 1800], // Thoughtful player
   };
 
   const [min, max] = baseTimes[difficulty];
 
-  // Add extra time for complex decisions - reduced for better flow
-  const complexityBonus = isComplexDecision ? 200 : 0; // Reduced from 500
-
-  // Personality affects thinking time
+  // Personality base modifiers
   let personalityMultiplier = 1;
+  let snapDecisionChance = 0.1; // 10% base chance for quick play
+  let deepThinkChance = 0.05; // 5% base chance for long think
+
   switch (player.personality) {
     case 'aggressive':
-      personalityMultiplier = 0.8; // Faster decisions
+      personalityMultiplier = 0.75; // Generally faster
+      snapDecisionChance = 0.2; // More snap decisions
+      deepThinkChance = 0.02; // Rarely overthinks
       break;
     case 'prudent':
-      personalityMultiplier = 1.2; // Slower, careful decisions
+      personalityMultiplier = 1.3; // Generally slower
+      snapDecisionChance = 0.05; // Rarely snaps
+      deepThinkChance = 0.15; // Often thinks deeply
       break;
     case 'tricky':
-      personalityMultiplier = Math.random() * 0.8 + 0.6; // Variable
+      personalityMultiplier = 0.9;
+      snapDecisionChance = 0.15;
+      deepThinkChance = 0.1;
+      // Add extra randomness for tricky players
+      personalityMultiplier *= 0.7 + Math.random() * 0.6;
       break;
   }
 
-  const adjustedMin = (min + complexityBonus) * personalityMultiplier;
-  const adjustedMax = (max + complexityBonus) * personalityMultiplier;
+  // Contextual modifiers
+  const complexityModifier = isComplexDecision ? 1.4 : 1.0;
 
-  return Math.floor(Math.random() * (adjustedMax - adjustedMin) + adjustedMin);
+  // Random decision types (snap, normal, deep think)
+  const roll = Math.random();
+
+  if (roll < snapDecisionChance && !isComplexDecision) {
+    // Snap decision - very quick play
+    const snapTime = 150 + Math.random() * 250; // 150-400ms
+    return Math.floor(snapTime * personalityMultiplier);
+  } else if (roll > 1 - deepThinkChance && isComplexDecision) {
+    // Deep thinking - extra long pause
+    const thinkTime = 2000 + Math.random() * 1500; // 2-3.5 seconds
+    return Math.floor(thinkTime * personalityMultiplier);
+  }
+
+  // Normal play with natural distribution
+  const normalizedValue = gaussianRandom();
+  const baseTime = min + (max - min) * normalizedValue;
+
+  // Add micro-hesitations (small random variations)
+  const microHesitation = Math.random() < 0.3 ? 50 + Math.random() * 150 : 0;
+
+  // Calculate final time with all modifiers
+  const finalTime =
+    (baseTime + microHesitation) * personalityMultiplier * complexityModifier;
+
+  // Add very slight "thinking" variation to make it less predictable
+  const jitter = -20 + Math.random() * 40; // ±20ms jitter
+
+  return Math.floor(Math.max(100, finalTime + jitter)); // Never less than 100ms
 }

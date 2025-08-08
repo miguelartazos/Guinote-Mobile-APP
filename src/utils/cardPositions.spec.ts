@@ -1,4 +1,5 @@
 import { describe, expect, test } from '@jest/globals';
+import type { LayoutInfo } from './cardPositions';
 import {
   getBottomPlayerCardPosition,
   getTopPlayerCardPosition,
@@ -18,9 +19,10 @@ describe('cardPositions', () => {
   const mockScreenHeight = 812;
 
   describe('getBottomPlayerCardPosition', () => {
-    test('positions cards horizontally with no overlap using large cards', () => {
+    test('positions cards horizontally with slight overlap', () => {
       const totalCards = 6;
-      const scaledCardWidth = CARD_WIDTH * BOTTOM_PLAYER_SCALE;
+      const cardWidth = getCardWidth();
+      const visibleWidth = cardWidth * 0.88; // 88% visible
 
       // Test first card
       const firstCard = getBottomPlayerCardPosition(
@@ -29,13 +31,13 @@ describe('cardPositions', () => {
         mockScreenWidth,
       );
 
-      // Test second card - should be exactly one scaled card width apart
+      // Test second card - should be 88% of card width apart
       const secondCard = getBottomPlayerCardPosition(
         1,
         totalCards,
         mockScreenWidth,
       );
-      expect(secondCard.x - firstCard.x).toBe(scaledCardWidth);
+      expect(secondCard.x - firstCard.x).toBeCloseTo(visibleWidth, 5);
 
       // Test no rotation
       expect(firstCard.rotation).toBe(0);
@@ -48,7 +50,8 @@ describe('cardPositions', () => {
     test('centers cards horizontally on screen', () => {
       const totalCards = 6;
       const cardWidth = getCardWidth();
-      const totalWidth = cardWidth * totalCards;
+      const visibleWidth = cardWidth * 0.88;
+      const totalWidth = cardWidth + (totalCards - 1) * visibleWidth;
       const expectedStartX = (mockScreenWidth - totalWidth) / 2;
 
       const firstCard = getBottomPlayerCardPosition(
@@ -56,14 +59,26 @@ describe('cardPositions', () => {
         totalCards,
         mockScreenWidth,
       );
-      expect(firstCard.x).toBe(expectedStartX); // Now using left edge position
+      expect(firstCard.x).toBeCloseTo(expectedStartX, 5);
+    });
+
+    test('uses parent layout when provided', () => {
+      const layoutInfo: LayoutInfo = {
+        parentLayout: { x: 0, y: 0, width: 400, height: 600 },
+      };
+
+      const position = getBottomPlayerCardPosition(0, 6, 400, layoutInfo);
+
+      // Should use parent height instead of window height
+      const cardHeight = getCardHeight();
+      expect(position.y).toBe(600 - 80 - cardHeight);
     });
   });
 
   describe('getTopPlayerCardPosition', () => {
-    test('positions cards horizontally with 10% overlap', () => {
+    test('positions cards horizontally with compact overlap', () => {
       const totalCards = 6;
-      const visibleCardWidth = getCardWidth('small') * 0.9; // 90% visible, 10% overlap
+      const visibleCardWidth = getCardWidth('small') * 0.35; // 35% visible
 
       const firstCard = getTopPlayerCardPosition(
         0,
@@ -90,9 +105,9 @@ describe('cardPositions', () => {
   });
 
   describe('getSidePlayerCardPosition', () => {
-    test('positions left player cards vertically with 10% overlap and 90° rotation', () => {
+    test('positions left player cards vertically with compact overlap and 90° rotation', () => {
       const totalCards = 6;
-      const visibleCardHeight = getCardHeight('small') * 0.9; // 90% visible
+      const visibleCardHeight = getCardHeight('small') * 0.35; // 35% visible
 
       const firstCard = getSidePlayerCardPosition(
         0,
@@ -111,9 +126,9 @@ describe('cardPositions', () => {
       expect(firstCard.rotation).toBe(90);
     });
 
-    test('positions right player cards vertically with 10% overlap and -90° rotation', () => {
+    test('positions right player cards vertically with compact overlap and -90° rotation', () => {
       const totalCards = 6;
-      const visibleCardHeight = getCardHeight('small') * 0.9;
+      const visibleCardHeight = getCardHeight('small') * 0.35;
 
       const firstCard = getSidePlayerCardPosition(
         0,
@@ -130,6 +145,20 @@ describe('cardPositions', () => {
 
       expect(secondCard.y - firstCard.y).toBeCloseTo(visibleCardHeight, 5);
       expect(firstCard.rotation).toBe(-90);
+    });
+
+    test('uses parent layout width when provided', () => {
+      const layoutInfo: LayoutInfo = {
+        parentLayout: { x: 0, y: 0, width: 400, height: 600 },
+      };
+
+      const position = getSidePlayerCardPosition(0, 6, 600, false, layoutInfo);
+
+      // Should position relative to parent width
+      const cardWidth = getCardWidth('small');
+      const cardHeight = getCardHeight('small');
+      const rotationAdjustment = -cardHeight / 2 + cardWidth / 2;
+      expect(position.x).toBeCloseTo(400 - 60 + rotationAdjustment, 5);
     });
 
     test('uses decreasing z-index for topmost on top', () => {
@@ -150,24 +179,43 @@ describe('cardPositions', () => {
     test('positions deck at middle-left, slightly elevated', () => {
       const deckPos = getDeckPosition(mockScreenWidth, mockScreenHeight);
 
-      // Should be on left side (about 20% from left edge)
-      expect(deckPos.x).toBeLessThan(mockScreenWidth * 0.3);
+      // Should be on left side (about 15% from left edge)
+      expect(deckPos.x).toBeLessThan(mockScreenWidth * 0.2);
 
-      // Should be slightly above middle (about 40% from top)
+      // Should be slightly below middle (about 45% from top)
       expect(deckPos.y).toBeLessThan(mockScreenHeight * 0.5);
-      expect(deckPos.y).toBeGreaterThan(mockScreenHeight * 0.3);
+      expect(deckPos.y).toBeGreaterThan(mockScreenHeight * 0.4);
 
       expect(deckPos.zIndex).toBe(100);
+    });
+
+    test('anchors to board layout when provided', () => {
+      const layoutInfo: LayoutInfo = {
+        boardLayout: { x: 100, y: 200, width: 300, height: 400 },
+      };
+
+      const deckPos = getDeckPosition(
+        mockScreenWidth,
+        mockScreenHeight,
+        layoutInfo,
+      );
+
+      // Should be anchored to left of board with gap
+      const cardWidth = getCardWidth('medium');
+      const cardHeight = getCardHeight('medium');
+      expect(deckPos.x).toBeCloseTo(100 - cardWidth - 20, 5);
+      expect(deckPos.y).toBeCloseTo(200 + 200 - cardHeight / 2, 5);
     });
   });
 
   describe('getTrumpPosition', () => {
-    test('positions trump card below deck', () => {
+    test('positions trump card offset from deck', () => {
       const deckPos = getDeckPosition(mockScreenWidth, mockScreenHeight);
       const trumpPos = getTrumpPosition(mockScreenWidth, mockScreenHeight);
 
-      expect(trumpPos.x).toBe(deckPos.x);
-      expect(trumpPos.y).toBeGreaterThan(deckPos.y);
+      expect(trumpPos.x).toBe(deckPos.x + 15);
+      expect(trumpPos.y).toBe(deckPos.y + 15);
+      expect(trumpPos.rotation).toBe(10);
       expect(trumpPos.zIndex).toBe(99);
     });
   });
@@ -185,6 +233,23 @@ describe('cardPositions', () => {
         expect(pos.zIndex).toBeGreaterThanOrEqual(50);
         expect(pos.zIndex).toBeLessThanOrEqual(53);
       });
+    });
+
+    test('uses board center when board layout provided', () => {
+      const layoutInfo: LayoutInfo = {
+        boardLayout: { x: 50, y: 100, width: 200, height: 300 },
+      };
+
+      const position = getCenterPlayPosition(
+        0,
+        mockScreenWidth,
+        mockScreenHeight,
+        layoutInfo,
+      );
+
+      // Should be centered in board, not screen
+      expect(position.x).toBe(150); // 50 + 200/2
+      expect(position.y).toBe(250 + 40); // 100 + 300/2 + spread
     });
 
     test('cards have no rotation when played to center', () => {

@@ -4,8 +4,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootNavigator } from './navigation/RootNavigator';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthErrorBoundary } from './components/AuthErrorBoundary';
-import { ClerkProvider } from './providers/ClerkProvider';
-import { ConvexClientProvider } from './providers/ConvexClientProvider';
+// Removed automatic Convex/Clerk imports - they cause errors in offline mode
+// import { ClerkProvider } from './providers/ClerkProvider';
+// import { ConvexClientProvider } from './providers/ConvexClientProvider';
 import { colors } from './constants/colors';
 
 // Initialize orientation locker
@@ -34,20 +35,18 @@ function App() {
     }
   }, []);
 
+  // For now, run in offline mode only - no Convex/Clerk providers
+  // When online mode is ready, we'll conditionally load them based on user preference
   return (
     <ErrorBoundary>
       <AuthErrorBoundary>
-        <ClerkProvider>
-          <ConvexClientProvider>
-            <GestureHandlerRootView style={styles.container}>
-              <StatusBar
-                barStyle="light-content"
-                backgroundColor={colors.primary}
-              />
-              <RootNavigator />
-            </GestureHandlerRootView>
-          </ConvexClientProvider>
-        </ClerkProvider>
+        <GestureHandlerRootView style={styles.container}>
+          <StatusBar
+            barStyle="light-content"
+            backgroundColor={colors.primary}
+          />
+          <RootNavigator />
+        </GestureHandlerRootView>
       </AuthErrorBoundary>
     </ErrorBoundary>
   );

@@ -228,12 +228,12 @@ export function useAITurn({
 
     // Calculate dynamic recovery timeout based on actual max thinking time
     const maxPossibleThinkingTime = (() => {
-      // Max base time (hard difficulty) + complexity bonus
-      const maxBase = 1200 + 200; // 1400ms
-      // Max personality multiplier (prudent = 1.2)
-      const maxMultiplier = 1.2;
+      // Account for deep thinking scenarios (up to 3.5s base)
+      // Plus prudent personality (1.3x) and complexity (1.4x)
+      const maxDeepThink = 3500; // 3.5 seconds for deep thinking
+      const maxMultiplier = 1.3 * 1.4; // Prudent + complex decision
       // Calculate max time + 50% safety margin
-      return Math.ceil(maxBase * maxMultiplier * 1.5);
+      return Math.ceil(maxDeepThink * maxMultiplier * 1.5);
     })();
 
     // Use the larger of configured timeout or calculated max
@@ -351,88 +351,122 @@ export function useAITurn({
 
     // Smart AI logic with memory
     const timer = setTimeout(() => {
-      // Clear recovery timer if bot plays normally
-      if (botRecoveryTimerRef.current) {
-        clearTimeout(botRecoveryTimerRef.current);
-        botRecoveryTimerRef.current = null;
-      }
+      // Wrap async logic in IIFE with error handling
+      (async () => {
+        try {
+          // Don't clear recovery timer yet - only clear after successful card play
+          // This ensures recovery still happens if cante doesn't lead to card play
 
-      if (botHand.length === 0) {
-        console.error('❌ BOT HAS NO CARDS:', botName);
-        setThinkingPlayer(null);
-        return;
-      }
+          if (botHand.length === 0) {
+            console.error('❌ BOT HAS NO CARDS:', botName);
+            setThinkingPlayer(null);
+            return;
+          }
 
-      // Use captured gameState to ensure consistency
-      const capturedGameState = {
-        ...gameState,
-        hands: new Map(gameState.hands), // Ensure we have the current hands
-      };
+          // Use captured gameState to ensure consistency
+          const capturedGameState = {
+            ...gameState,
+            hands: new Map(gameState.hands), // Ensure we have the current hands
+          };
 
-      // Abort if trick is animating
-      if (capturedGameState.trickAnimating) {
-        console.log('🎬 MAIN TIMER: Skipping - trick animation in progress');
-        setThinkingPlayer(null);
-        return;
-      }
+          // Abort if trick is animating
+          if (capturedGameState.trickAnimating) {
+            console.log(
+              '🎬 MAIN TIMER: Skipping - trick animation in progress',
+            );
+            setThinkingPlayer(null);
+            return;
+          }
 
-      // Check for cante opportunities
-      const cantesuit = shouldAICante(
-        currentPlayer,
-        botHand,
-        capturedGameState,
-      );
-      if (cantesuit) {
-        console.log('🎺 BOT DECLARING CANTE:', cantesuit);
-        cantarRef.current?.(cantesuit);
-        setThinkingPlayer(null);
-        return;
-      }
+          // Check for cante opportunities ONLY when rules allow declaring
+          // Rules: must be in 'playing' phase, trick must be empty, and bot must have won last trick
+          const canAttemptCante =
+            capturedGameState.phase === 'playing' &&
+            capturedGameState.currentTrick.length === 0 &&
+            capturedGameState.lastTrickWinner === currentPlayer.id;
 
-      // Play card with AI memory - ensure all parameters are defined
-      const cardToPlay = playAICard(
-        botHand,
-        capturedGameState,
-        currentPlayer, // Pass full player object
-        aiMemoryRef.current,
-      );
+          if (canAttemptCante) {
+            const cantesuit = shouldAICante(
+              currentPlayer,
+              botHand,
+              capturedGameState,
+            );
+            if (cantesuit) {
+              try {
+                console.log('🎺 BOT DECLARING CANTE:', cantesuit);
+                cantarRef.current?.(cantesuit);
+                // Play card immediately - cante doesn't affect valid cards
+                // No delay needed since we continue with current state
+              } catch (error) {
+                console.error('❌ Error declaring cante:', error);
+                // Continue to play card anyway
+              }
+            }
+          }
 
-      if (cardToPlay) {
-        // Check if we're trying to play the same card again (stuck state)
-        if (lastPlayedCardRef.current === cardToPlay.id) {
-          console.error(
-            '❌ AI trying to play same card again, selecting different card',
+          // Play card with AI memory - ensure all parameters are defined
+          const cardToPlay = playAICard(
+            botHand,
+            capturedGameState,
+            currentPlayer, // Pass full player object
+            aiMemoryRef.current,
           );
-          const alternativeCards = botHand.filter(c => c.id !== cardToPlay.id);
-          const alternativeCard =
-            alternativeCards.length > 0 ? alternativeCards[0] : cardToPlay;
-          lastPlayedCardRef.current = alternativeCard.id;
-          playCardRef.current?.(alternativeCard.id);
-        } else {
-          console.log('🤖 BOT PLAYING:', {
-            bot: botName,
-            card: `${cardToPlay.value} de ${cardToPlay.suit}`,
-            validMoves: botHand.length,
-          });
-          lastPlayedCardRef.current = cardToPlay.id;
-          playCardRef.current?.(cardToPlay.id);
+
+          if (cardToPlay) {
+            // Check if we're trying to play the same card again (stuck state)
+            if (lastPlayedCardRef.current === cardToPlay.id) {
+              console.error(
+                '❌ AI trying to play same card again, selecting different card',
+              );
+              const alternativeCards = botHand.filter(
+                c => c.id !== cardToPlay.id,
+              );
+              const alternativeCard =
+                alternativeCards.length > 0 ? alternativeCards[0] : cardToPlay;
+              lastPlayedCardRef.current = alternativeCard.id;
+              playCardRef.current?.(alternativeCard.id);
+            } else {
+              console.log('🤖 BOT PLAYING:', {
+                bot: botName,
+                card: `${cardToPlay.value} de ${cardToPlay.suit}`,
+                validMoves: botHand.length,
+              });
+              lastPlayedCardRef.current = cardToPlay.id;
+              playCardRef.current?.(cardToPlay.id);
+            }
+
+            // Clear recovery timer after successful card play
+            if (botRecoveryTimerRef.current) {
+              clearTimeout(botRecoveryTimerRef.current);
+              botRecoveryTimerRef.current = null;
+            }
+
+            // Update AI memory with played card
+            setAIMemory(prev => updateMemory(prev, botId, cardToPlay));
+          } else {
+            console.error('❌ BOT FAILED TO SELECT CARD:', botName);
+            // Fallback: play any card if AI logic fails
+            if (botHand.length > 0) {
+              const fallbackCard = botHand[0];
+              console.warn(
+                '🔧 FALLBACK: Playing first card:',
+                `${fallbackCard.value} de ${fallbackCard.suit}`,
+              );
+              playCardRef.current?.(fallbackCard.id);
+              setAIMemory(prev => updateMemory(prev, botId, fallbackCard));
+            }
+          }
+          setThinkingPlayer(null);
+        } catch (error) {
+          console.error('❌ Error in AI turn logic:', error);
+          setThinkingPlayer(null);
+          // Clear recovery timer on error
+          if (botRecoveryTimerRef.current) {
+            clearTimeout(botRecoveryTimerRef.current);
+            botRecoveryTimerRef.current = null;
+          }
         }
-        // Update AI memory with played card
-        setAIMemory(prev => updateMemory(prev, botId, cardToPlay));
-      } else {
-        console.error('❌ BOT FAILED TO SELECT CARD:', botName);
-        // Fallback: play any card if AI logic fails
-        if (botHand.length > 0) {
-          const fallbackCard = botHand[0];
-          console.warn(
-            '🔧 FALLBACK: Playing first card:',
-            `${fallbackCard.value} de ${fallbackCard.suit}`,
-          );
-          playCardRef.current?.(fallbackCard.id);
-          setAIMemory(prev => updateMemory(prev, botId, fallbackCard));
-        }
-      }
-      setThinkingPlayer(null);
+      })();
     }, thinkingTime);
 
     mainTimerRef.current = timer;

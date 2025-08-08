@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Button } from '../components/Button';
@@ -14,6 +15,7 @@ import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
 import { useGameSettings } from '../hooks/useGameSettings';
 import { useConvexAuth } from '../hooks/useConvexAuth';
+import { hasSavedGame, clearGameState } from '../utils/gameStatePersistence';
 import type { JugarStackScreenProps } from '../types/navigation';
 
 type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'expert';
@@ -25,12 +27,18 @@ export function OfflineModeScreen({
   const { user } = useConvexAuth();
   const [selectedDifficulty, setSelectedDifficulty] =
     useState<DifficultyLevel>('medium');
+  const [hasSaved, setHasSaved] = useState(false);
 
   useEffect(() => {
     if (settings?.difficulty) {
       setSelectedDifficulty(settings.difficulty as DifficultyLevel);
     }
   }, [settings]);
+
+  useEffect(() => {
+    // Check for saved game on mount
+    hasSavedGame().then(setHasSaved);
+  }, []);
 
   const difficulties = [
     {
@@ -124,20 +132,62 @@ export function OfflineModeScreen({
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
+          {hasSaved && (
+            <Button
+              variant="primary"
+              size="large"
+              onPress={() =>
+                navigation.navigate('Game', {
+                  gameMode: 'offline',
+                  difficulty: selectedDifficulty,
+                  playerName: user?.username || 'Jugador',
+                  resumeGame: true,
+                })
+              }
+              icon="▶️"
+              style={styles.mainButton}
+            >
+              Continuar Partida Guardada
+            </Button>
+          )}
+
           <Button
-            variant="primary"
+            variant={hasSaved ? 'secondary' : 'primary'}
             size="large"
-            onPress={() =>
-              navigation.navigate('Game', {
-                gameMode: 'offline',
-                difficulty: selectedDifficulty,
-                playerName: user?.username || 'Jugador',
-              })
-            }
+            onPress={() => {
+              if (hasSaved) {
+                Alert.alert(
+                  'Nueva Partida',
+                  '¿Empezar una nueva partida? La partida guardada se perderá.',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: 'Nueva Partida',
+                      onPress: () => {
+                        clearGameState();
+                        navigation.navigate('Game', {
+                          gameMode: 'offline',
+                          difficulty: selectedDifficulty,
+                          playerName: user?.username || 'Jugador',
+                          resumeGame: false,
+                        });
+                      },
+                    },
+                  ],
+                );
+              } else {
+                navigation.navigate('Game', {
+                  gameMode: 'offline',
+                  difficulty: selectedDifficulty,
+                  playerName: user?.username || 'Jugador',
+                  resumeGame: false,
+                });
+              }
+            }}
             icon="🎮"
-            style={styles.mainButton}
+            style={!hasSaved ? styles.mainButton : undefined}
           >
-            Comenzar Partida
+            {hasSaved ? 'Nueva Partida' : 'Comenzar Partida'}
           </Button>
 
           <Button

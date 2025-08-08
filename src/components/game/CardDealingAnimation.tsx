@@ -7,6 +7,13 @@ import { typography } from '../../constants/typography';
 import { dimensions } from '../../constants/dimensions';
 import { CARD_DEAL_DURATION, SMOOTH_EASING } from '../../constants/animations';
 import { getCardDimensions } from '../../utils/responsive';
+import {
+  getPlayerCardPosition,
+  getDeckPosition,
+  getTrumpPosition,
+  type LayoutInfo,
+  computeBoardLayout,
+} from '../../utils/cardPositions';
 
 const CARDS_PER_ROUND = 3;
 const TRUMP_REVEAL_DURATION = 800;
@@ -36,8 +43,12 @@ export function CardDealingAnimation({
   const [showGameStart, setShowGameStart] = useState(false);
 
   const screenDimensions = Dimensions.get('window');
-  const centerX = screenDimensions.width / 2;
-  const centerY = screenDimensions.height / 2;
+  const parentWidth = screenDimensions.width;
+  const parentHeight = screenDimensions.height;
+  const layoutInfo: LayoutInfo = {
+    parentLayout: { x: 0, y: 0, width: parentWidth, height: parentHeight },
+    boardLayout: computeBoardLayout(parentWidth, parentHeight),
+  };
 
   // Animation values for each card
   const cardAnimations = useRef<
@@ -60,13 +71,16 @@ export function CardDealingAnimation({
   useEffect(() => {
     for (let i = 0; i < 24; i++) {
       cardAnimations.current[i] = {
-        position: new Animated.ValueXY({ x: centerX - 35, y: centerY - 50 }),
+        position: new Animated.ValueXY({
+          x: parentWidth / 2 - 35,
+          y: parentHeight / 2 - 50,
+        }),
         opacity: new Animated.Value(0),
         scale: new Animated.Value(0.8),
         rotation: new Animated.Value(0),
       };
     }
-  }, [centerX, centerY]);
+  }, [parentWidth, parentHeight]);
 
   // Trump card animation values
   const trumpAnimation = useRef({
@@ -170,18 +184,21 @@ export function CardDealingAnimation({
       for (let cardNum = 0; cardNum < CARDS_PER_ROUND; cardNum++) {
         // Calculate card index based on player and round
         const cardIndexForPlayer = playerIndex * 6 + round * 3 + cardNum;
-        const totalCardIndex = round * 3 + cardNum;
+        const handIndex = round * 3 + cardNum; // index within this player's hand (0..5)
 
         // First move to dealing line position
-        const lineX = centerX - 100 + cardIndexForPlayer * 15;
-        const lineY = centerY;
+        // Deal from a deck placed slightly left of screen center (matches reference)
+        const deckPos = getDeckPosition(parentWidth, parentHeight, layoutInfo);
+        const lineX = deckPos.x + 10 + cardNum * 6;
+        const lineY = deckPos.y + 10;
 
         // Get final position based on player and card layout
-        const { endX, endY, rotation } = getCardFinalPosition(
+        const pos = getPlayerCardPosition(
           playerIndex,
-          totalCardIndex,
-          6, // total cards
-          cardDimensions,
+          handIndex,
+          6,
+          playerIndex === 0 ? 'medium' : 'small',
+          layoutInfo,
         );
 
         animations.push(
@@ -219,7 +236,7 @@ export function CardDealingAnimation({
               Animated.timing(
                 cardAnimations.current[cardIndexForPlayer].position,
                 {
-                  toValue: { x: endX, y: endY },
+                  toValue: { x: pos.x, y: pos.y },
                   duration: CARD_DEAL_DURATION / 2,
                   easing: SMOOTH_EASING,
                   useNativeDriver: true,
@@ -229,14 +246,6 @@ export function CardDealingAnimation({
                 cardAnimations.current[cardIndexForPlayer].scale,
                 {
                   toValue: 1, // No scale transform needed, using large cards for bottom player
-                  duration: CARD_DEAL_DURATION / 2,
-                  useNativeDriver: true,
-                },
-              ),
-              Animated.timing(
-                cardAnimations.current[cardIndexForPlayer].rotation,
-                {
-                  toValue: rotation,
                   duration: CARD_DEAL_DURATION / 2,
                   useNativeDriver: true,
                 },
@@ -256,44 +265,23 @@ export function CardDealingAnimation({
 
   const revealTrumpCard = async () => {
     playTrumpRevealSound();
-
+    // Show trump with a subtle fade/scale only; avoid heavy rotations that can blur overlaying cards
     await new Promise(resolve => {
       Animated.parallel([
         Animated.timing(trumpAnimation.opacity, {
           toValue: 1,
-          duration: 300,
+          duration: 250,
           useNativeDriver: true,
         }),
-        Animated.sequence([
-          Animated.timing(trumpAnimation.rotation, {
-            toValue: 0.5,
-            duration: TRUMP_REVEAL_DURATION / 2,
-            useNativeDriver: true,
-          }),
-          Animated.timing(trumpAnimation.rotation, {
-            toValue: 1,
-            duration: TRUMP_REVEAL_DURATION / 2,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.sequence([
-          Animated.spring(trumpAnimation.scale, {
-            toValue: 1.2,
-            speed: 14,
-            bounciness: 12,
-            useNativeDriver: true,
-          }),
-          Animated.spring(trumpAnimation.scale, {
-            toValue: 1,
-            speed: 14,
-            bounciness: 8,
-            useNativeDriver: true,
-          }),
-        ]),
+        Animated.spring(trumpAnimation.scale, {
+          toValue: 1.05,
+          speed: 16,
+          bounciness: 6,
+          useNativeDriver: true,
+        }),
       ]).start(() => resolve(null));
     });
-
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 250));
   };
 
   const showGameStartMessage = async () => {
@@ -337,8 +325,8 @@ export function CardDealingAnimation({
           style={[
             styles.deckContainer,
             {
-              top: screenDimensions.height * 0.4 - 50, // 40% from top (middle-left, slightly elevated)
-              left: screenDimensions.width * 0.2 - 35, // 20% from left
+              top: getDeckPosition(parentWidth, parentHeight, layoutInfo).y,
+              left: getDeckPosition(parentWidth, parentHeight, layoutInfo).x,
               transform: [
                 {
                   rotate: shuffleAnimation.rotation.interpolate({
@@ -365,6 +353,10 @@ export function CardDealingAnimation({
         // Show face-up for all player cards (0-5)
         const showCard = isPlayerCard && cardInHandIndex < playerCards.length;
 
+        // Determine static rotation so side players are 90° during dealing too
+        const staticRotate =
+          playerIndex === 1 ? '-90deg' : playerIndex === 3 ? '90deg' : '0deg';
+
         return (
           <Animated.View
             key={`dealing-card-${index}`}
@@ -375,21 +367,22 @@ export function CardDealingAnimation({
                   { translateX: anim.position.x },
                   { translateY: anim.position.y },
                   { scale: anim.scale },
-                  {
-                    rotate: anim.rotation.interpolate({
-                      inputRange: [-1, 1],
-                      outputRange: ['-180deg', '180deg'],
-                    }),
-                  },
+                  { rotate: staticRotate },
                 ],
                 opacity: anim.opacity,
               },
             ]}
           >
             {showCard ? (
-              <SpanishCard card={playerCards[cardInHandIndex]} size={playerIndex === 0 ? "large" : "small"} />
+              <SpanishCard
+                card={playerCards[cardInHandIndex]}
+                size={playerIndex === 0 ? 'medium' : 'small'}
+              />
             ) : (
-              <SpanishCard faceDown size={playerIndex === 0 ? "large" : "small"} />
+              <SpanishCard
+                faceDown
+                size={playerIndex === 0 ? 'medium' : 'small'}
+              />
             )}
           </Animated.View>
         );
@@ -401,8 +394,8 @@ export function CardDealingAnimation({
           style={[
             styles.trumpCard,
             {
-              top: centerY - 20,
-              left: centerX - 35,
+              top: getTrumpPosition(parentWidth, parentHeight, layoutInfo).y,
+              left: getTrumpPosition(parentWidth, parentHeight, layoutInfo).x,
               transform: [
                 { rotateY: interpolatedRotation },
                 { scale: trumpAnimation.scale },
@@ -411,14 +404,7 @@ export function CardDealingAnimation({
             },
           ]}
         >
-          {(trumpAnimation.rotation.interpolate({
-            inputRange: [0, 0.5, 1],
-            outputRange: [1, 0, 1],
-          }) as any) > 0.5 ? (
-            <SpanishCard faceDown size="medium" />
-          ) : (
-            <SpanishCard card={trumpCard} size="medium" />
-          )}
+          <SpanishCard card={trumpCard} size="medium" />
         </Animated.View>
       )}
 

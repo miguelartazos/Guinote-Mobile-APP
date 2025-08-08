@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -17,6 +17,7 @@ import { GameModals } from '../components/game/GameModals';
 import { AnimatedButton } from '../components/ui/AnimatedButton';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ConnectionStatus } from '../components/game/ConnectionStatus';
+import { GameErrorBoundary } from '../components/game/GameErrorBoundary';
 // import { VoiceMessaging } from '../components/game/VoiceMessaging'; // Disabled until online works
 import { haptics } from '../utils/haptics';
 import type { JugarStackScreenProps } from '../types/navigation';
@@ -29,7 +30,8 @@ import { dimensions } from '../constants/dimensions';
 import { useSounds } from '../hooks/useSounds';
 import { useGameSettings } from '../hooks/useGameSettings';
 import { useGameStatistics } from '../hooks/useGameStatistics';
-import { useConvexStatistics } from '../hooks/useConvexStatistics';
+// Removed Convex statistics - causes errors in offline mode
+// import { useConvexStatistics } from '../hooks/useConvexStatistics';
 
 const RENUNCIO_REASONS = [
   {
@@ -104,6 +106,10 @@ export function GameScreen({
   const [showPassDevice, setShowPassDevice] = useState(false);
   const [lastPlayerIndex, setLastPlayerIndex] = useState<number | null>(null);
   const [gameStartTime] = useState(Date.now());
+  
+  // Track if we've already recorded this game to prevent infinite loop
+  const gameRecordedRef = useRef(false);
+  const lastRecordedGameIdRef = useRef<string | null>(null);
 
   // Handle network errors
   React.useEffect(() => {
@@ -128,10 +134,12 @@ export function GameScreen({
   } = useSounds();
   const { settings } = useGameSettings();
   const { recordGame } = useGameStatistics();
-  const { recordGameResult } = useConvexStatistics(convexUser?._id);
-  useAudioReactions(gameState);
-  const { startMusic, stopMusic } = useBackgroundMusic();
-  const { announceCard } = useAudioAccessibility(gameState);
+  // Statistics recording removed for offline mode
+  // Will be added back when online mode is properly implemented
+  const recordGameResult = async () => {
+    console.log('📊 Game statistics recording skipped (offline mode)');
+  };
+  // Audio hooks removed - these features were broken and deleted during cleanup
 
   // Hide tab bar when this screen is focused
   useFocusEffect(
@@ -143,10 +151,7 @@ export function GameScreen({
         });
       }
 
-      // Start background music when entering game
-      if (settings?.backgroundMusicEnabled && settings?.backgroundMusicType) {
-        startMusic(settings.backgroundMusicType);
-      }
+      // Background music removed - audio system was broken
 
       return () => {
         if (parent) {
@@ -158,17 +163,8 @@ export function GameScreen({
             },
           });
         }
-
-        // Stop music when leaving game
-        stopMusic();
       };
-    }, [
-      navigation,
-      settings?.backgroundMusicEnabled,
-      settings?.backgroundMusicType,
-      startMusic,
-      stopMusic,
-    ]),
+    }, [navigation]),
   );
 
   // Show loading state for online games
@@ -218,9 +214,17 @@ export function GameScreen({
     lastPlayerIndex,
   ]);
 
-  // Play game over sound
+  // Play game over sound and record statistics
   React.useEffect(() => {
     if (gameState?.phase === 'gameOver') {
+      // Create a unique game session ID based on game start time and current state
+      const gameSessionId = `${gameStartTime}-${gameState.teams[0].score}-${gameState.teams[1].score}`;
+      
+      // Check if we've already recorded this specific game
+      if (lastRecordedGameIdRef.current === gameSessionId) {
+        return; // Already recorded this game, skip
+      }
+      
       const winningTeam = gameState.teams.find(t => t.score >= 101);
       const playerTeam = gameState.teams.find(t =>
         t.playerIds.includes(gameState.players[0].id),
@@ -235,30 +239,40 @@ export function GameScreen({
       }
       setShowGameEndCelebration(true);
 
-      // Record statistics
-      if (!isOnline) {
-        // Offline games - local stats
-        const playerScore = playerTeam?.score || 0;
-        const partnerPlayer = gameState.players.find(
-          p => p.teamId === playerTeam?.id && p.id !== gameState.players[0].id,
-        );
-        recordGame(
-          playerWon,
-          playerScore,
-          partnerPlayer?.name || 'IA',
-          difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
-        );
-      } else if (convexUser?._id && gameState.matchScore) {
-        // Online games - Convex stats
-        recordGameResult(
-          gameState,
-          convexUser._id,
-          gameMode as 'ranked' | 'casual' | 'friends',
-          gameStartTime,
-        ).catch(error => {
-          console.error('Failed to record game stats:', error);
-        });
+      // Record statistics only once per game session
+      if (!gameRecordedRef.current) {
+        gameRecordedRef.current = true;
+        lastRecordedGameIdRef.current = gameSessionId;
+        
+        if (!isOnline) {
+          // Offline games - local stats
+          const playerScore = playerTeam?.score || 0;
+          const partnerPlayer = gameState.players.find(
+            p => p.teamId === playerTeam?.id && p.id !== gameState.players[0].id,
+          );
+          recordGame(
+            playerWon,
+            playerScore,
+            partnerPlayer?.name || 'IA',
+            difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
+          ).catch(error => {
+            console.error('Failed to record offline game stats:', error);
+          });
+        } else if (convexUser?._id && gameState.matchScore && !isOfflineUser) {
+          // Online games - Convex stats (only for real Convex users)
+          recordGameResult(
+            gameState,
+            convexUser._id,
+            gameMode as 'ranked' | 'casual' | 'friends',
+            gameStartTime,
+          ).catch(error => {
+            console.error('Failed to record online game stats:', error);
+          });
+        }
       }
+    } else if (gameState?.phase === 'dealing' || gameState?.phase === 'playing') {
+      // Reset the flag when a new game starts
+      gameRecordedRef.current = false;
     }
   }, [
     gameState?.phase,
@@ -344,10 +358,7 @@ export function GameScreen({
     playCard(cardToPlay.id);
     playCardSound();
 
-    // Announce card for accessibility
-    if (settings?.accessibilityAudioCues || settings?.voiceAnnouncements) {
-      announceCard(cardToPlay);
-    }
+    // Audio accessibility removed - feature was broken
   };
 
   // Calculate valid card indices for the current player
@@ -618,34 +629,41 @@ export function GameScreen({
   }
 
   return (
-    <ScreenContainer orientation="landscape" style={styles.gameContainer}>
-      <StatusBar hidden />
+    <GameErrorBoundary 
+      gameState={gameState}
+      onReset={() => {
+        // Reset game state on error recovery
+        navigation.goBack();
+      }}
+    >
+      <ScreenContainer orientation="landscape" style={styles.gameContainer}>
+        <StatusBar hidden />
 
-      {/* Connection status for online games */}
-      {isOnline && <ConnectionStatus />}
+        {/* Connection status for online games */}
+        {isOnline && <ConnectionStatus />}
 
-      {/* Voice messaging for online games - disabled until online works */}
-      {/* {isOnline && (
-        <VoiceMessaging
-          roomId={roomId}
-          gameMode={gameMode as 'online' | 'friends' | 'offline'}
-        />
-      )} */}
+        {/* Voice messaging for online games - disabled until online works */}
+        {/* {isOnline && (
+          <VoiceMessaging
+            roomId={roomId}
+            gameMode={gameMode as 'online' | 'friends' | 'offline'}
+          />
+        )} */}
 
-      {/* Card dealing animation */}
-      {gameState?.phase === 'dealing' && (
-        <CardDealingAnimation
-          trumpCard={gameState.trumpCard}
-          playerCards={players[0].cards}
-          onComplete={completeDealingAnimation}
-          playDealSound={playDealSound}
-          playTrumpRevealSound={playTrumpRevealSound}
-          playShuffleSound={playShuffleSound}
-          firstPlayerIndex={gameState.currentPlayerIndex}
-        />
-      )}
+        {/* Card dealing animation */}
+        {gameState?.phase === 'dealing' && (
+          <CardDealingAnimation
+            trumpCard={gameState.trumpCard}
+            playerCards={players[0].cards}
+            onComplete={completeDealingAnimation}
+            playDealSound={playDealSound}
+            playTrumpRevealSound={playTrumpRevealSound}
+            playShuffleSound={playShuffleSound}
+            firstPlayerIndex={gameState.currentPlayerIndex}
+          />
+        )}
 
-      <GameTable
+        <GameTable
         players={
           players as [
             (typeof players)[0],
@@ -654,7 +672,7 @@ export function GameScreen({
             (typeof players)[3],
           ]
         }
-        currentPlayerIndex={gameState.currentPlayerIndex}
+        currentPlayerIndex={isLocalMultiplayer ? 0 : gameState.currentPlayerIndex}
         trumpCard={{
           suit: gameState.trumpSuit,
           value: gameState.trumpCard.value,
@@ -777,8 +795,11 @@ export function GameScreen({
         />
       )}
     </ScreenContainer>
+    </GameErrorBoundary>
   );
 }
+
+export default GameScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -1189,15 +1210,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: typography.fontSize.xl,
-    color: colors.text,
-    marginBottom: 10,
   },
   roomCode: {
     fontSize: typography.fontSize.lg,

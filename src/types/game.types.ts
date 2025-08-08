@@ -21,7 +21,8 @@ export type Card = {
 
 export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
-export type AIPersonality = 'aggressive' | 'defensive' | 'balanced' | 'unpredictable';
+// Align with personalities used across the app
+export type AIPersonality = 'aggressive' | 'prudent' | 'tricky';
 
 export type Player = {
   id: PlayerId;

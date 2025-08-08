@@ -4,16 +4,22 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { useCallback } from 'react';
 import type { GameState } from '../types/game.types';
 
-export function useConvexStatistics(userId?: Id<'users'>) {
-  // Queries - skip if no userId (offline mode)
+export function useConvexStatistics(userId?: Id<'users'> | string) {
+  // Check if this is a valid Convex user ID (not the mock offline ID)
+  const isValidConvexId = userId && 
+    typeof userId === 'string' && 
+    !userId.startsWith('local-') &&
+    userId.length > 10; // Convex IDs are longer
+  
+  // Queries - skip if no userId or if it's an offline/mock user
   const playerStats = useQuery(
     api.statistics.getPlayerStats,
-    userId ? { userId } : 'skip',
+    isValidConvexId ? { userId: userId as Id<'users'> } : 'skip',
   );
 
   const leaderboard = useQuery(
     api.statistics.getLeaderboard,
-    userId ? { gameMode: 'all', limit: 100 } : 'skip',
+    isValidConvexId ? { gameMode: 'all', limit: 100 } : 'skip',
   );
 
   // Mutations
@@ -23,12 +29,13 @@ export function useConvexStatistics(userId?: Id<'users'>) {
   const recordGameResult = useCallback(
     async (
       gameState: GameState,
-      userId: Id<'users'>,
+      userId: Id<'users'> | string,
       gameMode: 'ranked' | 'casual' | 'friends',
       startTime: number,
     ) => {
-      // Skip recording if no userId (offline mode)
-      if (!userId) {
+      // Skip recording if no userId or if it's an offline/mock user
+      if (!userId || typeof userId !== 'string' || userId.startsWith('local-')) {
+        console.log('Skipping statistics recording for offline user');
         return;
       }
 
@@ -74,37 +81,63 @@ export function useConvexStatistics(userId?: Id<'users'>) {
         if (cante === 40) victories40++;
       });
 
-      await updateStats({
-        userId,
-        won,
-        eloChange,
-        gameMode,
-        gameDuration,
-        pointsScored: playerTeam.gamePoints,
-        pointsConceded: opponentTeam.gamePoints,
-        cantes,
-        victories20,
-        victories40,
-      });
+      // Only update stats if we have a valid Convex user ID
+      const validUserId = userId && 
+        typeof userId === 'string' && 
+        !userId.startsWith('local-') &&
+        userId.length > 10;
+        
+      if (validUserId) {
+        await updateStats({
+          userId: userId as Id<'users'>,
+          won,
+          eloChange,
+          gameMode,
+          gameDuration,
+          pointsScored: playerTeam.gamePoints,
+          pointsConceded: opponentTeam.gamePoints,
+          cantes,
+          victories20,
+          victories40,
+        });
+      }
     },
     [updateStats],
   );
 
+  // Return default values for offline mode
   return {
-    playerStats,
-    leaderboard,
+    playerStats: playerStats || {
+      gamesPlayed: 0,
+      gamesWon: 0,
+      elo: 1000,
+      winRate: 0,
+      avgPointsPerGame: 0,
+      totalCantes: 0,
+    },
+    leaderboard: leaderboard || [],
     recordGameResult,
   };
 }
 
 // Hook for head-to-head stats
 export function useHeadToHeadStats(
-  userId1?: Id<'users'>,
-  userId2?: Id<'users'>,
+  userId1?: Id<'users'> | string,
+  userId2?: Id<'users'> | string,
 ) {
+  // Check if both are valid Convex user IDs
+  const areValidIds = 
+    userId1 && userId2 &&
+    typeof userId1 === 'string' && 
+    typeof userId2 === 'string' &&
+    !userId1.startsWith('local-') &&
+    !userId2.startsWith('local-') &&
+    userId1.length > 10 &&
+    userId2.length > 10;
+    
   const h2hStats = useQuery(
     api.statistics.getHeadToHeadStats,
-    userId1 && userId2 ? { userId1, userId2 } : 'skip',
+    areValidIds ? { userId1: userId1 as Id<'users'>, userId2: userId2 as Id<'users'> } : 'skip',
   );
 
   return h2hStats;

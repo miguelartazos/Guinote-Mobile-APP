@@ -21,7 +21,7 @@ import {
   ReactionType,
 } from '../../utils/voiceReactions';
 import type { VoiceRecordingId } from '../../types/voice.types';
-import { REACTION_TO_AUDIO_MAP } from '../../utils/soundAssets';
+// Audio functionality removed - REACTION_TO_AUDIO_MAP no longer needed
 
 type VoiceBubbleProps = {
   recordingId: VoiceRecordingId;
@@ -216,11 +216,8 @@ export function VoiceBubble({
       addReaction(recordingId, currentPlayerId, reactionType);
       setCurrentPlayerReaction(reactionType);
 
-      // Play reaction sound
-      const audioType = REACTION_TO_AUDIO_MAP[reactionType];
-      if (audioType) {
-        playReactionSound(audioType);
-      }
+      // Play reaction sound - audio functionality removed
+      playReactionSound(reactionType);
     }
 
     // Update counts

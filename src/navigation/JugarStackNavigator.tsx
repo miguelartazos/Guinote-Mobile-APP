@@ -10,8 +10,9 @@ import { LocalMultiplayerScreen } from '../screens/LocalMultiplayerScreen';
 import { TutorialSetupScreen } from '../screens/TutorialSetupScreen';
 import { TutorialViewerScreen } from '../screens/TutorialViewerScreen';
 import { GameScreen } from '../screens/GameScreen';
-import { LoginScreen } from '../screens/LoginScreen';
-import { RegisterScreen } from '../screens/RegisterScreen';
+// Using offline placeholders - real screens import Clerk which causes errors
+import { LoginScreen } from '../screens/LoginScreenOffline';
+import { RegisterScreen } from '../screens/RegisterScreenOffline';
 import { OnlineLobbyScreen } from '../screens/OnlineLobbyScreen';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';

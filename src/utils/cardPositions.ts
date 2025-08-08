@@ -1,4 +1,5 @@
 import { Dimensions } from 'react-native';
+import type { LayoutRectangle } from 'react-native';
 import { getCardDimensions } from './responsive';
 
 // Dynamic card dimensions - recalculated on each call
@@ -20,12 +21,15 @@ export function getCardHeight(
 export const CARD_WIDTH = 65; // Default fallback
 export const CARD_HEIGHT = 95; // Default fallback
 export const BOTTOM_PLAYER_SCALE = 1; // No additional scale - using large cards directly
-const TOP_SIDE_OVERLAP = 0.9; // 90% visible, 10% overlap for top and side players
+// Visible fractions (not overlap). 1 = no overlap
+const TOP_VISIBLE = 1; // Top: no overlap
+const SIDE_VISIBLE = 0.6; // Sides: compact fan that looked good before
 
 // Position constants to avoid magic numbers
-const TOP_PLAYER_Y_OFFSET = 80; // Distance from top edge for top player
-const SIDE_PLAYER_MARGIN = 80; // Distance from side edges for left/right players
-const BOTTOM_PLAYER_OFFSET = 70; // Distance from bottom edge for bottom player
+const EDGE_MARGIN_VERTICAL = 8; // Match side player container margin for symmetry
+const TOP_PLAYER_Y_OFFSET = EDGE_MARGIN_VERTICAL; // Move closer to top
+const SIDE_PLAYER_MARGIN = 60; // Keep current side spacing
+const BOTTOM_PLAYER_OFFSET = EDGE_MARGIN_VERTICAL; // Move closer to bottom
 
 type Position = {
   x: number;
@@ -34,26 +38,49 @@ type Position = {
   zIndex: number;
 };
 
+export type LayoutInfo = {
+  parentLayout?: LayoutRectangle;
+  boardLayout?: LayoutRectangle;
+};
+
+// Compute a centered board layout with stable aspect ratio
+export function computeBoardLayout(
+  parentWidth: number,
+  parentHeight: number,
+): LayoutRectangle {
+  // Make the board occupy the full available space of the table container
+  // so the green table has no margins
+  const width = Math.floor(parentWidth);
+  const height = Math.floor(parentHeight);
+  const x = 0;
+  const y = 0;
+  return { x, y, width, height } as LayoutRectangle;
+}
+
 export function getBottomPlayerCardPosition(
   index: number,
   totalCards: number,
   containerWidth: number,
+  layoutInfo?: LayoutInfo,
 ): Position {
-  // Bottom player cards use large size with NO overlap (side by side)
-  const cardWidth = getCardWidth(); // Use dynamic card width
-  const totalWidth = cardWidth * totalCards;
-  const startX = (containerWidth - totalWidth) / 2;
-
-  // Match GameTable positioning exactly:
-  // Container is at bottom: 80, cards at bottom: -10 relative = 70 from screen bottom
-  // But since we use top positioning, we need height - (BOTTOM_PLAYER_OFFSET + cardHeight)
+  const cardWidth = getCardWidth();
   const cardHeight = getCardHeight();
+  const visibleWidth = cardWidth * 0.82; // 18% overlap for bottom hand (more compact)
+  const totalWidth = cardWidth + (totalCards - 1) * visibleWidth;
+
+  // Use parent layout width if available for proper centering
+  const parentWidth = layoutInfo?.parentLayout?.width ?? containerWidth;
+  const startX = (parentWidth - totalWidth) / 2;
+
+  // Use parent layout if available, otherwise fall back to window
+  const parentHeight =
+    layoutInfo?.parentLayout?.height ?? Dimensions.get('window').height;
 
   return {
-    x: startX + index * cardWidth, // LEFT edge position
-    y: Dimensions.get('window').height - BOTTOM_PLAYER_OFFSET - cardHeight, // TOP edge position
+    x: startX + index * visibleWidth,
+    y: parentHeight - BOTTOM_PLAYER_OFFSET - cardHeight,
     rotation: 0,
-    zIndex: 20 + index, // Match GameTable's z-index (20 + index)
+    zIndex: 20 + index,
   };
 }
 
@@ -61,18 +88,25 @@ export function getTopPlayerCardPosition(
   index: number,
   totalCards: number,
   containerWidth: number,
+  layoutInfo?: LayoutInfo,
 ): Position {
-  // Top player cards have 10% overlap (90% visible) and use SMALL cards
+  // Top player cards with compact overlap using SMALL cards
   const cardWidth = getCardWidth('small');
-  const visibleCardWidth = cardWidth * TOP_SIDE_OVERLAP;
+  const visibleCardWidth = cardWidth * TOP_VISIBLE;
   const totalWidth = visibleCardWidth * (totalCards - 1) + cardWidth;
-  const startX = (containerWidth - totalWidth) / 2;
+
+  // Use parent or board layout for better centering
+  const parentWidth = layoutInfo?.parentLayout?.width ?? containerWidth;
+  const startX = (parentWidth - totalWidth) / 2;
+
+  // Keep a consistent margin from the top edge for symmetry
+  const yPosition = TOP_PLAYER_Y_OFFSET;
 
   return {
-    x: startX + index * visibleCardWidth, // LEFT edge position
-    y: TOP_PLAYER_Y_OFFSET, // TOP edge position
+    x: startX + index * visibleCardWidth,
+    y: yPosition,
     rotation: 0,
-    zIndex: 15 - index, // Decreasing z-index so leftmost is on top
+    zIndex: 15 - index,
   };
 }
 
@@ -81,11 +115,12 @@ export function getSidePlayerCardPosition(
   totalCards: number,
   containerHeight: number,
   isLeft: boolean,
+  layoutInfo?: LayoutInfo,
 ): Position {
-  // Side player cards have 10% overlap (90% visible) and use SMALL cards
+  // Side player cards with compact overlap and SMALL size
   const cardWidth = getCardWidth('small');
   const cardHeight = getCardHeight('small');
-  const visibleCardHeight = cardHeight * TOP_SIDE_OVERLAP;
+  const visibleCardHeight = cardHeight * SIDE_VISIBLE;
   const totalHeight = visibleCardHeight * (totalCards - 1) + cardHeight;
 
   // Center the card stack vertically
@@ -94,10 +129,14 @@ export function getSidePlayerCardPosition(
   // For rotated cards, we need to account for the rotation transform
   // When rotated 90°, the card's width becomes its visual height and vice versa
   // We adjust the position to compensate for the center-based rotation pivot
-  const rotationAdjustment = -cardHeight / 2 + cardWidth / 2;
+  // center within a fixed side container (GameTable uses ~120 width)
+  const rotatedWidth = cardHeight; // after 90deg rotation
+  const containerWidth = 120;
+  const sideOffset = (containerWidth - rotatedWidth) / 2;
+  const parentWidth = layoutInfo?.parentLayout?.width ?? Dimensions.get('window').width;
   const baseX = isLeft
-    ? SIDE_PLAYER_MARGIN + rotationAdjustment
-    : Dimensions.get('window').width - SIDE_PLAYER_MARGIN + rotationAdjustment;
+    ? SIDE_PLAYER_MARGIN + sideOffset
+    : parentWidth - SIDE_PLAYER_MARGIN - containerWidth + sideOffset;
   const baseY = startY + index * visibleCardHeight; // TOP edge position
 
   return {
@@ -111,11 +150,26 @@ export function getSidePlayerCardPosition(
 export function getDeckPosition(
   screenWidth: number,
   screenHeight: number,
+  layoutInfo?: LayoutInfo,
 ): Position {
-  // Deck positioned at middle-left, slightly elevated
+  // If board layout available, anchor to left side of board
+  if (layoutInfo?.boardLayout) {
+    const board = layoutInfo.boardLayout;
+    const cardWidth = getCardWidth('medium');
+    const cardHeight = getCardHeight('medium');
+    // Position deck near the middle-left of the board
+    return {
+      x: Math.floor(board.x + board.width * 0.26 - cardWidth / 2),
+      y: board.y + board.height / 2 - cardHeight / 2, // Vertically centered with board
+      rotation: 0,
+      zIndex: 100,
+    };
+  }
+
+  // Fallback to percentage-based positioning
   return {
-    x: screenWidth * 0.2, // 20% from left edge
-    y: screenHeight * 0.4, // 40% from top (slightly above middle)
+    x: screenWidth * 0.12, // slightly further left to leave more center space
+    y: screenHeight * 0.45, // 45% from top (slightly below middle)
     rotation: 0,
     zIndex: 100,
   };
@@ -124,14 +178,15 @@ export function getDeckPosition(
 export function getTrumpPosition(
   screenWidth: number,
   screenHeight: number,
+  layoutInfo?: LayoutInfo,
 ): Position {
-  // Trump card positioned below the deck
-  const deckPos = getDeckPosition(screenWidth, screenHeight);
-  const cardHeight = getCardHeight();
+  // Trump card positioned slightly offset from deck
+  const deckPos = getDeckPosition(screenWidth, screenHeight, layoutInfo);
+  const cardOffset = 12; // Fixed pixel offset for trump card
   return {
-    x: deckPos.x,
-    y: deckPos.y + cardHeight * 0.3, // Slightly below deck
-    rotation: 0,
+    x: deckPos.x + cardOffset, // Slightly to the right
+    y: deckPos.y + cardOffset, // Slightly below
+    rotation: 90, // Rotate trump 90deg like reference
     zIndex: 99,
   };
 }
@@ -140,10 +195,12 @@ export function getCenterPlayPosition(
   playerIndex: number,
   screenWidth: number,
   screenHeight: number,
+  layoutInfo?: LayoutInfo,
 ): Position {
-  // Center play area for trick cards (4 positions)
-  const centerX = screenWidth / 2;
-  const centerY = screenHeight / 2;
+  // Use board layout if available for precise centering
+  const board = layoutInfo?.boardLayout;
+  const centerX = board ? board.x + board.width / 2 : screenWidth / 2;
+  const centerY = board ? board.y + board.height / 2 : screenHeight / 2;
   const spread = 40; // Distance from center for each card
 
   // Position cards in a cross pattern
@@ -161,19 +218,39 @@ export function getPlayerCardPosition(
   playerIndex: number,
   cardIndex: number,
   totalCards: number,
-  size?: 'small' | 'medium' | 'large',
+  _size?: 'small' | 'medium' | 'large',
+  layoutInfo?: LayoutInfo,
 ): Position {
-  const { width, height } = Dimensions.get('window');
+  const parentLayout = layoutInfo?.parentLayout;
+  const width = parentLayout?.width ?? Dimensions.get('window').width;
+  const height = parentLayout?.height ?? Dimensions.get('window').height;
 
   switch (playerIndex) {
-    case 0: // Bottom player (user) - always uses large cards
-      return getBottomPlayerCardPosition(cardIndex, totalCards, width);
-    case 1: // Right player (counter-clockwise from bottom) - uses small cards
-      return getSidePlayerCardPosition(cardIndex, totalCards, height, false);
-    case 2: // Top player - uses small cards
-      return getTopPlayerCardPosition(cardIndex, totalCards, width);
-    case 3: // Left player - uses small cards
-      return getSidePlayerCardPosition(cardIndex, totalCards, height, true);
+    case 0:
+      return getBottomPlayerCardPosition(
+        cardIndex,
+        totalCards,
+        width,
+        layoutInfo,
+      );
+    case 1:
+      return getSidePlayerCardPosition(
+        cardIndex,
+        totalCards,
+        height,
+        false,
+        layoutInfo,
+      );
+    case 2:
+      return getTopPlayerCardPosition(cardIndex, totalCards, width, layoutInfo);
+    case 3:
+      return getSidePlayerCardPosition(
+        cardIndex,
+        totalCards,
+        height,
+        true,
+        layoutInfo,
+      );
     default:
       return { x: width / 2, y: height / 2, rotation: 0, zIndex: 0 };
   }

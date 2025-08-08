@@ -54,26 +54,22 @@ export const getCardDimensions = () => {
   if (isTablet()) {
     return {
       small: landscape ? { width: 45, height: 70 } : { width: 54, height: 80 },
-      medium: landscape
-        ? { width: 70, height: 108 }
-        : { width: 78, height: 116 },
-      large: landscape
-        ? { width: 92, height: 136 }
-        : { width: 102, height: 152 },
+      medium: landscape ? { width: 68, height: 105 } : { width: 76, height: 112 },
+      large: landscape ? { width: 86, height: 128 } : { width: 98, height: 146 },
       hand: landscape ? { width: 65, height: 100 } : { width: 72, height: 108 },
     };
   } else if (isSmallScreen()) {
     return {
       small: landscape ? { width: 32, height: 48 } : { width: 36, height: 54 },
-      medium: landscape ? { width: 48, height: 72 } : { width: 54, height: 80 },
-      large: landscape ? { width: 64, height: 96 } : { width: 72, height: 108 },
+      medium: landscape ? { width: 46, height: 69 } : { width: 52, height: 78 },
+      large: landscape ? { width: 60, height: 90 } : { width: 68, height: 102 },
       hand: landscape ? { width: 45, height: 70 } : { width: 50, height: 75 },
     };
   } else {
     return {
       small: landscape ? { width: 35, height: 55 } : { width: 32, height: 48 },
-      medium: landscape ? { width: 55, height: 85 } : { width: 48, height: 72 },
-      large: landscape ? { width: 60, height: 92 } : { width: 65, height: 95 },
+      medium: landscape ? { width: 52, height: 80 } : { width: 46, height: 70 },
+      large: landscape ? { width: 58, height: 88 } : { width: 62, height: 92 },
       hand: landscape ? { width: 50, height: 78 } : { width: 48, height: 72 },
     };
   }

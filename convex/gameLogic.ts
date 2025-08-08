@@ -9,7 +9,7 @@ export type Card = {
   id: string;
 };
 
-export type GamePhase = 'initial' | 'final';
+export type GamePhase = 'initial' | 'arrastre' | 'final';
 
 // Card values for counting points
 export const CARD_VALUES: Record<number, number> = {

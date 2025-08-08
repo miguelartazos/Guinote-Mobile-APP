@@ -61,48 +61,45 @@ export function JugarHomeScreen({
 
         {/* Primary Game Modes */}
         <View style={styles.primaryModes}>
-          {/* Partida Rápida */}
           <TouchableOpacity
-            style={styles.primaryModeCard}
+            style={[styles.primaryButton, styles.quickMatchButton]}
             onPress={() => navigation.navigate('QuickMatch')}
             activeOpacity={0.8}
           >
-            <View style={[styles.primaryModeContent, styles.quickMatchColor]}>
-              <Text style={styles.primaryModeIcon}>🎯</Text>
-              <Text style={styles.primaryModeTitle}>PARTIDA RÁPIDA</Text>
-              <Text style={styles.primaryModeSubtitle}>
-                Juega con otros jugadores
-              </Text>
+            <View style={styles.buttonContent}>
+              <Text style={styles.buttonIcon}>🎯</Text>
+              <View style={styles.buttonTextContainer}>
+                <Text style={styles.buttonTitle}>PARTIDA RÁPIDA</Text>
+                <Text style={styles.buttonSubtitle}>Juega con otros jugadores</Text>
+              </View>
             </View>
           </TouchableOpacity>
 
-          {/* Jugar con Amigos */}
           <TouchableOpacity
-            style={styles.primaryModeCard}
+            style={[styles.primaryButton, styles.friendsButton]}
             onPress={() => navigation.navigate('FriendsLobby')}
             activeOpacity={0.8}
           >
-            <View style={[styles.primaryModeContent, styles.friendsColor]}>
-              <Text style={styles.primaryModeIcon}>👥</Text>
-              <Text style={styles.primaryModeTitle}>JUGAR CON AMIGOS</Text>
-              <Text style={styles.primaryModeSubtitle}>
-                Crea una sala o únete con código
-              </Text>
+            <View style={styles.buttonContent}>
+              <Text style={styles.buttonIcon}>👥</Text>
+              <View style={styles.buttonTextContainer}>
+                <Text style={styles.buttonTitle}>JUGAR CON AMIGOS</Text>
+                <Text style={styles.buttonSubtitle}>Crea una sala o únete</Text>
+              </View>
             </View>
           </TouchableOpacity>
 
-          {/* Contra la Máquina */}
           <TouchableOpacity
-            style={styles.primaryModeCard}
+            style={[styles.primaryButton, styles.aiButton]}
             onPress={() => navigation.navigate('OfflineMode')}
             activeOpacity={0.8}
           >
-            <View style={[styles.primaryModeContent, styles.aiColor]}>
-              <Text style={styles.primaryModeIcon}>🤖</Text>
-              <Text style={styles.primaryModeTitle}>CONTRA LA MÁQUINA</Text>
-              <Text style={styles.primaryModeSubtitle}>
-                Practica en solitario
-              </Text>
+            <View style={styles.buttonContent}>
+              <Text style={styles.buttonIcon}>🤖</Text>
+              <View style={styles.buttonTextContainer}>
+                <Text style={styles.buttonTitle}>CONTRA LA MÁQUINA</Text>
+                <Text style={styles.buttonSubtitle}>Practica en solitario</Text>
+              </View>
             </View>
           </TouchableOpacity>
         </View>
@@ -226,47 +223,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: dimensions.spacing.lg,
     marginBottom: dimensions.spacing.xl,
   },
-  primaryModeCard: {
+  primaryButton: {
     marginBottom: dimensions.spacing.md,
-    borderRadius: dimensions.borderRadius.lg,
-    overflow: 'hidden',
-    elevation: 6,
+    borderRadius: 16,
+    padding: dimensions.spacing.lg,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
-    shadowRadius: 6,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  primaryModeContent: {
+  quickMatchButton: {
+    backgroundColor: '#FF7043',
+  },
+  friendsButton: {
+    backgroundColor: '#5C6BC0',
+  },
+  aiButton: {
+    backgroundColor: '#66BB6A',
+  },
+  buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: dimensions.spacing.lg,
   },
-  primaryModeIcon: {
-    fontSize: 36,
+  buttonIcon: {
+    fontSize: 40,
     marginRight: dimensions.spacing.md,
   },
-  primaryModeTitle: {
+  buttonTextContainer: {
     flex: 1,
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
+  },
+  buttonTitle: {
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.white,
     marginBottom: 4,
   },
-  primaryModeSubtitle: {
-    fontSize: typography.fontSize.sm,
+  buttonSubtitle: {
+    fontSize: 14,
     color: 'rgba(255, 255, 255, 0.9)',
-    position: 'absolute',
-    bottom: dimensions.spacing.lg,
-    left: dimensions.spacing.lg + 36 + dimensions.spacing.md,
-  },
-  quickMatchColor: {
-    backgroundColor: '#FFA500',
-  },
-  friendsColor: {
-    backgroundColor: '#4169E1',
-  },
-  aiColor: {
-    backgroundColor: '#2E8B57',
   },
   secondaryOptions: {
     flexDirection: 'row',
@@ -280,7 +275,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: dimensions.spacing.lg,
     paddingVertical: dimensions.spacing.md,
-    borderRadius: dimensions.borderRadius.md,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -289,8 +284,8 @@ const styles = StyleSheet.create({
     marginRight: dimensions.spacing.sm,
   },
   secondaryButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.text,
   },
   statsSection: {
@@ -312,23 +307,23 @@ const styles = StyleSheet.create({
   statCard: {
     width: '48%',
     backgroundColor: colors.surface,
-    borderRadius: dimensions.borderRadius.md,
+    borderRadius: 12,
     padding: dimensions.spacing.lg,
     marginBottom: dimensions.spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.secondary,
+    borderColor: colors.border,
   },
   statValue: {
-    fontSize: typography.fontSize.xxl,
-    fontWeight: typography.fontWeight.bold,
+    fontSize: 28,
+    fontWeight: '700',
     color: colors.accent,
     marginBottom: dimensions.spacing.xs,
   },
   statLabel: {
-    fontSize: typography.fontSize.sm,
+    fontSize: 14,
     color: colors.text,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: '500',
   },
   loadingText: {
     fontSize: typography.fontSize.md,

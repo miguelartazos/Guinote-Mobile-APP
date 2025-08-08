@@ -112,7 +112,8 @@ describe('useGameState', () => {
   });
 
   describe('continueFromScoring', () => {
-    test('should transition to game over when a team has won', () => {
+    test('should wait 3 seconds before transitioning to game over when a team has won', () => {
+      jest.useFakeTimers();
       const { result } = renderHook(() => useGameState({ playerName: 'Test' }));
 
       // Set up game state in scoring phase with a winning team
@@ -158,8 +159,138 @@ describe('useGameState', () => {
         result.current.continueFromScoring();
       });
 
+      // Should still be in scoring phase immediately
+      expect(result.current.gameState?.phase).toBe('scoring');
+
+      // Fast-forward 2 seconds - should still be scoring
+      act(() => {
+        jest.advanceTimersByTime(2000);
+      });
+      expect(result.current.gameState?.phase).toBe('scoring');
+
+      // Fast-forward remaining 1 second - should now be gameOver
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+      expect(result.current.gameState?.phase).toBe('gameOver');
+
+      jest.useRealTimers();
+    });
+
+    test('should transition to game over when a team has won', () => {
+      jest.useFakeTimers();
+      const { result } = renderHook(() => useGameState({ playerName: 'Test' }));
+
+      // Set up game state in scoring phase with a winning team
+      act(() => {
+        result.current.setGameState({
+          id: 'test-game' as any,
+          phase: 'scoring',
+          players: [] as any,
+          teams: [
+            {
+              id: 'team1' as TeamId,
+              playerIds: ['player1', 'player2'] as any,
+              score: 105,
+              cardPoints: 35,
+              cantes: [],
+            },
+            {
+              id: 'team2' as TeamId,
+              playerIds: ['player3', 'player4'] as any,
+              score: 80,
+              cardPoints: 25,
+              cantes: [],
+            },
+          ] as [Team, Team],
+          deck: [],
+          hands: new Map(),
+          trumpSuit: 'oros',
+          trumpCard: { id: 'trump', suit: 'oros', value: 7 } as any,
+          currentTrick: [],
+          currentPlayerIndex: 0,
+          dealerIndex: 0,
+          trickCount: 10,
+          trickWins: new Map(),
+          canCambiar7: false,
+          gameHistory: [],
+          isVueltas: false,
+          canDeclareVictory: false,
+        } as GameState);
+      });
+
+      // Call continueFromScoring
+      act(() => {
+        result.current.continueFromScoring();
+      });
+
+      // Fast-forward 3 seconds for the timeout
+      act(() => {
+        jest.advanceTimersByTime(3000);
+      });
+
       // Should transition to gameOver
       expect(result.current.gameState?.phase).toBe('gameOver');
+
+      jest.useRealTimers();
+    });
+
+    test('should start dealing animation when entering vueltas', () => {
+      const { result } = renderHook(() => useGameState({ playerName: 'Test' }));
+
+      // Set up game state in scoring phase without a winner
+      act(() => {
+        result.current.setGameState({
+          id: 'test-game' as any,
+          phase: 'scoring',
+          players: [
+            { id: 'p1' as any, name: 'P1', isBot: false } as any,
+            { id: 'p2' as any, name: 'P2', isBot: true } as any,
+            { id: 'p3' as any, name: 'P3', isBot: true } as any,
+            { id: 'p4' as any, name: 'P4', isBot: true } as any,
+          ],
+          teams: [
+            {
+              id: 'team1' as TeamId,
+              playerIds: ['p1', 'p2'] as any,
+              score: 95, // Not enough to win
+              cardPoints: 35,
+              cantes: [],
+            },
+            {
+              id: 'team2' as TeamId,
+              playerIds: ['p3', 'p4'] as any,
+              score: 90,
+              cardPoints: 25,
+              cantes: [],
+            },
+          ] as [Team, Team],
+          deck: [],
+          hands: new Map(),
+          trumpSuit: 'oros',
+          trumpCard: { id: 'trump', suit: 'oros', value: 7 } as any,
+          currentTrick: [],
+          currentPlayerIndex: 0,
+          dealerIndex: 0,
+          trickCount: 10,
+          trickWins: new Map(),
+          canCambiar7: false,
+          gameHistory: [],
+          isVueltas: false,
+          canDeclareVictory: false,
+        } as GameState);
+      });
+
+      // Call continueFromScoring
+      act(() => {
+        result.current.continueFromScoring();
+      });
+
+      // Should transition to dealing phase for vueltas
+      expect(result.current.gameState?.phase).toBe('dealing');
+      expect(result.current.gameState?.isVueltas).toBe(true);
+      expect(result.current.gameState?.hands.size).toBe(0); // Empty hands - will be filled during animation
+      expect(result.current.isDealingComplete).toBe(false); // Dealing animation should trigger
     });
 
     test('should transition to vueltas when no team has won', () => {
@@ -313,6 +444,136 @@ describe('useGameState', () => {
 
       // State should remain unchanged
       expect(result.current.gameState?.phase).toBe('playing');
+    });
+
+    test('prevents multiple scoring transitions on rapid clicks', () => {
+      jest.useFakeTimers();
+      const { result } = renderHook(() => useGameState({ playerName: 'Test' }));
+
+      // Set up game state in scoring phase with a winning team
+      act(() => {
+        result.current.setGameState({
+          id: 'test-game' as any,
+          phase: 'scoring',
+          players: [] as any,
+          teams: [
+            {
+              id: 'team1' as TeamId,
+              playerIds: ['player1', 'player2'] as any,
+              score: 105,
+              cardPoints: 35,
+              cantes: [],
+            },
+            {
+              id: 'team2' as TeamId,
+              playerIds: ['player3', 'player4'] as any,
+              score: 80,
+              cardPoints: 25,
+              cantes: [],
+            },
+          ] as [Team, Team],
+          deck: [],
+          hands: new Map(),
+          trumpSuit: 'oros',
+          trumpCard: { id: 'trump', suit: 'oros', value: 7 } as any,
+          currentTrick: [],
+          currentPlayerIndex: 0,
+          dealerIndex: 0,
+          trickCount: 10,
+          trickWins: new Map(),
+          canCambiar7: false,
+          gameHistory: [],
+          isVueltas: false,
+          canDeclareVictory: false,
+        } as GameState);
+      });
+
+      // Call continueFromScoring multiple times rapidly
+      act(() => {
+        result.current.continueFromScoring();
+        result.current.continueFromScoring(); // Second call should be ignored
+        result.current.continueFromScoring(); // Third call should be ignored
+      });
+
+      // Should still be in scoring phase
+      expect(result.current.gameState?.phase).toBe('scoring');
+
+      // Fast-forward 3 seconds
+      act(() => {
+        jest.advanceTimersByTime(3000);
+      });
+
+      // Should transition to gameOver only once
+      expect(result.current.gameState?.phase).toBe('gameOver');
+
+      // Try calling again after transition - should do nothing
+      act(() => {
+        result.current.continueFromScoring();
+      });
+
+      expect(result.current.gameState?.phase).toBe('gameOver');
+
+      jest.useRealTimers();
+    });
+
+    test('should cancel previous timeout when called multiple times', () => {
+      jest.useFakeTimers();
+      const { result } = renderHook(() => useGameState({ playerName: 'Test' }));
+
+      // Set up game state in scoring phase with a winning team
+      act(() => {
+        result.current.setGameState({
+          id: 'test-game' as any,
+          phase: 'scoring',
+          players: [] as any,
+          teams: [
+            {
+              id: 'team1' as TeamId,
+              playerIds: ['player1', 'player2'] as any,
+              score: 105,
+              cardPoints: 35,
+              cantes: [],
+            },
+            {
+              id: 'team2' as TeamId,
+              playerIds: ['player3', 'player4'] as any,
+              score: 80,
+              cardPoints: 25,
+              cantes: [],
+            },
+          ] as [Team, Team],
+          deck: [],
+          hands: new Map(),
+          trumpSuit: 'oros',
+          trumpCard: { id: 'trump', suit: 'oros', value: 7 } as any,
+          currentTrick: [],
+          currentPlayerIndex: 0,
+          dealerIndex: 0,
+          trickCount: 10,
+          trickWins: new Map(),
+          canCambiar7: false,
+          gameHistory: [],
+          isVueltas: false,
+          canDeclareVictory: false,
+        } as GameState);
+      });
+
+      // Call continueFromScoring multiple times rapidly
+      act(() => {
+        result.current.continueFromScoring();
+        result.current.continueFromScoring();
+        result.current.continueFromScoring();
+      });
+
+      // Fast-forward 3 seconds
+      act(() => {
+        jest.advanceTimersByTime(3000);
+      });
+
+      // Should only transition once (not multiple times)
+      expect(result.current.gameState?.phase).toBe('gameOver');
+
+      jest.useRealTimers();
     });
   });
 

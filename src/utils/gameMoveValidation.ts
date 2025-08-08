@@ -24,12 +24,15 @@ export function isValidMove(gameState: GameState, move: GameMove): boolean {
         const card = playerHand.find(c => c.id === move.data.cardId);
         if (!card) return false;
 
-        // Check if the play is valid according to game rules
+        // Check if the play is valid according to game rules (phase-aware)
         return isValidPlay(
           card,
           playerHand,
           gameState.currentTrick,
           gameState.trumpSuit,
+          gameState.phase,
+          move.playerId,
+          gameState,
         );
       }
 
@@ -46,7 +49,7 @@ export function isValidMove(gameState: GameState, move: GameMove): boolean {
         if (!playerHand) return false;
 
         return playerHand.some(
-          c => c.suit === gameState.trumpSuit && c.value === 2,
+          c => c.suit === gameState.trumpSuit && c.value === 7,
         );
       }
 
@@ -58,14 +61,14 @@ export function isValidMove(gameState: GameState, move: GameMove): boolean {
         const playerHand = gameState.hands.get(move.playerId);
         if (!playerHand) return false;
 
-        const hasKing = playerHand.some(
+        const hasRey = playerHand.some(
           c => c.suit === move.data.suit && c.value === 12,
         );
-        const hasKnight = playerHand.some(
+        const hasSota = playerHand.some(
           c => c.suit === move.data.suit && c.value === 10,
         );
 
-        return hasKing && hasKnight;
+        return hasRey && hasSota;
       }
 
       case 'declare_victory': {
@@ -148,7 +151,7 @@ export function getValidMoves(
   // Add cambiar 7 if possible
   if (
     gameState.canCambiar7 &&
-    playerHand.some(c => c.suit === gameState.trumpSuit && c.value === 2)
+    playerHand.some(c => c.suit === gameState.trumpSuit && c.value === 7)
   ) {
     moves.push({
       type: 'cambiar_7',
@@ -158,12 +161,12 @@ export function getValidMoves(
     });
   }
 
-  // Add cante declarations if possible
+  // Add cante declarations if possible (Rey + Sota)
   const suits = ['oros', 'copas', 'espadas', 'bastos'] as const;
   suits.forEach(suit => {
-    const hasKing = playerHand.some(c => c.suit === suit && c.value === 10);
-    const hasKnight = playerHand.some(c => c.suit === suit && c.value === 11);
-    if (hasKing && hasKnight) {
+    const hasRey = playerHand.some(c => c.suit === suit && c.value === 12);
+    const hasSota = playerHand.some(c => c.suit === suit && c.value === 10);
+    if (hasRey && hasSota) {
       moves.push({
         type: 'declare_cante',
         playerId,

@@ -166,6 +166,20 @@ jest.mock('react-native-screens', () => {
 
 // Mock react-native-orientation-locker
 jest.mock('react-native-orientation-locker', () => ({
+  default: {
+    lockToPortrait: jest.fn(),
+    lockToLandscape: jest.fn(),
+    lockToLandscapeLeft: jest.fn(),
+    lockToLandscapeRight: jest.fn(),
+    unlockAllOrientations: jest.fn(),
+    getOrientation: jest.fn((callback) => callback('PORTRAIT')),
+    getDeviceOrientation: jest.fn((callback) => callback('PORTRAIT')),
+    addDeviceOrientationListener: jest.fn(),
+    removeDeviceOrientationListener: jest.fn(),
+    addOrientationListener: jest.fn(),
+    removeOrientationListener: jest.fn(),
+    getInitialOrientation: jest.fn(() => 'PORTRAIT'),
+  },
   lockToPortrait: jest.fn(),
   lockToLandscape: jest.fn(),
   lockToLandscapeLeft: jest.fn(),
@@ -248,19 +262,94 @@ global.requestAnimationFrame = callback => {
 // Global test utilities
 global.flushPromises = () => new Promise(resolve => setImmediate(resolve));
 
+// Mock TurboModules
+jest.mock('react-native/Libraries/TurboModule/TurboModuleRegistry', () => ({
+  getEnforcing: jest.fn((name) => {
+    if (name === 'DevMenu') {
+      return {
+        reload: jest.fn(),
+        openDebugger: jest.fn(),
+        show: jest.fn(),
+      };
+    }
+    return {};
+  }),
+  get: jest.fn((name) => null),
+}));
+
+// Mock NativePlatformConstantsIOS
+jest.mock('react-native/Libraries/Utilities/NativePlatformConstantsIOS', () => ({
+  default: {
+    getConstants: () => ({
+      forceTouchAvailable: false,
+      interfaceIdiom: 'phone',
+      osVersion: '14.0',
+      systemName: 'iOS',
+      isTesting: true,
+      isDisableAnimations: false,
+    }),
+  },
+}));
+
+// Mock NativeDeviceInfo
+jest.mock('react-native/Libraries/Utilities/NativeDeviceInfo', () => ({
+  default: {
+    getConstants: () => ({
+      Dimensions: {
+        window: {
+          width: 375,
+          height: 667,
+          scale: 2,
+          fontScale: 1,
+        },
+        screen: {
+          width: 375,
+          height: 667,
+          scale: 2,
+          fontScale: 1,
+        },
+      },
+    }),
+  },
+}));
+
 // Comprehensive React Native mock
 jest.mock('react-native', () => {
   const React = require('react');
-  const RN = jest.requireActual('react-native');
   
   // Mock components
   const mockComponent = (name) => {
     return ({ children, ...props }) => React.createElement('View', props, children);
   };
+  
+  // Special Text component that renders text properly
+  const TextComponent = ({ children, ...props }) => {
+    return React.createElement('Text', props, children);
+  };
 
   return {
-    // Keep actual implementations where possible
-    ...RN,
+    // Basic Components
+    View: mockComponent('View'),
+    Text: TextComponent,
+    ScrollView: mockComponent('ScrollView'),
+    TouchableOpacity: mockComponent('TouchableOpacity'),
+    TouchableWithoutFeedback: mockComponent('TouchableWithoutFeedback'),
+    TouchableHighlight: mockComponent('TouchableHighlight'),
+    TouchableNativeFeedback: mockComponent('TouchableNativeFeedback'),
+    Pressable: mockComponent('Pressable'),
+    TextInput: mockComponent('TextInput'),
+    Image: mockComponent('Image'),
+    SafeAreaView: mockComponent('SafeAreaView'),
+    FlatList: mockComponent('FlatList'),
+    SectionList: mockComponent('SectionList'),
+    VirtualizedList: mockComponent('VirtualizedList'),
+    ActivityIndicator: mockComponent('ActivityIndicator'),
+    Button: mockComponent('Button'),
+    Modal: mockComponent('Modal'),
+    RefreshControl: mockComponent('RefreshControl'),
+    StatusBar: mockComponent('StatusBar'),
+    Switch: mockComponent('Switch'),
+    KeyboardAvoidingView: mockComponent('KeyboardAvoidingView'),
     
     // Platform APIs
     Platform: {
@@ -289,9 +378,8 @@ jest.mock('react-native', () => {
       hairlineWidth: 1,
     },
     
-    // Animated
+    // Animated - Complete mock without spreading from RN
     Animated: {
-      ...RN.Animated,
       View: mockComponent('Animated.View'),
       Text: mockComponent('Animated.Text'),
       Image: mockComponent('Animated.Image'),
@@ -352,6 +440,11 @@ jest.mock('react-native', () => {
       multiply: jest.fn(),
       modulo: jest.fn(),
       diffClamp: jest.fn(),
+      delay: jest.fn(),
+      stagger: jest.fn(),
+      createAnimatedComponent: jest.fn((Component) => Component),
+      FlatList: mockComponent('Animated.FlatList'),
+      SectionList: mockComponent('Animated.SectionList'),
     },
     
     // Easing
@@ -373,26 +466,38 @@ jest.mock('react-native', () => {
       inOut: jest.fn(),
     },
     
-    // Components
-    View: mockComponent('View'),
-    Text: mockComponent('Text'),
-    TextInput: mockComponent('TextInput'),
-    TouchableOpacity: mockComponent('TouchableOpacity'),
-    TouchableHighlight: mockComponent('TouchableHighlight'),
-    TouchableWithoutFeedback: mockComponent('TouchableWithoutFeedback'),
-    ScrollView: mockComponent('ScrollView'),
-    FlatList: mockComponent('FlatList'),
-    SectionList: mockComponent('SectionList'),
-    Image: mockComponent('Image'),
-    Modal: mockComponent('Modal'),
-    StatusBar: mockComponent('StatusBar'),
-    ActivityIndicator: mockComponent('ActivityIndicator'),
-    Switch: mockComponent('Switch'),
-    RefreshControl: mockComponent('RefreshControl'),
-    Button: mockComponent('Button'),
-    Pressable: mockComponent('Pressable'),
-    SafeAreaView: mockComponent('SafeAreaView'),
-    KeyboardAvoidingView: mockComponent('KeyboardAvoidingView'),
+    // Utilities
+    PixelRatio: {
+      get: () => 2,
+      getFontScale: () => 1,
+      getPixelSizeForLayoutSize: (size) => size * 2,
+      roundToNearestPixel: (size) => Math.round(size * 2) / 2,
+    },
+    
+    InteractionManager: {
+      runAfterInteractions: (callback) => {
+        callback();
+        return { then: jest.fn(), done: jest.fn(), cancel: jest.fn() };
+      },
+      createInteractionHandle: jest.fn(),
+      clearInteractionHandle: jest.fn(),
+      setDeadline: jest.fn(),
+    },
+    
+    PanResponder: {
+      create: jest.fn(() => ({
+        panHandlers: {
+          onStartShouldSetPanResponder: jest.fn(),
+          onMoveShouldSetPanResponder: jest.fn(),
+          onStartShouldSetPanResponderCapture: jest.fn(),
+          onMoveShouldSetPanResponderCapture: jest.fn(),
+          onPanResponderGrant: jest.fn(),
+          onPanResponderMove: jest.fn(),
+          onPanResponderRelease: jest.fn(),
+          onPanResponderTerminate: jest.fn(),
+        },
+      })),
+    },
     
     // APIs
     Alert: {

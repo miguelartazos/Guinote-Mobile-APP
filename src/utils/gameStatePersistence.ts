@@ -13,6 +13,7 @@ export async function saveGameState(gameState: GameState): Promise<void> {
       ...gameState,
       hands: Object.fromEntries(gameState.hands),
       trickWins: Object.fromEntries(gameState.trickWins),
+      collectedTricks: Object.fromEntries(gameState.collectedTricks),
       initialScores: gameState.initialScores
         ? Object.fromEntries(gameState.initialScores)
         : undefined,
@@ -51,6 +52,7 @@ export async function loadGameState(): Promise<GameState | null> {
       ...parsedState,
       hands: new Map(Object.entries(parsedState.hands)),
       trickWins: new Map(Object.entries(parsedState.trickWins)),
+      collectedTricks: new Map(Object.entries(parsedState.collectedTricks || {})),
       initialScores: parsedState.initialScores
         ? new Map(Object.entries(parsedState.initialScores))
         : undefined,

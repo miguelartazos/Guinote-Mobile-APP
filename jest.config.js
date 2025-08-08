@@ -8,6 +8,7 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   testEnvironment: 'node',
+  testPathIgnorePatterns: ['/node_modules/', '/src.backup/'],
   globals: {
     __DEV__: true,
   },

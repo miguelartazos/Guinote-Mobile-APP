@@ -69,7 +69,7 @@ type UseGameStateProps = {
       value: CardValue;
     };
     currentPlayer: number;
-  };
+};
 };
 
 export function useGameState({
@@ -84,11 +84,13 @@ export function useGameState({
   const [aiMemory, setAIMemory] = useState<CardMemory>(createMemory());
   const [isDealingComplete, setIsDealingComplete] = useState(false);
   const [hasLoadedSavedGame, setHasLoadedSavedGame] = useState(false);
+  const [isProcessingScoring, setIsProcessingScoring] = useState(false);
 
   // Mutex to prevent concurrent state updates
   const stateMutex = useRef(new StateMutex());
   const isUpdatingRef = useRef(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const winnerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Deadlock detector to prevent freezes - DISABLED for now
   // The 3-second timeout is too aggressive for human players who need time to think
@@ -415,8 +417,8 @@ export function useGameState({
 
       // Select dealer (randomly for first game)
       const dealerIndex = Math.floor(Math.random() * 4);
-      // First player (mano) is to dealer's left (clockwise)
-      const firstPlayerIndex = (dealerIndex + 1) % 4;
+      // First player (mano) is to dealer's right (counter-clockwise)
+      const firstPlayerIndex = (dealerIndex - 1 + 4) % 4;
 
       const newGameState: GameState = {
         id: (gameId || `game_${Date.now()}`) as GameId,
@@ -573,57 +575,35 @@ export function useGameState({
             let newPhase = prevState.phase;
 
             if (newDeck.length > 0 && prevState.phase === 'playing') {
-              // CRITICAL FIX: Ensure fair card distribution
-              // If deck has fewer than 4 cards, transition to arrastre immediately
-              // This prevents some players from having fewer cards than others
-              if (newDeck.length < 4) {
-                console.log(
-                  '⚠️ FAIR DISTRIBUTION: Not enough cards for all players',
-                  {
-                    cardsAvailable: newDeck.length,
-                    cardsNeeded: 4,
-                    action: 'Transitioning to arrastre phase without dealing',
-                  },
-                );
-                // Don't give cards to anyone to maintain fairness
-                newPhase = 'arrastre';
-              } else {
-                // Normal case: enough cards for everyone
-                // Winner draws first, then counter-clockwise
-                const drawOrder = [winnerId];
-                let nextIndex = prevState.players.findIndex(
-                  p => p.id === winnerId,
-                );
-                for (let i = 0; i < 3; i++) {
-                  nextIndex = getNextPlayerIndex(nextIndex, 4);
-                  drawOrder.push(prevState.players[nextIndex].id);
-                }
+              // Winner draws first, then counter-clockwise
+              const drawOrder = [winnerId];
+              let nextIndex = prevState.players.findIndex(p => p.id === winnerId);
+              for (let i = 0; i < 3; i++) {
+                nextIndex = getNextPlayerIndex(nextIndex, 4);
+                drawOrder.push(prevState.players[nextIndex].id);
+              }
 
-                console.log(
-                  '📦 DRAWING ORDER (counter-clockwise from winner):',
-                  {
-                    drawOrder: drawOrder.map(
-                      id => prevState.players.find(p => p.id === id)?.name,
-                    ),
-                    deckSize: newDeck.length,
-                  },
-                );
+              console.log('📦 DRAWING ORDER (counter-clockwise from winner):', {
+                drawOrder: drawOrder.map(
+                  id => prevState.players.find(p => p.id === id)?.name,
+                ),
+                deckSize: newDeck.length,
+              });
 
-                drawOrder.forEach(playerId => {
-                  if (newDeck.length > 0) {
-                    const drawnCard = newDeck.pop();
-                    if (drawnCard) {
-                      const playerCards = [...(newHands.get(playerId) || [])];
-                      playerCards.push(drawnCard);
-                      newHands.set(playerId, playerCards);
-                    }
+              drawOrder.forEach(playerId => {
+                if (newDeck.length > 0) {
+                  const drawnCard = newDeck.pop();
+                  if (drawnCard) {
+                    const playerCards = [...(newHands.get(playerId) || [])];
+                    playerCards.push(drawnCard);
+                    newHands.set(playerId, playerCards);
                   }
-                });
-
-                // If deck is now empty, transition to arrastre phase
-                if (newDeck.length === 0) {
-                  newPhase = 'arrastre';
                 }
+              });
+
+              // If deck is now empty, transition to arrastre phase
+              if (newDeck.length === 0) {
+                newPhase = 'arrastre';
               }
             } else if (newDeck.length === 0 && prevState.phase === 'playing') {
               // Already in arrastre or deck was already empty
@@ -764,11 +744,19 @@ export function useGameState({
         deadlockDetector.current.recordStateChange();
 
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+        const currentPlayerTeamId = findPlayerTeam(currentPlayer.id, gameState);
 
-        // Can only cantar after winning the previous trick
+        // Can only cantar after your pair won the previous trick and before next trick starts
+        const lastWinner = gameState.lastTrickWinner;
+        const lastWinnerTeamId = lastWinner
+          ? findPlayerTeam(lastWinner, gameState)
+          : undefined;
+
         if (
           gameState.currentTrick.length !== 0 ||
-          gameState.lastTrickWinner !== currentPlayer.id
+          !currentPlayerTeamId ||
+          !lastWinnerTeamId ||
+          currentPlayerTeamId !== lastWinnerTeamId
         ) {
           console.warn('Can only cantar after winning a trick!');
           return;
@@ -814,6 +802,7 @@ export function useGameState({
           return {
             ...prevState,
             teams: newTeams,
+            lastActionTimestamp: Date.now(), // Trigger AI re-run after cante
             phase: isGameOver({ ...prevState, teams: newTeams })
               ? 'gameOver'
               : 'playing',
@@ -861,11 +850,19 @@ export function useGameState({
       return;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    const currentPlayerTeamId = findPlayerTeam(currentPlayer.id, gameState);
 
-    // Can only cambiar 7 after winning the previous trick
+    // Can only cambiar 7 after your pair won the previous trick and before next trick starts
+    const lastWinner = gameState.lastTrickWinner;
+    const lastWinnerTeamId = lastWinner
+      ? findPlayerTeam(lastWinner, gameState)
+      : undefined;
+
     if (
       gameState.currentTrick.length !== 0 ||
-      gameState.lastTrickWinner !== currentPlayer.id
+      !currentPlayerTeamId ||
+      !lastWinnerTeamId ||
+      currentPlayerTeamId !== lastWinnerTeamId
     ) {
       console.warn('Can only exchange 7 after winning a trick!');
       return;
@@ -894,11 +891,21 @@ export function useGameState({
       currentHand.push(prevState.trumpCard);
       newHands.set(currentPlayer.id, currentHand);
 
+      // Swap the table's trump (pinta) with the player's 7 of trump
+      const updatedDeck = [...prevState.deck];
+      if (updatedDeck.length > 0) {
+        // Replace the bottom card of the stock with the seven
+        // so the visible pinta matches trumpCard
+        updatedDeck[updatedDeck.length - 1] = seven;
+      }
+      // The table's trump card is stored in trumpCard and visible under the stock.
+      // Replace the visible trump with the seven, and give the previous trump to the player.
       return {
         ...prevState,
         hands: newHands,
         trumpCard: seven,
         canCambiar7: false,
+        deck: updatedDeck,
       };
     });
   }, [gameState]);
@@ -965,6 +972,18 @@ export function useGameState({
     };
   }, [gameState]);
 
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (winnerTimeoutRef.current) {
+        clearTimeout(winnerTimeoutRef.current);
+      }
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Load saved game on mount (only once)
   useEffect(() => {
     if (!hasLoadedSavedGame && !gameState && !mockData) {
@@ -972,7 +991,23 @@ export function useGameState({
         .then(savedState => {
           if (savedState) {
             console.log('📂 Loaded saved game state');
-            setGameState(savedState);
+            // Normalize loaded state to avoid being stuck in non-playing phases/animations
+            const normalizedState: GameState = {
+              ...savedState,
+              // Only skip dealing animation for initial game dealing, not vueltas
+              phase: (() => {
+                if (savedState.phase === 'dealing' && !savedState.isVueltas) {
+                  return 'playing' as GamePhase;
+                }
+                return savedState.phase;
+              })(),
+              // Ensure we are not stuck waiting for an animation that won't replay on load
+              trickAnimating: false,
+              pendingTrickWinner: undefined,
+              // Bump timestamp so AI effects compute a fresh turn key
+              lastActionTimestamp: Date.now(),
+            };
+            setGameState(normalizedState);
             setIsDealingComplete(true); // Skip dealing animation for loaded games
           }
           setHasLoadedSavedGame(true);
@@ -1076,6 +1111,13 @@ export function useGameState({
   const continueFromScoring = useCallback(() => {
     if (!gameState || gameState.phase !== 'scoring') return;
 
+    // Guard against multiple clicks
+    if (isProcessingScoring) {
+      console.log('⚠️ Already processing scoring transition, ignoring');
+      return;
+    }
+    setIsProcessingScoring(true);
+
     // Check if any team has won (101+ points AND 30+ card points)
     const winningTeam = gameState.teams.find(
       team =>
@@ -1083,52 +1125,79 @@ export function useGameState({
     );
 
     if (winningTeam) {
-      // Auto-win: Team reached 101 points
-      setGameState(prev => {
-        if (!prev) return null;
-        const currentMatchScore = prev.matchScore || {
-          team1Sets: 0,
-          team2Sets: 0,
-          currentSet: 'buenas',
-        };
-        const winningTeamIndex = prev.teams.findIndex(
-          t => t.id === winningTeam.id,
-        );
-        const updatedMatchScore = { ...currentMatchScore };
+      // Capture only the ID to avoid stale closure
+      const winningTeamId = winningTeam.id;
 
-        if (winningTeamIndex === 0) {
-          updatedMatchScore.team1Sets += 1;
-        } else {
-          updatedMatchScore.team2Sets += 1;
-        }
+      // Clear any existing timeout to prevent race condition
+      if (winnerTimeoutRef.current) {
+        clearTimeout(winnerTimeoutRef.current);
+      }
 
-        // Check if match is over (best of 3)
-        const team1Won = updatedMatchScore.team1Sets >= 2;
-        const team2Won = updatedMatchScore.team2Sets >= 2;
+      // Auto-win: Team reached 101 points - add 3 second delay before announcing
+      winnerTimeoutRef.current = setTimeout(() => {
+        setGameState(prev => {
+          if (!prev) return null;
 
-        if (team1Won || team2Won) {
-          // Match over
-          return {
-            ...prev,
-            phase: 'gameOver' as GamePhase,
-            matchScore: updatedMatchScore,
+          // Re-validate with fresh data to avoid stale closure
+          const currentWinner = prev.teams.find(
+            t =>
+              t.id === winningTeamId &&
+              t.score >= WINNING_SCORE &&
+              t.cardPoints >= MINIMUM_CARD_POINTS,
+          );
+
+          if (!currentWinner) {
+            console.log('⚠️ Winner no longer valid, skipping transition');
+            return prev;
+          }
+
+          const currentMatchScore = prev.matchScore || {
+            team1Sets: 0,
+            team2Sets: 0,
+            currentSet: 'buenas',
           };
-        } else {
-          // Continue to next set
-          updatedMatchScore.currentSet =
-            updatedMatchScore.team1Sets === 1 &&
-            updatedMatchScore.team2Sets === 1
-              ? 'bella'
-              : 'malas';
-          // Reset for next game
-          return {
-            ...prev,
-            phase: 'gameOver' as GamePhase, // Will be reset for new game
-            matchScore: updatedMatchScore,
-          };
-        }
-      });
+          const winningTeamIndex = prev.teams.findIndex(
+            t => t.id === winningTeamId,
+          );
+          const updatedMatchScore = { ...currentMatchScore };
+
+          if (winningTeamIndex === 0) {
+            updatedMatchScore.team1Sets += 1;
+          } else {
+            updatedMatchScore.team2Sets += 1;
+          }
+
+          // Check if match is over (best of 3)
+          const team1Won = updatedMatchScore.team1Sets >= 2;
+          const team2Won = updatedMatchScore.team2Sets >= 2;
+
+          if (team1Won || team2Won) {
+            // Match over
+            return {
+              ...prev,
+              phase: 'gameOver' as GamePhase,
+              matchScore: updatedMatchScore,
+            };
+          } else {
+            // Continue to next set
+            updatedMatchScore.currentSet =
+              updatedMatchScore.team1Sets === 1 &&
+              updatedMatchScore.team2Sets === 1
+                ? 'bella'
+                : 'malas';
+            // Reset for next game
+            return {
+              ...prev,
+              phase: 'gameOver' as GamePhase, // Will be reset for new game
+              matchScore: updatedMatchScore,
+            };
+          }
+        });
+        winnerTimeoutRef.current = null;
+        setIsProcessingScoring(false);
+      }, 3000); // 3-second delay before announcing winner
     } else {
+      setIsProcessingScoring(false);
       // No winner - start vueltas (second hand)
       setGameState(prev => {
         if (!prev) return null;
@@ -1142,27 +1211,21 @@ export function useGameState({
           ? prev.teams.find(t => t.playerIds.includes(lastWinner))?.id
           : undefined;
 
-        // Deal new hand for vueltas
-        const newDeck = shuffleDeck(createDeck());
-        const { hands: newHands, remainingDeck } = dealInitialCards(
-          newDeck,
-          prev.players.map(p => p.id),
-        );
-
-        const newTrumpCard = remainingDeck[remainingDeck.length - 1];
-        const newTrumpSuit = newTrumpCard.suit;
-
         return {
           ...prev,
-          phase: 'playing' as GamePhase, // Go straight to playing - cards already dealt
+          phase: 'dealing' as GamePhase, // Start with dealing phase to trigger animation
           isVueltas: true,
           initialScores,
           lastTrickWinnerTeam: lastWinnerTeam,
           canDeclareVictory: !!lastWinnerTeam,
-          deck: remainingDeck,
-          hands: newHands,
-          trumpCard: newTrumpCard,
-          trumpSuit: newTrumpSuit,
+          deck: [], // Empty deck - will be created and shuffled in useEffect
+          hands: new Map(), // Empty hands - will be filled by useEffect at line 988
+          trumpCard: {
+            id: 'temp_trump' as CardId,
+            suit: 'oros' as SpanishSuit,
+            value: 1 as CardValue,
+          }, // Placeholder, will be updated by useEffect
+          trumpSuit: 'oros' as SpanishSuit, // Placeholder, will be updated by useEffect
           currentTrick: [],
           currentPlayerIndex: (prev.dealerIndex + 1) % 4,
           dealerIndex: (prev.dealerIndex + 1) % 4,
@@ -1173,10 +1236,13 @@ export function useGameState({
         };
       });
 
+      // Reset dealing complete flag to trigger animation
+      setIsDealingComplete(false);
+
       // Clear AI memory when starting vueltas
       setAIMemory(clearMemory());
     }
-  }, [gameState]);
+  }, [gameState, isProcessingScoring]);
 
   const declareVictory = useCallback(() => {
     if (!gameState?.isVueltas || gameState.currentTrick.length > 0)
