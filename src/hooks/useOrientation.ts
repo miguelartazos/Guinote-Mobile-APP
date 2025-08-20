@@ -10,18 +10,11 @@ export function useOrientation(): Orientation {
   });
 
   useEffect(() => {
-    const updateOrientation = ({
-      window,
-    }: {
-      window: { width: number; height: number };
-    }) => {
+    const updateOrientation = ({ window }: { window: { width: number; height: number } }) => {
       setOrientation(window.width > window.height ? 'landscape' : 'portrait');
     };
 
-    const subscription = Dimensions.addEventListener(
-      'change',
-      updateOrientation,
-    );
+    const subscription = Dimensions.addEventListener('change', updateOrientation);
 
     return () => {
       subscription?.remove();

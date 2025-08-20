@@ -19,9 +19,7 @@ const MAX_HISTORY_SIZE = 5;
 const HISTORY_CLEANUP_THRESHOLD = 10;
 
 export function generateRecordingId(): VoiceRecordingId {
-  return `voice_${Date.now()}_${Math.random()
-    .toString(36)
-    .substr(2, 9)}` as VoiceRecordingId;
+  return `voice_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` as VoiceRecordingId;
 }
 
 export function getRecordingPath(recordingId: VoiceRecordingId): string {
@@ -42,7 +40,7 @@ export function saveRecording(recording: VoiceRecording): void {
 
 export function getRecording(
   recordingId: VoiceRecordingId,
-): VoiceRecording & { uri: string } | undefined {
+): (VoiceRecording & { uri: string }) | undefined {
   const recording = voiceRecordings.get(recordingId);
   if (!recording) return undefined;
   return {
@@ -52,9 +50,7 @@ export function getRecording(
 }
 
 export function getAllRecordings(): VoiceRecording[] {
-  return Array.from(voiceRecordings.values()).sort(
-    (a, b) => b.timestamp - a.timestamp,
-  );
+  return Array.from(voiceRecordings.values()).sort((a, b) => b.timestamp - a.timestamp);
 }
 
 export function deleteRecording(recordingId: VoiceRecordingId): void {
@@ -87,9 +83,7 @@ export function getPlayerRecordings(playerId: string): VoiceRecording[] {
 }
 
 // Get recent recordings (default to history limit)
-export function getRecentRecordings(
-  limit: number = MAX_HISTORY_SIZE,
-): VoiceRecording[] {
+export function getRecentRecordings(limit: number = MAX_HISTORY_SIZE): VoiceRecording[] {
   return getAllRecordings().slice(0, limit);
 }
 

@@ -197,11 +197,7 @@ describe('playAICard', () => {
 
 describe('playAICard with difficulty levels', () => {
   test('easy AI plays valid card from hand', () => {
-    const hand = [
-      createCard('espadas', 1),
-      createCard('bastos', 10),
-      createCard('oros', 7),
-    ];
+    const hand = [createCard('espadas', 1), createCard('bastos', 10), createCard('oros', 7)];
     const gameState = createMockGameState({ trumpSuit: 'copas' });
     const player = createPlayer('bot1' as PlayerId, 'easy');
 
@@ -301,9 +297,7 @@ describe('playAICard edge cases', () => {
     const hand = [createCard('espadas', 1), createCard('bastos', 3)];
     const gameState = createMockGameState({
       phase: 'arrastre',
-      currentTrick: [
-        { playerId: 'p1' as PlayerId, card: createCard('oros', 1) },
-      ],
+      currentTrick: [{ playerId: 'p1' as PlayerId, card: createCard('oros', 1) }],
     });
 
     // Mock isValidPlay to return false for all cards
@@ -482,11 +476,7 @@ describe('getAIThinkingTime', () => {
   });
 
   test('aggressive personality thinks faster', () => {
-    const aggressivePlayer = createPlayer(
-      'bot1' as PlayerId,
-      'medium',
-      'aggressive',
-    );
+    const aggressivePlayer = createPlayer('bot1' as PlayerId, 'medium', 'aggressive');
     const prudentPlayer = createPlayer('bot2' as PlayerId, 'medium', 'prudent');
 
     // Run multiple times and average
@@ -504,11 +494,7 @@ describe('getAIThinkingTime', () => {
 
 describe('recovery scenarios', () => {
   test('AI plays valid card when hand has cards', () => {
-    const hand = [
-      createCard('espadas', 1),
-      createCard('bastos', 10),
-      createCard('oros', 7),
-    ];
+    const hand = [createCard('espadas', 1), createCard('bastos', 10), createCard('oros', 7)];
     const gameState = createMockGameState();
 
     const card = playAICard(hand, gameState);
@@ -674,10 +660,8 @@ describe('getAIThinkingTime', () => {
       complexTimes.push(getAIThinkingTime(player, true));
     }
 
-    const simpleAvg =
-      simpleTimes.reduce((a, b) => a + b, 0) / simpleTimes.length;
-    const complexAvg =
-      complexTimes.reduce((a, b) => a + b, 0) / complexTimes.length;
+    const simpleAvg = simpleTimes.reduce((a, b) => a + b, 0) / simpleTimes.length;
+    const complexAvg = complexTimes.reduce((a, b) => a + b, 0) / complexTimes.length;
 
     // Complex decisions should take longer on average
     expect(complexAvg).toBeGreaterThan(simpleAvg);
@@ -750,9 +734,7 @@ describe('getAIThinkingTime', () => {
 
     // Calculate standard deviation
     const mean = times.reduce((a, b) => a + b, 0) / times.length;
-    const variance =
-      times.reduce((sum, time) => sum + Math.pow(time - mean, 2), 0) /
-      times.length;
+    const variance = times.reduce((sum, time) => sum + Math.pow(time - mean, 2), 0) / times.length;
     const stdDev = Math.sqrt(variance);
 
     // Tricky players should have high variance

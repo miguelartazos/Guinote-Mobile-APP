@@ -1,41 +1,23 @@
-// Default values for development
-const defaults = {
-  clerkPublishableKey: '',
-  convexUrl: '',
-};
+import { ENVIRONMENT } from './envConfig';
 
 export const env = {
-  clerk: {
-    publishableKey:
-      process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-      defaults.clerkPublishableKey,
-  },
-  convex: {
-    url: process.env.EXPO_PUBLIC_CONVEX_URL || defaults.convexUrl,
-  },
-  environment: process.env.EXPO_PUBLIC_ENVIRONMENT || 'development',
-  isDevelopment: process.env.EXPO_PUBLIC_ENVIRONMENT !== 'production',
-  isProduction: process.env.EXPO_PUBLIC_ENVIRONMENT === 'production',
+  environment: ENVIRONMENT || 'development',
+  isDevelopment: ENVIRONMENT !== 'production',
+  isProduction: ENVIRONMENT === 'production',
 };
 
 // Validate required environment variables
-const requiredVars = [
-  'EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY',
-  'EXPO_PUBLIC_CONVEX_URL',
-];
+const requiredVars: Array<{ name: string; value: string | undefined }> = [];
 
 const missingVars: string[] = [];
-for (const varName of requiredVars) {
-  if (!process.env[varName]) {
-    missingVars.push(varName);
+for (const { name, value } of requiredVars) {
+  if (!value) {
+    missingVars.push(name);
   }
 }
 
 if (missingVars.length > 0 && env.isProduction) {
-  console.error(
-    'Missing required environment variables:',
-    missingVars.join(', '),
-  );
+  console.error('Missing required environment variables:', missingVars.join(', '));
   console.error('Please create a .env file with the required variables.');
 } else if (missingVars.length > 0) {
   console.warn('Missing environment variables:', missingVars.join(', '));

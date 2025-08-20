@@ -55,9 +55,7 @@ export const QUICK_VOICE_MESSAGES: QuickVoiceMessage[] = [
   },
 ];
 
-export function getQuickMessageById(
-  id: QuickVoiceMessageId,
-): QuickVoiceMessage | undefined {
+export function getQuickMessageById(id: QuickVoiceMessageId): QuickVoiceMessage | undefined {
   return QUICK_VOICE_MESSAGES.find(msg => msg.id === id);
 }
 

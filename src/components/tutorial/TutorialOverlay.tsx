@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  Animated,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated } from 'react-native';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { dimensions } from '../../constants/dimensions';
@@ -71,20 +64,11 @@ export function TutorialOverlay({
   const isLastStep = currentStepIndex === totalSteps - 1;
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="none"
-      statusBarTranslucent
-    >
+    <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
       <View style={styles.container}>
         {/* Dark overlay */}
         <Animated.View
-          style={[
-            StyleSheet.absoluteFillObject,
-            styles.overlay,
-            { opacity: fadeAnim },
-          ]}
+          style={[StyleSheet.absoluteFillObject, styles.overlay, { opacity: fadeAnim }]}
           pointerEvents="none"
         />
 
@@ -134,9 +118,7 @@ export function TutorialOverlay({
               }}
               style={[styles.navButton, styles.nextButton]}
             >
-              <Text style={styles.nextButtonText}>
-                {isLastStep ? 'Finalizar' : 'Siguiente'}
-              </Text>
+              <Text style={styles.nextButtonText}>{isLastStep ? 'Finalizar' : 'Siguiente'}</Text>
             </AnimatedButton>
           </View>
 
@@ -145,10 +127,7 @@ export function TutorialOverlay({
             {Array.from({ length: totalSteps }).map((_, index) => (
               <View
                 key={index}
-                style={[
-                  styles.dot,
-                  index === currentStepIndex && styles.activeDot,
-                ]}
+                style={[styles.dot, index === currentStepIndex && styles.activeDot]}
               />
             ))}
           </View>

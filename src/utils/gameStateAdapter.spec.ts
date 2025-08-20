@@ -4,14 +4,7 @@ import {
   deserializeGameState,
   validateSerialization,
 } from './gameStateAdapter';
-import type {
-  GameState,
-  Card,
-  CardId,
-  PlayerId,
-  TeamId,
-  GameId,
-} from '../types/game.types';
+import type { GameState, Card, CardId, PlayerId, TeamId, GameId } from '../types/game.types';
 import type { SpanishSuit, CardValue } from '../types/cardTypes';
 
 // Helper to create test data
@@ -60,14 +53,8 @@ function createCompleteGameState(): GameState {
   ];
 
   const hands = new Map<PlayerId, ReadonlyArray<Card>>([
-    [
-      'p1' as PlayerId,
-      [createTestCard('c1', 'oros', 1), createTestCard('c2', 'copas', 12)],
-    ],
-    [
-      'p2' as PlayerId,
-      [createTestCard('c3', 'espadas', 7), createTestCard('c4', 'bastos', 3)],
-    ],
+    ['p1' as PlayerId, [createTestCard('c1', 'oros', 1), createTestCard('c2', 'copas', 12)]],
+    ['p2' as PlayerId, [createTestCard('c3', 'espadas', 7), createTestCard('c4', 'bastos', 3)]],
     ['p3' as PlayerId, []],
     ['p4' as PlayerId, [createTestCard('c5', 'oros', 11)]],
   ]);
@@ -141,10 +128,7 @@ function createCompleteGameState(): GameState {
         cantes: [],
       },
     ],
-    deck: [
-      createTestCard('d1', 'bastos', 1),
-      createTestCard('d2', 'espadas', 2),
-    ],
+    deck: [createTestCard('d1', 'bastos', 1), createTestCard('d2', 'espadas', 2)],
     hands,
     trumpSuit: 'oros',
     trumpCard: createTestCard('trump', 'oros', 4),
@@ -175,6 +159,12 @@ function createCompleteGameState(): GameState {
       team1Sets: 1,
       team2Sets: 0,
       currentSet: 'malas',
+      team1Partidas: 1,
+      team2Partidas: 0,
+      team1Cotos: 0,
+      team2Cotos: 0,
+      partidasPerCoto: 3,
+      cotosPerMatch: 2,
     },
   };
 }
@@ -291,9 +281,7 @@ describe('gameStateAdapter', () => {
 
       expect(deserialized.id).toBe(gameState.id);
       expect(deserialized.phase).toBe(gameState.phase);
-      expect(deserialized.currentPlayerIndex).toBe(
-        gameState.currentPlayerIndex,
-      );
+      expect(deserialized.currentPlayerIndex).toBe(gameState.currentPlayerIndex);
       expect(deserialized.players).toHaveLength(4);
       expect(deserialized.teams).toHaveLength(2);
     });
@@ -311,9 +299,7 @@ describe('gameStateAdapter', () => {
       expect(deserialized.trickWins.get('team1' as TeamId)).toBe(3);
 
       expect(deserialized.collectedTricks).toBeInstanceOf(Map);
-      expect(deserialized.collectedTricks.get('p1' as PlayerId)).toHaveLength(
-        1,
-      );
+      expect(deserialized.collectedTricks.get('p1' as PlayerId)).toHaveLength(1);
     });
 
     it('preserves complex nested data', () => {
@@ -394,10 +380,7 @@ describe('gameStateAdapter', () => {
       gameState.pendingTrickWinner = {
         playerId: 'p1' as PlayerId,
         points: 20,
-        cards: [
-          createTestCard('c1', 'oros', 1),
-          createTestCard('c2', 'copas', 12),
-        ],
+        cards: [createTestCard('c1', 'oros', 1), createTestCard('c2', 'copas', 12)],
       };
 
       const serialized = serializeGameState(gameState);

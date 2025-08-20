@@ -12,11 +12,7 @@ import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
 import { VoiceBubble } from './VoiceBubble';
-import {
-  getVoiceHistory,
-  clearVoiceHistory,
-  getHistoryStats,
-} from '../../utils/voiceStorage';
+import { getVoiceHistory, clearVoiceHistory, getHistoryStats } from '../../utils/voiceStorage';
 import type { VoiceRecording } from '../../utils/voiceStorage';
 
 type VoiceHistoryProps = {
@@ -30,9 +26,7 @@ export function VoiceHistory({
   onClose,
   currentPlayerId = 'current_player',
 }: VoiceHistoryProps) {
-  const [historyRecordings, setHistoryRecordings] = useState<VoiceRecording[]>(
-    [],
-  );
+  const [historyRecordings, setHistoryRecordings] = useState<VoiceRecording[]>([]);
   const [stats, setStats] = useState(getHistoryStats());
   const fadeAnim = useState(new Animated.Value(0))[0];
 
@@ -66,9 +60,7 @@ export function VoiceHistory({
   const formatTimestamp = (timestamp: number): string => {
     const date = new Date(timestamp);
     const now = new Date();
-    const diffMinutes = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60),
-    );
+    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
 
     if (diffMinutes < 1) {
       return 'Hace un momento';
@@ -82,9 +74,7 @@ export function VoiceHistory({
     }
   };
 
-  const getPlayerPosition = (
-    index: number,
-  ): 'top' | 'left' | 'right' | 'bottom' => {
+  const getPlayerPosition = (index: number): 'top' | 'left' | 'right' | 'bottom' => {
     // Alternate positions for visual variety
     const positions: Array<'top' | 'left' | 'right' | 'bottom'> = [
       'bottom',
@@ -96,12 +86,7 @@ export function VoiceHistory({
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="none"
-      transparent={true}
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="none" transparent={true} onRequestClose={onClose}>
       <View style={styles.overlay}>
         <Animated.View
           style={[
@@ -121,11 +106,7 @@ export function VoiceHistory({
         >
           <View style={styles.header}>
             <Text style={styles.title}>Historial de Mensajes</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={onClose}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -136,21 +117,14 @@ export function VoiceHistory({
               {stats.totalRecordings !== 1 ? 's' : ''}
             </Text>
             {stats.newestTimestamp && (
-              <Text style={styles.statsText}>
-                Último: {formatTimestamp(stats.newestTimestamp)}
-              </Text>
+              <Text style={styles.statsText}>Último: {formatTimestamp(stats.newestTimestamp)}</Text>
             )}
           </View>
 
-          <ScrollView
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-          >
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {historyRecordings.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  No hay mensajes de voz en el historial
-                </Text>
+                <Text style={styles.emptyStateText}>No hay mensajes de voz en el historial</Text>
                 <Text style={styles.emptyStateSubtext}>
                   Los mensajes aparecerán aquí después de enviarlos
                 </Text>

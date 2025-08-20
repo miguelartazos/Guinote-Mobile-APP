@@ -13,10 +13,7 @@ const DEFAULT_OPTIONS: AudioProcessingOptions = {
 };
 
 // Audio level utilities for visual feedback
-export function calculateAudioLevel(
-  currentPosition: number,
-  duration: number,
-): number {
+export function calculateAudioLevel(currentPosition: number, duration: number): number {
   // Simulate audio level based on position
   // In a real implementation, this would analyze actual audio data
   const progress = currentPosition / duration;

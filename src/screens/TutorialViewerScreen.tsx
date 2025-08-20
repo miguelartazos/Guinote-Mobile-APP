@@ -41,9 +41,7 @@ export function TutorialViewerScreen({
     return (
       <ScreenContainer>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>
-            No se pudo cargar el tutorial seleccionado.
-          </Text>
+          <Text style={styles.errorText}>No se pudo cargar el tutorial seleccionado.</Text>
           <Button onPress={() => navigation.goBack()}>Volver</Button>
         </View>
       </ScreenContainer>
@@ -63,9 +61,7 @@ export function TutorialViewerScreen({
               style={[
                 styles.progressBar,
                 {
-                  width: `${
-                    ((currentStepIndex + 1) / tutorialSteps.length) * 100
-                  }%`,
+                  width: `${((currentStepIndex + 1) / tutorialSteps.length) * 100}%`,
                 },
               ]}
             />
@@ -94,10 +90,7 @@ export function TutorialViewerScreen({
               Anterior
             </Button>
 
-            <Button
-              onPress={isLastStep ? handleComplete : handleNext}
-              style={styles.navButton}
-            >
+            <Button onPress={isLastStep ? handleComplete : handleNext} style={styles.navButton}>
               {isLastStep ? 'Finalizar' : 'Siguiente'}
             </Button>
           </View>
@@ -107,10 +100,7 @@ export function TutorialViewerScreen({
             {tutorialSteps.map((_, index) => (
               <View
                 key={index}
-                style={[
-                  styles.dot,
-                  index === currentStepIndex && styles.activeDot,
-                ]}
+                style={[styles.dot, index === currentStepIndex && styles.activeDot]}
               />
             ))}
           </View>

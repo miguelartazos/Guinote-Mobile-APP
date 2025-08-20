@@ -6,10 +6,7 @@ import { playCard, cambiar7, declareCante } from './gameLogic';
  * Apply a game move to the current state and return the new state
  * Returns null if the move is invalid
  */
-export function applyGameMove(
-  gameState: GameState,
-  move: GameMove,
-): GameState | null {
+export function applyGameMove(gameState: GameState, move: GameMove): GameState | null {
   try {
     switch (move.type) {
       case 'play_card': {
@@ -41,7 +38,7 @@ export function applyGameMove(
         // Mark game as finished
         return {
           ...gameState,
-          phase: 'finished',
+          phase: 'gameOver',
           lastActionTimestamp: Date.now(),
         };
       }
@@ -59,7 +56,7 @@ export function applyGameMove(
  * Check if the game is over
  */
 export function isGameOver(gameState: GameState): boolean {
-  return gameState.phase === 'finished';
+  return gameState.phase === 'gameOver' || gameState.phase === 'finished'; // Support legacy 'finished' phase
 }
 
 /**
@@ -98,10 +95,7 @@ export function getTurnTimeRemaining(
 /**
  * Check if current player's turn has timed out
  */
-export function isTurnTimedOut(
-  gameState: GameState,
-  turnTimeLimit: number = 30000,
-): boolean {
+export function isTurnTimedOut(gameState: GameState, turnTimeLimit: number = 30000): boolean {
   return getTurnTimeRemaining(gameState, turnTimeLimit) === 0;
 }
 
@@ -174,7 +168,7 @@ export function continueFromScoring(gameState: GameState): GameState | null {
     // Game is finished
     return {
       ...gameState,
-      phase: 'finished',
+      phase: 'gameOver',
     };
   }
 

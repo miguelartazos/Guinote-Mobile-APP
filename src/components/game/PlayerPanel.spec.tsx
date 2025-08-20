@@ -17,25 +17,18 @@ describe('PlayerPanel', () => {
 
   it('truncates long player names', () => {
     const { getByText } = render(
-      <PlayerPanel
-        {...defaultProps}
-        playerName="VeryLongPlayerNameThatShouldBeTruncated"
-      />,
+      <PlayerPanel {...defaultProps} playerName="VeryLongPlayerNameThatShouldBeTruncated" />,
     );
     expect(getByText('VeryLongP...')).toBeTruthy();
   });
 
   it('shows ranking when showRanking is true', () => {
-    const { getByText } = render(
-      <PlayerPanel {...defaultProps} showRanking={true} />,
-    );
+    const { getByText } = render(<PlayerPanel {...defaultProps} showRanking={true} />);
     expect(getByText('Ranking: 1,500')).toBeTruthy();
   });
 
   it('does not show ranking when showRanking is false', () => {
-    const { queryByText } = render(
-      <PlayerPanel {...defaultProps} showRanking={false} />,
-    );
+    const { queryByText } = render(<PlayerPanel {...defaultProps} showRanking={false} />);
     expect(queryByText('Ranking: 1,500')).toBeNull();
   });
 
@@ -45,31 +38,23 @@ describe('PlayerPanel', () => {
   });
 
   it('shows turn indicator when isCurrentPlayer', () => {
-    const { getByText } = render(
-      <PlayerPanel {...defaultProps} isCurrentPlayer={true} />,
-    );
+    const { getByText } = render(<PlayerPanel {...defaultProps} isCurrentPlayer={true} />);
     expect(getByText('ES MI TURNO')).toBeTruthy();
   });
 
   it('does not show turn indicator when not current player', () => {
-    const { queryByText } = render(
-      <PlayerPanel {...defaultProps} isCurrentPlayer={false} />,
-    );
+    const { queryByText } = render(<PlayerPanel {...defaultProps} isCurrentPlayer={false} />);
     expect(queryByText('ES MI TURNO')).toBeNull();
   });
 
   it('applies correct team color for team1', () => {
-    const { getByText } = render(
-      <PlayerPanel {...defaultProps} teamId="team1" />,
-    );
+    const { getByText } = render(<PlayerPanel {...defaultProps} teamId="team1" />);
     // Just verify it renders without error
     expect(getByText('Jugador')).toBeTruthy();
   });
 
   it('applies correct team color for team2', () => {
-    const { getByText } = render(
-      <PlayerPanel {...defaultProps} teamId="team2" />,
-    );
+    const { getByText } = render(<PlayerPanel {...defaultProps} teamId="team2" />);
     // Just verify it renders without error
     expect(getByText('Jugador')).toBeTruthy();
   });
@@ -79,9 +64,7 @@ describe('PlayerPanel', () => {
       useOrientation: () => 'landscape',
     }));
 
-    const { getByText } = render(
-      <PlayerPanel {...defaultProps} position="top" />,
-    );
+    const { getByText } = render(<PlayerPanel {...defaultProps} position="top" />);
     // Just verify it renders
     expect(getByText('Jugador')).toBeTruthy();
   });

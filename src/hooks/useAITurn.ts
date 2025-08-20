@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameState, PlayerId, Card } from '../types/game.types';
 import type { SpanishSuit } from '../types/cardTypes';
-import {
-  playAICard,
-  shouldAICante,
-  getAIThinkingTime,
-} from '../utils/aiPlayer';
+import { playAICard, shouldAICante, getAIThinkingTime } from '../utils/aiPlayer';
 import { getValidCards } from '../utils/gameLogic';
 import type { CardMemory } from '../utils/aiMemory';
 import { updateMemory } from '../utils/aiMemory';
@@ -18,9 +14,7 @@ type UseAITurnProps = {
   playCard: (cardId: string) => void;
   cantar: (suit: SpanishSuit) => void;
   aiMemory: CardMemory;
-  setAIMemory: (
-    memory: CardMemory | ((prev: CardMemory) => CardMemory),
-  ) => void;
+  setAIMemory: (memory: CardMemory | ((prev: CardMemory) => CardMemory)) => void;
 };
 
 type UseAITurnReturn = {
@@ -149,11 +143,7 @@ export function useAITurn({
       if (retryAttemptsRef.current > AI_TIMING.MAX_RETRY_ATTEMPTS) {
         console.error('❌ AI Turn: Max retry attempts reached, forcing play');
         // Force immediate play to unstick the game
-        const validCards = getValidCards(
-          playerHand,
-          gameState,
-          currentPlayer.id,
-        );
+        const validCards = getValidCards(playerHand, gameState, currentPlayer.id);
         if (validCards.length > 0) {
           playCardRef.current(validCards[0].id);
         }
@@ -189,22 +179,14 @@ export function useAITurn({
 
     // Calculate thinking time based on AI difficulty and complexity with exponential backoff
     const isComplexDecision =
-      gameState.currentTrick.length > 0 ||
-      currentPhase === 'arrastre' ||
-      botHand.length < 5;
-    const baseThinkingTime = getAIThinkingTime(
-      currentPlayer,
-      isComplexDecision,
-    );
+      gameState.currentTrick.length > 0 || currentPhase === 'arrastre' || botHand.length < 5;
+    const baseThinkingTime = getAIThinkingTime(currentPlayer, isComplexDecision);
     // Apply exponential backoff if we're retrying
     const thinkingTime =
       retryAttemptsRef.current > 0
         ? Math.min(
             baseThinkingTime /
-              Math.pow(
-                AI_TIMING.EXPONENTIAL_BACKOFF_BASE,
-                retryAttemptsRef.current,
-              ),
+              Math.pow(AI_TIMING.EXPONENTIAL_BACKOFF_BASE, retryAttemptsRef.current),
             AI_TIMING.MIN_THINKING_TIME,
           )
         : baseThinkingTime;
@@ -237,10 +219,7 @@ export function useAITurn({
     })();
 
     // Use the larger of configured timeout or calculated max
-    const recoveryTimeout = Math.max(
-      AI_TIMING.RECOVERY_TIMEOUT,
-      maxPossibleThinkingTime,
-    );
+    const recoveryTimeout = Math.max(AI_TIMING.RECOVERY_TIMEOUT, maxPossibleThinkingTime);
 
     // Set recovery timer with defensive checks
     const recovery = setTimeout(() => {
@@ -274,8 +253,7 @@ export function useAITurn({
         }
 
         // Defensive check 3: Verify it's still the bot's turn
-        const currentPlayerInRecovery =
-          latestState.players[latestState.currentPlayerIndex];
+        const currentPlayerInRecovery = latestState.players[latestState.currentPlayerIndex];
         if (currentPlayerInRecovery.id !== botId) {
           console.warn("⚠️ RECOVERY: No longer bot's turn, aborting recovery", {
             expectedBot: botId,
@@ -296,27 +274,20 @@ export function useAITurn({
         try {
           validCards = getValidCards(latestHand, latestState, botId);
         } catch (validCardsError) {
-          console.error(
-            '❌ RECOVERY: Failed to get valid cards:',
-            validCardsError,
-          );
+          console.error('❌ RECOVERY: Failed to get valid cards:', validCardsError);
           // Fall back to all cards if validation fails
           validCards = [...latestHand];
         }
 
         // Select a card to play (prefer valid cards, fallback to any card)
-        const cardToPlay =
-          validCards.length > 0 ? validCards[0] : latestHand[0];
+        const cardToPlay = validCards.length > 0 ? validCards[0] : latestHand[0];
 
         if (!cardToPlay || !cardToPlay.id) {
           console.error('❌ RECOVERY: No valid card to play');
           return;
         }
 
-        console.log(
-          '🚨 RECOVERY: Force playing:',
-          `${cardToPlay.value} de ${cardToPlay.suit}`,
-        );
+        console.log('🚨 RECOVERY: Force playing:', `${cardToPlay.value} de ${cardToPlay.suit}`);
 
         // Defensive call to playCard
         if (typeof playCardRef.current === 'function') {
@@ -371,9 +342,7 @@ export function useAITurn({
 
           // Abort if trick is animating
           if (capturedGameState.trickAnimating) {
-            console.log(
-              '🎬 MAIN TIMER: Skipping - trick animation in progress',
-            );
+            console.log('🎬 MAIN TIMER: Skipping - trick animation in progress');
             setThinkingPlayer(null);
             return;
           }
@@ -386,11 +355,7 @@ export function useAITurn({
             capturedGameState.lastTrickWinner === currentPlayer.id;
 
           if (canAttemptCante) {
-            const cantesuit = shouldAICante(
-              currentPlayer,
-              botHand,
-              capturedGameState,
-            );
+            const cantesuit = shouldAICante(currentPlayer, botHand, capturedGameState);
             if (cantesuit) {
               try {
                 console.log('🎺 BOT DECLARING CANTE:', cantesuit);
@@ -415,12 +380,8 @@ export function useAITurn({
           if (cardToPlay) {
             // Check if we're trying to play the same card again (stuck state)
             if (lastPlayedCardRef.current === cardToPlay.id) {
-              console.error(
-                '❌ AI trying to play same card again, selecting different card',
-              );
-              const alternativeCards = botHand.filter(
-                c => c.id !== cardToPlay.id,
-              );
+              console.error('❌ AI trying to play same card again, selecting different card');
+              const alternativeCards = botHand.filter(c => c.id !== cardToPlay.id);
               const alternativeCard =
                 alternativeCards.length > 0 ? alternativeCards[0] : cardToPlay;
               lastPlayedCardRef.current = alternativeCard.id;

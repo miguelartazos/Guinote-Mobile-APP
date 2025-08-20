@@ -259,10 +259,7 @@ export function CanteAnimation({
               {
                 left: playerPosition.x + index * 60 - 30,
                 top: playerPosition.y - 50,
-                transform: [
-                  { rotateY: interpolatedRotation },
-                  { scale: anim.scale },
-                ],
+                transform: [{ rotateY: interpolatedRotation }, { scale: anim.scale }],
                 shadowColor: colors.accent,
                 shadowOpacity: anim.glow,
                 shadowRadius: Animated.multiply(anim.glow, 20),
@@ -280,16 +277,11 @@ export function CanteAnimation({
           styles.textContainer,
           {
             opacity: textAnimation.opacity,
-            transform: [
-              { scale: textAnimation.scale },
-              { translateY: textAnimation.translateY },
-            ],
+            transform: [{ scale: textAnimation.scale }, { translateY: textAnimation.translateY }],
           },
         ]}
       >
-        <Text style={styles.canteText}>
-          ¡{canteType === 'veinte' ? 'VEINTE' : 'CUARENTA'}!
-        </Text>
+        <Text style={styles.canteText}>¡{canteType === 'veinte' ? 'VEINTE' : 'CUARENTA'}!</Text>
       </Animated.View>
 
       {/* Coin rain for cuarenta */}

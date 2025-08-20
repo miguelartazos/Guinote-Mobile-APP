@@ -107,10 +107,7 @@ export function MinimalPlayerPanel({
       <ThinkingIndicator playerName={playerName} visible={isThinking} />
       <View style={styles.teamIndicator}>
         <View
-          style={[
-            styles.teamDot,
-            { backgroundColor: teamId ? getTeamColor() : 'transparent' },
-          ]}
+          style={[styles.teamDot, { backgroundColor: teamId ? getTeamColor() : 'transparent' }]}
         />
       </View>
       <Text style={styles.playerName}>{getPlayerDisplayName(playerName)}</Text>

@@ -86,6 +86,12 @@ yarn-error.log
 .env.*.local
 .env.production
 .env.development
+.env.mcp.local
+.env.mcp
+
+# Sentry
+sentry.properties
+.sentryclirc
 
 # Convex
 convex/_generated/

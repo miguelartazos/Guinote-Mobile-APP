@@ -6,10 +6,7 @@ type ThinkingIndicatorProps = {
   visible: boolean;
 };
 
-export function ThinkingIndicator({
-  playerName,
-  visible,
-}: ThinkingIndicatorProps) {
+export function ThinkingIndicator({ playerName, visible }: ThinkingIndicatorProps) {
   const [dots, setDots] = useState('');
   const fadeAnim = useState(new Animated.Value(0))[0];
 

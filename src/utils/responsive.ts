@@ -75,11 +75,7 @@ export const getCardDimensions = () => {
   }
 };
 
-export const getResponsiveValue = <T>(
-  phone: T,
-  tablet: T,
-  smallPhone?: T,
-): T => {
+export const getResponsiveValue = <T>(phone: T, tablet: T, smallPhone?: T): T => {
   if (isTablet()) return tablet;
   if (smallPhone && isSmallScreen()) return smallPhone;
   return phone;

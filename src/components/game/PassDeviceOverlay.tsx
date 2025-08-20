@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  Animated,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated } from 'react-native';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { dimensions } from '../../constants/dimensions';
@@ -80,12 +73,7 @@ export function PassDeviceOverlay({
   if (!visible) return null;
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="none"
-      statusBarTranslucent
-    >
+    <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
       <TouchableOpacity
         style={styles.container}
         activeOpacity={1}
@@ -117,16 +105,12 @@ export function PassDeviceOverlay({
           {/* Security Reminder */}
           <View style={styles.reminderContainer}>
             <Text style={styles.reminderIcon}>🤫</Text>
-            <Text style={styles.reminderText}>
-              No mires las cartas de otros jugadores
-            </Text>
+            <Text style={styles.reminderText}>No mires las cartas de otros jugadores</Text>
           </View>
 
           {/* Countdown */}
           <View style={styles.countdownContainer}>
-            <Text style={styles.countdownText}>
-              Continúa automáticamente en {countdown}...
-            </Text>
+            <Text style={styles.countdownText}>Continúa automáticamente en {countdown}...</Text>
           </View>
 
           {/* Continue Button */}

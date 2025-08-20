@@ -1,10 +1,4 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export interface Database {
   public: {
@@ -115,12 +109,7 @@ export interface Database {
           is_ready: boolean;
           is_bot: boolean;
           bot_difficulty: 'easy' | 'medium' | 'hard' | null;
-          bot_personality:
-            | 'aggressive'
-            | 'defensive'
-            | 'balanced'
-            | 'unpredictable'
-            | null;
+          bot_personality: 'aggressive' | 'defensive' | 'balanced' | 'unpredictable' | null;
           connection_status: 'connected' | 'disconnected' | 'reconnecting';
           joined_at: string;
           left_at: string | null;
@@ -133,12 +122,7 @@ export interface Database {
           is_ready?: boolean;
           is_bot?: boolean;
           bot_difficulty?: 'easy' | 'medium' | 'hard' | null;
-          bot_personality?:
-            | 'aggressive'
-            | 'defensive'
-            | 'balanced'
-            | 'unpredictable'
-            | null;
+          bot_personality?: 'aggressive' | 'defensive' | 'balanced' | 'unpredictable' | null;
           connection_status?: 'connected' | 'disconnected' | 'reconnecting';
           joined_at?: string;
           left_at?: string | null;
@@ -151,12 +135,7 @@ export interface Database {
           is_ready?: boolean;
           is_bot?: boolean;
           bot_difficulty?: 'easy' | 'medium' | 'hard' | null;
-          bot_personality?:
-            | 'aggressive'
-            | 'defensive'
-            | 'balanced'
-            | 'unpredictable'
-            | null;
+          bot_personality?: 'aggressive' | 'defensive' | 'balanced' | 'unpredictable' | null;
           connection_status?: 'connected' | 'disconnected' | 'reconnecting';
           joined_at?: string;
           left_at?: string | null;
@@ -168,12 +147,7 @@ export interface Database {
           room_id: string;
           player_id: string;
           move_number: number;
-          move_type:
-            | 'PLAY_CARD'
-            | 'CANTAR'
-            | 'CAMBIAR_7'
-            | 'DECLARE_VICTORY'
-            | 'DECLARE_RENUNCIO';
+          move_type: 'PLAY_CARD' | 'CANTAR' | 'CAMBIAR_7' | 'DECLARE_VICTORY' | 'DECLARE_RENUNCIO';
           move_data: Json;
           game_state_before: Json | null;
           game_state_after: Json | null;
@@ -186,12 +160,7 @@ export interface Database {
           room_id: string;
           player_id: string;
           move_number: number;
-          move_type:
-            | 'PLAY_CARD'
-            | 'CANTAR'
-            | 'CAMBIAR_7'
-            | 'DECLARE_VICTORY'
-            | 'DECLARE_RENUNCIO';
+          move_type: 'PLAY_CARD' | 'CANTAR' | 'CAMBIAR_7' | 'DECLARE_VICTORY' | 'DECLARE_RENUNCIO';
           move_data: Json;
           game_state_before?: Json | null;
           game_state_after?: Json | null;
@@ -204,12 +173,7 @@ export interface Database {
           room_id?: string;
           player_id?: string;
           move_number?: number;
-          move_type?:
-            | 'PLAY_CARD'
-            | 'CANTAR'
-            | 'CAMBIAR_7'
-            | 'DECLARE_VICTORY'
-            | 'DECLARE_RENUNCIO';
+          move_type?: 'PLAY_CARD' | 'CANTAR' | 'CAMBIAR_7' | 'DECLARE_VICTORY' | 'DECLARE_RENUNCIO';
           move_data?: Json;
           game_state_before?: Json | null;
           game_state_after?: Json | null;

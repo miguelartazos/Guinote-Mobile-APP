@@ -1,10 +1,5 @@
 import type { Card, PlayerId } from '../types/game.types';
-import type {
-  CardSlot,
-  SlotIndex,
-  TableSlots,
-  DealTarget,
-} from '../types/slots.types';
+import type { CardSlot, SlotIndex, TableSlots, DealTarget } from '../types/slots.types';
 
 /**
  * Adapter for converting between array-based and slot-based card systems
@@ -31,9 +26,7 @@ export function arrayToSlots(cards: Card[]): CardSlot[] {
 
 // Convert slots to array (excludes nulls)
 export function slotsToArray(slots: CardSlot[]): Card[] {
-  return slots
-    .filter(slot => slot.card !== null)
-    .map(slot => slot.card as Card);
+  return slots.filter(slot => slot.card !== null).map(slot => slot.card as Card);
 }
 
 // Find first empty slot
@@ -48,11 +41,7 @@ export function findEmptySlots(slots: CardSlot[]): SlotIndex[] {
 }
 
 // Deal card to specific slot
-export function dealCardToSlot(
-  slots: CardSlot[],
-  card: Card,
-  slotIndex: SlotIndex,
-): CardSlot[] {
+export function dealCardToSlot(slots: CardSlot[], card: Card, slotIndex: SlotIndex): CardSlot[] {
   const newSlots = [...slots];
   if (slotIndex >= 0 && slotIndex < 6) {
     newSlots[slotIndex] = { card, slotIndex };
@@ -81,10 +70,7 @@ export function countCards(slots: CardSlot[]): number {
 }
 
 // Get card at specific slot
-export function getCardAtSlot(
-  slots: CardSlot[],
-  slotIndex: SlotIndex,
-): Card | null {
+export function getCardAtSlot(slots: CardSlot[], slotIndex: SlotIndex): Card | null {
   return slots[slotIndex]?.card || null;
 }
 
@@ -103,20 +89,13 @@ export function createTableSlots(playerIds: PlayerId[]): TableSlots {
 }
 
 // Deal initial cards to table slots
-export function dealInitialCards(
-  tableSlots: TableSlots,
-  dealTargets: DealTarget[],
-): TableSlots {
+export function dealInitialCards(tableSlots: TableSlots, dealTargets: DealTarget[]): TableSlots {
   const newTableSlots = new Map(tableSlots);
 
   dealTargets.forEach(target => {
     const playerSlots = newTableSlots.get(target.playerId);
     if (playerSlots) {
-      const updatedSlots = dealCardToSlot(
-        playerSlots,
-        target.card,
-        target.slotIndex,
-      );
+      const updatedSlots = dealCardToSlot(playerSlots, target.card, target.slotIndex);
       newTableSlots.set(target.playerId, updatedSlots);
     }
   });
@@ -158,10 +137,7 @@ export function areAllSlotsFull(slots: CardSlot[]): boolean {
 }
 
 // Get slot index of a specific card
-export function findCardSlotIndex(
-  slots: CardSlot[],
-  cardId: string,
-): SlotIndex | null {
+export function findCardSlotIndex(slots: CardSlot[], cardId: string): SlotIndex | null {
   const slot = slots.find(s => s.card?.id === cardId);
   return slot ? slot.slotIndex : null;
 }

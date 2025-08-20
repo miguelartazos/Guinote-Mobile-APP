@@ -8,3 +8,7 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+
+# Detox ProGuard rules
+-dontwarn com.wix.detox.**
+-keep class com.wix.detox.** { *; }

@@ -21,12 +21,7 @@ export type DealTarget = {
   card: Card;
 };
 
-export type AnimationPhase =
-  | 'idle'
-  | 'dealing'
-  | 'playing'
-  | 'collecting'
-  | 'revealing';
+export type AnimationPhase = 'idle' | 'dealing' | 'playing' | 'collecting' | 'revealing';
 
 export type AnimationState = {
   phase: AnimationPhase;

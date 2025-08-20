@@ -168,10 +168,7 @@ describe('useAITurn - Cante Workflow', () => {
     });
 
     // Verify error was logged
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '❌ Error declaring cante:',
-      expect.any(Error),
-    );
+    expect(consoleSpy).toHaveBeenCalledWith('❌ Error declaring cante:', expect.any(Error));
 
     // Verify playCard was still called despite error
     expect(mockPlayCard).toHaveBeenCalledWith('card3');

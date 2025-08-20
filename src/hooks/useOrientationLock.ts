@@ -9,17 +9,20 @@ export type OrientationLock =
 
 let Orientation: any = null;
 
-try {
-  Orientation = require('react-native-orientation-locker').default;
-} catch (error) {
-  console.warn(
-    'react-native-orientation-locker not available. Please rebuild the app with: cd ios && pod install && cd .. && npx react-native run-ios',
-  );
-}
-
 export function useOrientationLock(lock: OrientationLock | null) {
   useEffect(() => {
-    if (!lock || !Orientation) return;
+    if (!lock) return;
+
+    try {
+      if (!Orientation) {
+        Orientation = require('react-native-orientation-locker').default;
+      }
+    } catch (error) {
+      console.warn(
+        'react-native-orientation-locker not available. Please rebuild the app with: cd ios && pod install && cd .. && npx react-native run-ios',
+      );
+      return;
+    }
 
     try {
       switch (lock) {

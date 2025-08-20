@@ -1,12 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Animated,
-  TouchableOpacity,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { FeedbackButton } from '../components/ui/FeedbackButton';
 import { colors } from '../constants/colors';
@@ -15,9 +8,7 @@ import { typography } from '../constants/typography';
 import type { JugarStackScreenProps } from '../types/navigation';
 import { useGameStatistics } from '../hooks/useGameStatistics';
 
-export function JugarHomeScreen({
-  navigation,
-}: JugarStackScreenProps<'JugarHome'>) {
+export function JugarHomeScreen({ navigation }: JugarStackScreenProps<'JugarHome'>) {
   const glowAnim = useRef(new Animated.Value(0)).current;
   const { statistics } = useGameStatistics();
 
@@ -48,9 +39,7 @@ export function JugarHomeScreen({
             <Text style={styles.logo}>♠♥♣♦</Text>
             <Text style={styles.logoText}>GUIÑOTE</Text>
           </View>
-          <Text style={styles.tagline}>
-            El clásico Guiñote, mejorado para ti
-          </Text>
+          <Text style={styles.tagline}>El clásico Guiñote, mejorado para ti</Text>
           <View style={styles.userInfo}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>👤</Text>
@@ -65,6 +54,7 @@ export function JugarHomeScreen({
             style={[styles.primaryButton, styles.quickMatchButton]}
             onPress={() => navigation.navigate('QuickMatch')}
             activeOpacity={0.8}
+            testID="quick-match-button"
           >
             <View style={styles.buttonContent}>
               <Text style={styles.buttonIcon}>🎯</Text>
@@ -79,6 +69,7 @@ export function JugarHomeScreen({
             style={[styles.primaryButton, styles.friendsButton]}
             onPress={() => navigation.navigate('FriendsLobby')}
             activeOpacity={0.8}
+            testID="friends-lobby-button"
           >
             <View style={styles.buttonContent}>
               <Text style={styles.buttonIcon}>👥</Text>
@@ -93,6 +84,7 @@ export function JugarHomeScreen({
             style={[styles.primaryButton, styles.aiButton]}
             onPress={() => navigation.navigate('OfflineMode')}
             activeOpacity={0.8}
+            testID="offline-mode-button"
           >
             <View style={styles.buttonContent}>
               <Text style={styles.buttonIcon}>🤖</Text>
@@ -110,6 +102,7 @@ export function JugarHomeScreen({
             style={styles.secondaryButton}
             onPress={() => navigation.navigate('LocalMultiplayer')}
             activeOpacity={0.8}
+            testID="local-multiplayer-button"
           >
             <Text style={styles.secondaryButtonIcon}>📱</Text>
             <Text style={styles.secondaryButtonText}>Pasar y Jugar</Text>
@@ -119,6 +112,7 @@ export function JugarHomeScreen({
             style={styles.secondaryButton}
             onPress={() => navigation.navigate('TutorialSetup')}
             activeOpacity={0.8}
+            testID="tutorial-button"
           >
             <Text style={styles.secondaryButtonIcon}>🎓</Text>
             <Text style={styles.secondaryButtonText}>Tutorial</Text>
@@ -137,17 +131,13 @@ export function JugarHomeScreen({
               <View style={styles.statCard}>
                 <Text style={styles.statValue}>
                   {statistics.gamesPlayed > 0
-                    ? `${Math.round(
-                        (statistics.gamesWon / statistics.gamesPlayed) * 100,
-                      )}%`
+                    ? `${Math.round((statistics.gamesWon / statistics.gamesPlayed) * 100)}%`
                     : '0%'}
                 </Text>
                 <Text style={styles.statLabel}>Victorias</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={styles.statValue}>
-                  {statistics.currentWinStreak}
-                </Text>
+                <Text style={styles.statValue}>{statistics.currentWinStreak}</Text>
                 <Text style={styles.statLabel}>Racha</Text>
               </View>
               <View style={styles.statCard}>

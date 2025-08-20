@@ -1,12 +1,5 @@
 import React, { useEffect } from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  View,
-  Dimensions,
-  Platform,
-} from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, View, Dimensions, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -37,8 +30,7 @@ type MagicButtonProps = {
   disabled?: boolean;
 };
 
-const AnimatedTouchableOpacity =
-  Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
 export function MagicButton({
@@ -71,17 +63,10 @@ export function MagicButton({
       withSpring(0, { damping: 8, stiffness: 200 }),
     );
 
-    shimmerPosition.value = withRepeat(
-      withTiming(1, { duration: 3000 }),
-      -1,
-      false,
-    );
+    shimmerPosition.value = withRepeat(withTiming(1, { duration: 3000 }), -1, false);
 
     pulseScale.value = withRepeat(
-      withSequence(
-        withTiming(1.02, { duration: 1500 }),
-        withTiming(1, { duration: 1500 }),
-      ),
+      withSequence(withTiming(1.02, { duration: 1500 }), withTiming(1, { duration: 1500 })),
       -1,
       true,
     );
@@ -137,12 +122,7 @@ export function MagicButton({
   });
 
   const glowStyle = useAnimatedStyle(() => {
-    const glowOpacity = interpolate(
-      pulseScale.value,
-      [1, 1.02],
-      [0.3, 0.6],
-      Extrapolate.CLAMP,
-    );
+    const glowOpacity = interpolate(pulseScale.value, [1, 1.02], [0.3, 0.6], Extrapolate.CLAMP);
     return {
       opacity: glowOpacity,
     };

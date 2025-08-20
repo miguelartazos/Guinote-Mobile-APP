@@ -26,9 +26,7 @@ export const CompactActionBar = React.memo(function CompactActionBar({
   const scaleAnimCambiar = useRef(new Animated.Value(0.8)).current;
 
   const currentPlayer = gameState?.players?.[gameState.currentPlayerIndex];
-  const currentPlayerHand = currentPlayer
-    ? gameState.hands.get(currentPlayer.id) || []
-    : [];
+  const currentPlayerHand = currentPlayer ? gameState.hands.get(currentPlayer.id) || [] : [];
   const playerTeam = currentPlayer
     ? gameState.teams.find(team => team.playerIds.includes(currentPlayer.id))
     : undefined;
@@ -42,11 +40,7 @@ export const CompactActionBar = React.memo(function CompactActionBar({
   const canPlayerCantar = cantableSuits.length > 0 && !disabled;
   const canPlayerCambiar7 =
     gameState &&
-    canCambiar7(
-      currentPlayerHand,
-      gameState.trumpCard,
-      gameState.deck.length,
-    ) &&
+    canCambiar7(currentPlayerHand, gameState.trumpCard, gameState.deck.length) &&
     !disabled;
 
   // Animate Cantar button

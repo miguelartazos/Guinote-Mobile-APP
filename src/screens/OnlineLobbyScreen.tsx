@@ -12,35 +12,32 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { JugarStackNavigationProp } from '../types/navigation';
 import { colors } from '../constants/colors';
-import { useConvexAuth } from '../hooks/useConvexAuth';
-import { useConvexMatchmaking } from '../hooks/useConvexMatchmaking';
-import { useConvexRooms } from '../hooks/useConvexRooms';
+import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
+import { useUnifiedRooms } from '../hooks/useUnifiedRooms';
+import { useFeatureFlag } from '../config/featureFlags';
+// Temporarily disabled - causes prototype error
+// import { useSupabaseMatchmaking as useSupabaseMatchmakingHook } from '../hooks/useSupabaseMatchmaking';
 
 export function OnlineLobbyScreen() {
   const navigation = useNavigation<JugarStackNavigationProp>();
 
-  const { user: convexUser } = useConvexAuth();
+  const { user, isAuthenticated } = useUnifiedAuth();
+  const useSupabaseMatchmakingFlag = useFeatureFlag('useSupabaseMatchmaking');
 
-  // For quick match, use Convex if enabled
-  const {
-    startMatchmaking,
-    cancelMatchmaking,
-    status: matchmakingStatus,
-  } = useConvexMatchmaking();
+  // Matchmaking disabled
+  const supabaseMatchmaking = null;
 
-  // Convex room management
-  const convexRooms = useConvexRooms();
+  // Room management
+  const rooms = useUnifiedRooms();
 
   const [isLoading, setIsLoading] = useState(false);
   const [publicRooms, setPublicRooms] = useState<any[]>([]);
   const [onlineFriends, setOnlineFriends] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'quick' | 'rooms' | 'friends'>(
-    'quick',
-  );
+  const [activeTab, setActiveTab] = useState<'quick' | 'rooms' | 'friends'>('quick');
 
-  // Get auth values from Convex
-  const userId = convexUser?._id;
-  const profile = convexUser;
+  // Get auth values
+  const userId = user?.id || user?._id;
+  const profile = user;
 
   useEffect(() => {
     if (activeTab === 'rooms') {
@@ -52,83 +49,40 @@ export function OnlineLobbyScreen() {
 
   // Cancel matchmaking when leaving screen or switching tabs
   useEffect(() => {
-    return () => {
-      if (matchmakingStatus.status === 'searching' && convexUser?._id) {
-        cancelMatchmaking(convexUser._id);
-      }
-    };
-  }, [matchmakingStatus.status, convexUser?._id, cancelMatchmaking]);
+    return () => {};
+  }, [useSupabaseMatchmakingFlag]);
 
   const loadPublicRooms = async () => {
-    // Convex automatically updates publicRooms via subscription
-    return;
+    setPublicRooms([]);
   };
 
   const loadOnlineFriends = async () => {
-    if (!userId) return;
-    // TODO: Implement with Convex friends when feature flag is enabled
-    console.warn('Friend loading needs Convex implementation');
     setOnlineFriends([]);
   };
 
   const handleQuickMatch = async () => {
-    if (!convexUser?._id) {
+    if (!isAuthenticated) {
       Alert.alert('Error', 'Please sign in to play online');
       return;
     }
 
-    try {
-      await startMatchmaking(convexUser._id, 'casual');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to start matchmaking');
-    }
+    Alert.alert('No disponible', 'Matchmaking en línea deshabilitado.');
   };
 
   const handleCreateRoom = async () => {
-    if (!convexUser?._id) {
-      Alert.alert('Error', 'Please sign in to create a room');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // Create public room for casual matchmaking
-      const room = await convexRooms.createPublicRoom(convexUser._id);
-
-      navigation.navigate('NetworkGame', {
-        roomId: room.roomId,
-        roomCode: room.code,
-      });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to create room');
-    } finally {
-      setIsLoading(false);
-    }
+    Alert.alert('No disponible', 'Crear sala en línea deshabilitado.');
   };
 
   const handleJoinRoom = async (roomCode: string) => {
-    if (!convexUser?._id) {
-      Alert.alert('Error', 'Please sign in to join a room');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const result = await convexRooms.joinRoomByCode(roomCode, convexUser._id);
-
-      navigation.navigate('NetworkGame', {
-        roomId: result.roomId,
-        roomCode: roomCode,
-      });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to join room');
-    } finally {
-      setIsLoading(false);
-    }
+    Alert.alert('No disponible', 'Unirse a sala en línea deshabilitado.');
   };
 
   const renderQuickMatch = () => {
-    const isSearching = matchmakingStatus.status === 'searching';
+    const isSearching = false;
+
+    const matchmakingStatus = { playersInQueue: 0, waitTime: 0 };
+
+    const handleCancel = async () => {};
 
     return (
       <View style={styles.quickMatchContainer}>
@@ -144,14 +98,10 @@ export function OnlineLobbyScreen() {
             <Text style={styles.searchingStats}>
               Players in queue: {matchmakingStatus.playersInQueue}
             </Text>
-            <Text style={styles.searchingStats}>
-              Wait time: {matchmakingStatus.waitTime}s
-            </Text>
+            <Text style={styles.searchingStats}>Wait time: {matchmakingStatus.waitTime}s</Text>
             <TouchableOpacity
               style={[styles.quickMatchButton, styles.cancelButton]}
-              onPress={() =>
-                convexUser?._id && cancelMatchmaking(convexUser._id)
-              }
+              onPress={handleCancel}
             >
               <Text style={styles.quickMatchButtonText}>Cancel</Text>
             </TouchableOpacity>
@@ -176,7 +126,7 @@ export function OnlineLobbyScreen() {
   };
 
   const renderRoomsList = () => {
-    const roomsToDisplay = convexRooms.publicRooms;
+    const roomsToDisplay = rooms.publicRooms || [];
 
     return (
       <ScrollView style={styles.roomsList}>
@@ -246,10 +196,7 @@ export function OnlineLobbyScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Online Lobby</Text>
@@ -260,12 +207,7 @@ export function OnlineLobbyScreen() {
           style={[styles.tab, activeTab === 'quick' && styles.activeTab]}
           onPress={() => setActiveTab('quick')}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'quick' && styles.activeTabText,
-            ]}
-          >
+          <Text style={[styles.tabText, activeTab === 'quick' && styles.activeTabText]}>
             Quick Match
           </Text>
         </TouchableOpacity>
@@ -273,25 +215,13 @@ export function OnlineLobbyScreen() {
           style={[styles.tab, activeTab === 'rooms' && styles.activeTab]}
           onPress={() => setActiveTab('rooms')}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'rooms' && styles.activeTabText,
-            ]}
-          >
-            Rooms
-          </Text>
+          <Text style={[styles.tabText, activeTab === 'rooms' && styles.activeTabText]}>Rooms</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
           onPress={() => setActiveTab('friends')}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'friends' && styles.activeTabText,
-            ]}
-          >
+          <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
             Friends
           </Text>
         </TouchableOpacity>
@@ -436,6 +366,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginTop: 4,
+  },
+  roomHost: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   joinButton: {
     fontSize: 16,

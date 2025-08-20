@@ -177,16 +177,13 @@ export function serializeGameState(gameState: GameState): SerializedGameState {
   // Convert collectedTricks Map to object
   const collectedTricks: { [playerId: string]: SerializedTrickCard[][] } = {};
   gameState.collectedTricks.forEach((tricks, playerId) => {
-    collectedTricks[playerId] = tricks.map(trick =>
-      trick.map(serializeTrickCard),
-    );
+    collectedTricks[playerId] = tricks.map(trick => trick.map(serializeTrickCard));
   });
 
   // Convert initialScores Map to object if exists
-  const initialScores: { [teamId: string]: number } | undefined =
-    gameState.initialScores
-      ? Object.fromEntries(gameState.initialScores)
-      : undefined;
+  const initialScores: { [teamId: string]: number } | undefined = gameState.initialScores
+    ? Object.fromEntries(gameState.initialScores)
+    : undefined;
 
   return {
     id: gameState.id,
@@ -224,9 +221,7 @@ export function serializeGameState(gameState: GameState): SerializedGameState {
 }
 
 // Main deserialization function
-export function deserializeGameState(
-  serialized: SerializedGameState,
-): GameState {
+export function deserializeGameState(serialized: SerializedGameState): GameState {
   // Convert hands object to Map
   const hands = new Map<PlayerId, ReadonlyArray<Card>>();
   Object.entries(serialized.hands).forEach(([playerId, cards]) => {
@@ -250,9 +245,7 @@ export function deserializeGameState(
 
   // Convert initialScores object to Map if exists
   const initialScores = serialized.initialScores
-    ? new Map(
-        Object.entries(serialized.initialScores) as Array<[TeamId, number]>,
-      )
+    ? new Map(Object.entries(serialized.initialScores) as Array<[TeamId, number]>)
     : undefined;
 
   return {

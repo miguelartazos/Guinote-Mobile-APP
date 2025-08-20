@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  View,
-  ActivityIndicator,
-  Text,
-  StyleSheet,
-  Modal,
-  Animated,
-} from 'react-native';
+import { View, ActivityIndicator, Text, StyleSheet, Modal, Animated } from 'react-native';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { dimensions } from '../../constants/dimensions';
@@ -44,13 +37,9 @@ export function LoadingOverlay({
         {progress !== undefined && (
           <>
             <View style={styles.progressBar}>
-              <View
-                style={[styles.progressFill, { width: `${progress * 100}%` }]}
-              />
+              <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
             </View>
-            <Text style={styles.progressText}>
-              {Math.round(progress * 100)}%
-            </Text>
+            <Text style={styles.progressText}>{Math.round(progress * 100)}%</Text>
           </>
         )}
       </View>

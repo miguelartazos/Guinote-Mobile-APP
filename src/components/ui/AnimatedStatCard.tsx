@@ -57,12 +57,7 @@ export function AnimatedStatCard({
   });
 
   const valueAnimatedStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(
-      scale.value,
-      [0, 1],
-      [20, 0],
-      Extrapolate.CLAMP,
-    );
+    const translateY = interpolate(scale.value, [0, 1], [20, 0], Extrapolate.CLAMP);
     return {
       transform: [{ translateY }],
     };

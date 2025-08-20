@@ -11,11 +11,7 @@ export function createMemory(): CardMemory {
   return new Map();
 }
 
-export function updateMemory(
-  memory: CardMemory,
-  playerId: PlayerId,
-  card: Card,
-): CardMemory {
+export function updateMemory(memory: CardMemory, playerId: PlayerId, card: Card): CardMemory {
   const currentSize = getMemorySize(memory);
 
   // Check if we need to cleanup memory
@@ -60,16 +56,11 @@ function performLRUCleanup(memory: CardMemory): CardMemory {
     newMemory.set(playerId, playerCards);
   });
 
-  console.log(
-    `✅ Memory cleaned: ${allCardsWithPlayer.length} → ${toKeep.length} cards`,
-  );
+  console.log(`✅ Memory cleaned: ${allCardsWithPlayer.length} → ${toKeep.length} cards`);
   return newMemory;
 }
 
-export function getPlayedCards(
-  memory: CardMemory,
-  suit?: SpanishSuit,
-): ReadonlyArray<Card> {
+export function getPlayedCards(memory: CardMemory, suit?: SpanishSuit): ReadonlyArray<Card> {
   const allCards: Card[] = [];
   memory.forEach(cards => {
     allCards.push(...cards);
@@ -92,15 +83,10 @@ export function hasCardBeenPlayed(memory: CardMemory, cardId: CardId): boolean {
   return getPlayedCards(memory).some(card => card.id === cardId);
 }
 
-export function getRemainingHighCards(
-  memory: CardMemory,
-  suit: SpanishSuit,
-): number {
+export function getRemainingHighCards(memory: CardMemory, suit: SpanishSuit): number {
   const playedCards = getPlayedCards(memory, suit);
   const highValues = [1, 3, 12, 11, 10]; // As, 3, Rey, Caballo, Sota
-  const playedHighCards = playedCards.filter(card =>
-    highValues.includes(card.value),
-  ).length;
+  const playedHighCards = playedCards.filter(card => highValues.includes(card.value)).length;
   return 5 - playedHighCards; // 5 high cards per suit
 }
 
@@ -113,20 +99,14 @@ export function countPlayedPoints(memory: CardMemory): number {
     10: 2, // Sota
   };
 
-  return getPlayedCards(memory).reduce(
-    (total, card) => total + (cardPoints[card.value] || 0),
-    0,
-  );
+  return getPlayedCards(memory).reduce((total, card) => total + (cardPoints[card.value] || 0), 0);
 }
 
 export function clearMemory(): CardMemory {
   return new Map();
 }
 
-export function clearMemoryForPlayer(
-  memory: CardMemory,
-  playerId: PlayerId,
-): CardMemory {
+export function clearMemoryForPlayer(memory: CardMemory, playerId: PlayerId): CardMemory {
   const newMemory = new Map(memory);
   newMemory.delete(playerId);
   return newMemory;
@@ -149,15 +129,8 @@ export function shouldClearMemory(memory: CardMemory): boolean {
 /**
  * Clear memory on phase transitions to prevent unbounded growth
  */
-export function clearMemoryOnPhaseChange(
-  memory: CardMemory,
-  newPhase: string,
-): CardMemory {
-  if (
-    newPhase === 'scoring' ||
-    newPhase === 'gameOver' ||
-    newPhase === 'dealing'
-  ) {
+export function clearMemoryOnPhaseChange(memory: CardMemory, newPhase: string): CardMemory {
+  if (newPhase === 'scoring' || newPhase === 'gameOver' || newPhase === 'dealing') {
     console.log(`🧹 Clearing AI memory on phase change to: ${newPhase}`);
     return clearMemory();
   }
@@ -167,10 +140,7 @@ export function clearMemoryOnPhaseChange(
 /**
  * Return how many trump cards remain unplayed (out of 10 per suit)
  */
-export function getRemainingTrumps(
-  memory: CardMemory,
-  trumpSuit: SpanishSuit,
-): number {
+export function getRemainingTrumps(memory: CardMemory, trumpSuit: SpanishSuit): number {
   const playedTrumps = getPlayedCards(memory, trumpSuit).length;
   // Spanish deck has 10 cards per suit
   const remaining = 10 - playedTrumps;
@@ -180,11 +150,7 @@ export function getRemainingTrumps(
 /**
  * Check if a specific card has been played already.
  */
-export function isCardOut(
-  memory: CardMemory,
-  suit: SpanishSuit,
-  value: CardValue,
-): boolean {
+export function isCardOut(memory: CardMemory, suit: SpanishSuit, value: CardValue): boolean {
   return getPlayedCards(memory, suit).some(c => c.value === value);
 }
 

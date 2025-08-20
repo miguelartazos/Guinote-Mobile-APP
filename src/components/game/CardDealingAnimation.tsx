@@ -205,51 +205,36 @@ export function CardDealingAnimation({
           Animated.sequence([
             // First animate to line position
             Animated.parallel([
-              Animated.timing(
-                cardAnimations.current[cardIndexForPlayer].opacity,
-                {
-                  toValue: 1,
-                  duration: 100,
-                  useNativeDriver: true,
-                },
-              ),
-              Animated.timing(
-                cardAnimations.current[cardIndexForPlayer].position,
-                {
-                  toValue: { x: lineX, y: lineY },
-                  duration: CARD_DEAL_DURATION / 2,
-                  easing: SMOOTH_EASING,
-                  useNativeDriver: true,
-                },
-              ),
-              Animated.timing(
-                cardAnimations.current[cardIndexForPlayer].scale,
-                {
-                  toValue: 1.1,
-                  duration: CARD_DEAL_DURATION / 2,
-                  useNativeDriver: true,
-                },
-              ),
+              Animated.timing(cardAnimations.current[cardIndexForPlayer].opacity, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+              }),
+              Animated.timing(cardAnimations.current[cardIndexForPlayer].position, {
+                toValue: { x: lineX, y: lineY },
+                duration: CARD_DEAL_DURATION / 2,
+                easing: SMOOTH_EASING,
+                useNativeDriver: true,
+              }),
+              Animated.timing(cardAnimations.current[cardIndexForPlayer].scale, {
+                toValue: 1.1,
+                duration: CARD_DEAL_DURATION / 2,
+                useNativeDriver: true,
+              }),
             ]),
             // Then animate to final position
             Animated.parallel([
-              Animated.timing(
-                cardAnimations.current[cardIndexForPlayer].position,
-                {
-                  toValue: { x: pos.x, y: pos.y },
-                  duration: CARD_DEAL_DURATION / 2,
-                  easing: SMOOTH_EASING,
-                  useNativeDriver: true,
-                },
-              ),
-              Animated.timing(
-                cardAnimations.current[cardIndexForPlayer].scale,
-                {
-                  toValue: 1, // No scale transform needed, using large cards for bottom player
-                  duration: CARD_DEAL_DURATION / 2,
-                  useNativeDriver: true,
-                },
-              ),
+              Animated.timing(cardAnimations.current[cardIndexForPlayer].position, {
+                toValue: { x: pos.x, y: pos.y },
+                duration: CARD_DEAL_DURATION / 2,
+                easing: SMOOTH_EASING,
+                useNativeDriver: true,
+              }),
+              Animated.timing(cardAnimations.current[cardIndexForPlayer].scale, {
+                toValue: 1, // No scale transform needed, using large cards for bottom player
+                duration: CARD_DEAL_DURATION / 2,
+                useNativeDriver: true,
+              }),
             ]),
           ]),
         );
@@ -354,8 +339,7 @@ export function CardDealingAnimation({
         const showCard = isPlayerCard && cardInHandIndex < playerCards.length;
 
         // Determine static rotation so side players are 90° during dealing too
-        const staticRotate =
-          playerIndex === 1 ? '-90deg' : playerIndex === 3 ? '90deg' : '0deg';
+        const staticRotate = playerIndex === 1 ? '-90deg' : playerIndex === 3 ? '90deg' : '0deg';
 
         return (
           <Animated.View
@@ -379,10 +363,7 @@ export function CardDealingAnimation({
                 size={playerIndex === 0 ? 'medium' : 'small'}
               />
             ) : (
-              <SpanishCard
-                faceDown
-                size={playerIndex === 0 ? 'medium' : 'small'}
-              />
+              <SpanishCard faceDown size={playerIndex === 0 ? 'medium' : 'small'} />
             )}
           </Animated.View>
         );
@@ -396,10 +377,7 @@ export function CardDealingAnimation({
             {
               top: getTrumpPosition(parentWidth, parentHeight, layoutInfo).y,
               left: getTrumpPosition(parentWidth, parentHeight, layoutInfo).x,
-              transform: [
-                { rotateY: interpolatedRotation },
-                { scale: trumpAnimation.scale },
-              ],
+              transform: [{ rotateY: interpolatedRotation }, { scale: trumpAnimation.scale }],
               opacity: trumpAnimation.opacity,
             },
           ]}
@@ -420,9 +398,7 @@ export function CardDealingAnimation({
           ]}
         >
           <Text style={styles.gameStartText}>¡Comienza el juego!</Text>
-          {firstPlayerIndex === 0 && (
-            <Text style={styles.turnIndicator}>Tu turno</Text>
-          )}
+          {firstPlayerIndex === 0 && <Text style={styles.turnIndicator}>Tu turno</Text>}
         </Animated.View>
       )}
     </View>
@@ -497,8 +473,7 @@ function getCardFinalPosition(
       const overlap = 0.1; // 10% overlap
       const visibleHeight = cardHeight * (1 - overlap);
       const verticalSpacing = visibleHeight;
-      const rightStartY =
-        rightCenterY - ((totalCards - 1) * verticalSpacing) / 2;
+      const rightStartY = rightCenterY - ((totalCards - 1) * verticalSpacing) / 2;
 
       return {
         endX: rightX,

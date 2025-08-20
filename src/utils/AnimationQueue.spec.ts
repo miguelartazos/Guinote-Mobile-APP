@@ -25,12 +25,7 @@ describe('AnimationQueue', () => {
 
     const status = animationQueue.getStatus();
     // First animation is already being processed, so we check the queue
-    expect(status.queuedTypes).toEqual([
-      'trick_collect',
-      'trump_reveal',
-      'deal',
-      'card_play',
-    ]);
+    expect(status.queuedTypes).toEqual(['trick_collect', 'trump_reveal', 'deal', 'card_play']);
 
     // Clean up
     resolveBlock!();
@@ -82,12 +77,7 @@ describe('AnimationQueue', () => {
     animationQueue.enqueue('blocking', () => blockingPromise, 'critical');
 
     const id1 = animationQueue.enqueue('card_play', mockAnimation);
-    const id2 = animationQueue.enqueue(
-      'trump_reveal',
-      mockAnimation,
-      'normal',
-      { onCancel },
-    );
+    const id2 = animationQueue.enqueue('trump_reveal', mockAnimation, 'normal', { onCancel });
 
     const cancelled = animationQueue.cancel(id2);
 
@@ -172,9 +162,7 @@ describe('AnimationQueue', () => {
   });
 
   test('handles animation errors gracefully', async () => {
-    const errorAnimation = jest.fn(() =>
-      Promise.reject(new Error('Test error')),
-    );
+    const errorAnimation = jest.fn(() => Promise.reject(new Error('Test error')));
     const successAnimation = jest.fn(() => Promise.resolve());
     const onCancel = jest.fn();
 

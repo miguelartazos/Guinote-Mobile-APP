@@ -13,21 +13,13 @@ export type VoiceReaction = {
 
 export type ReactionType = '👍' | '😂' | '😮' | '👏' | '❤️';
 
-export const AVAILABLE_REACTIONS: ReactionType[] = [
-  '👍',
-  '😂',
-  '😮',
-  '👏',
-  '❤️',
-];
+export const AVAILABLE_REACTIONS: ReactionType[] = ['👍', '😂', '😮', '👏', '❤️'];
 
 // In-memory storage for voice reactions
 const voiceReactions: Map<VoiceRecordingId, VoiceReaction[]> = new Map();
 
 export function generateReactionId(): VoiceReactionId {
-  return `reaction_${Date.now()}_${Math.random()
-    .toString(36)
-    .substr(2, 9)}` as VoiceReactionId;
+  return `reaction_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` as VoiceReactionId;
 }
 
 export function addReaction(
@@ -47,9 +39,7 @@ export function addReaction(
   const existingReactions = voiceReactions.get(recordingId) || [];
 
   // Remove any existing reaction from this player for this recording
-  const filteredReactions = existingReactions.filter(
-    r => r.playerId !== playerId,
-  );
+  const filteredReactions = existingReactions.filter(r => r.playerId !== playerId);
 
   // Add the new reaction
   filteredReactions.push(reaction);
@@ -58,10 +48,7 @@ export function addReaction(
   return reactionId;
 }
 
-export function removeReaction(
-  recordingId: VoiceRecordingId,
-  playerId: string,
-): boolean {
+export function removeReaction(recordingId: VoiceRecordingId, playerId: string): boolean {
   const reactions = voiceReactions.get(recordingId);
   if (!reactions) return false;
 
@@ -93,16 +80,11 @@ export function getPlayerReaction(
   return reactions.find(r => r.playerId === playerId);
 }
 
-export function hasPlayerReacted(
-  recordingId: VoiceRecordingId,
-  playerId: string,
-): boolean {
+export function hasPlayerReacted(recordingId: VoiceRecordingId, playerId: string): boolean {
   return getPlayerReaction(recordingId, playerId) !== undefined;
 }
 
-export function getReactionCounts(
-  recordingId: VoiceRecordingId,
-): Record<ReactionType, number> {
+export function getReactionCounts(recordingId: VoiceRecordingId): Record<ReactionType, number> {
   const reactions = voiceReactions.get(recordingId) || [];
   const counts: Record<ReactionType, number> = {
     '👍': 0,
@@ -119,9 +101,7 @@ export function getReactionCounts(
   return counts;
 }
 
-export function getMostPopularReaction(
-  recordingId: VoiceRecordingId,
-): ReactionType | null {
+export function getMostPopularReaction(recordingId: VoiceRecordingId): ReactionType | null {
   const counts = getReactionCounts(recordingId);
   let maxCount = 0;
   let mostPopular: ReactionType | null = null;

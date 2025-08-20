@@ -3,11 +3,11 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-nat
 import { VoiceBubble } from './VoiceBubble';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
-import type { Id } from '../../../convex/_generated/dataModel';
+// Convex types removed
 
 type VoiceMessage = {
-  id: Id<'voiceMessages'>;
-  playerId: Id<'users'>;
+  id: string;
+  playerId: string;
   playerName: string;
   timestamp: number;
   duration: number;
@@ -39,9 +39,7 @@ export function VoiceHistoryList({
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {messages.map((message, index) => (
         <View key={message.id} style={styles.messageItem}>
-          <Text style={styles.timestamp}>
-            {new Date(message.timestamp).toLocaleTimeString()}
-          </Text>
+          <Text style={styles.timestamp}>{new Date(message.timestamp).toLocaleTimeString()}</Text>
           <VoiceBubble
             recordingId={message.storageId as any}
             playerName={message.playerName}

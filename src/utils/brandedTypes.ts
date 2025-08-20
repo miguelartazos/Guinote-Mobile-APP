@@ -16,9 +16,7 @@ export function helpSectionId(id: string): HelpSectionId {
   return id as HelpSectionId;
 }
 
-export function tutorialType(
-  type: 'complete' | 'basic' | 'cantes' | 'special',
-): TutorialType {
+export function tutorialType(type: 'complete' | 'basic' | 'cantes' | 'special'): TutorialType {
   return type as TutorialType;
 }
 

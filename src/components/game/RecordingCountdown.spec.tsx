@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  describe,
-  test,
-  expect,
-  jest,
-  beforeEach,
-  afterEach,
-} from '@jest/globals';
+import { describe, test, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { render, act } from '@testing-library/react-native';
 import { RecordingCountdown } from './RecordingCountdown';
 
@@ -39,9 +32,7 @@ describe('RecordingCountdown', () => {
     });
 
     test('does not call onComplete when inactive', () => {
-      render(
-        <RecordingCountdown isActive={false} onComplete={mockOnComplete} />,
-      );
+      render(<RecordingCountdown isActive={false} onComplete={mockOnComplete} />);
 
       act(() => {
         jest.advanceTimersByTime(6000);
@@ -91,11 +82,7 @@ describe('RecordingCountdown', () => {
 
     test('counts down from custom duration', () => {
       const { getByText } = render(
-        <RecordingCountdown
-          isActive={true}
-          onComplete={mockOnComplete}
-          duration={3}
-        />,
+        <RecordingCountdown isActive={true} onComplete={mockOnComplete} duration={3} />,
       );
 
       expect(getByText('3')).toBeTruthy();
@@ -112,13 +99,7 @@ describe('RecordingCountdown', () => {
     });
 
     test('calls onComplete after countdown finishes with animation delay', () => {
-      render(
-        <RecordingCountdown
-          isActive={true}
-          onComplete={mockOnComplete}
-          duration={2}
-        />,
-      );
+      render(<RecordingCountdown isActive={true} onComplete={mockOnComplete} duration={2} />);
 
       // Advance through countdown
       act(() => {
@@ -146,9 +127,7 @@ describe('RecordingCountdown', () => {
       expect(queryByText('3')).toBeTruthy();
 
       // Deactivate countdown
-      rerender(
-        <RecordingCountdown isActive={false} onComplete={mockOnComplete} />,
-      );
+      rerender(<RecordingCountdown isActive={false} onComplete={mockOnComplete} />);
 
       // Advance more time
       act(() => {
@@ -161,11 +140,7 @@ describe('RecordingCountdown', () => {
 
     test('resets count when reactivated', () => {
       const { rerender, getByText } = render(
-        <RecordingCountdown
-          isActive={true}
-          onComplete={mockOnComplete}
-          duration={3}
-        />,
+        <RecordingCountdown isActive={true} onComplete={mockOnComplete} duration={3} />,
       );
 
       act(() => {
@@ -174,22 +149,10 @@ describe('RecordingCountdown', () => {
       expect(getByText('2')).toBeTruthy();
 
       // Deactivate
-      rerender(
-        <RecordingCountdown
-          isActive={false}
-          onComplete={mockOnComplete}
-          duration={3}
-        />,
-      );
+      rerender(<RecordingCountdown isActive={false} onComplete={mockOnComplete} duration={3} />);
 
       // Reactivate
-      rerender(
-        <RecordingCountdown
-          isActive={true}
-          onComplete={mockOnComplete}
-          duration={3}
-        />,
-      );
+      rerender(<RecordingCountdown isActive={true} onComplete={mockOnComplete} duration={3} />);
 
       // Should reset to initial count
       expect(getByText('3')).toBeTruthy();
@@ -198,13 +161,7 @@ describe('RecordingCountdown', () => {
 
   describe('edge cases', () => {
     test('handles duration of 1 second', () => {
-      render(
-        <RecordingCountdown
-          isActive={true}
-          onComplete={mockOnComplete}
-          duration={1}
-        />,
-      );
+      render(<RecordingCountdown isActive={true} onComplete={mockOnComplete} duration={1} />);
 
       act(() => {
         jest.advanceTimersByTime(1000);
@@ -216,11 +173,7 @@ describe('RecordingCountdown', () => {
 
     test('handles duration of 0 (edge case)', () => {
       const { queryByText } = render(
-        <RecordingCountdown
-          isActive={true}
-          onComplete={mockOnComplete}
-          duration={0}
-        />,
+        <RecordingCountdown isActive={true} onComplete={mockOnComplete} duration={0} />,
       );
 
       // Should not render anything for 0 duration

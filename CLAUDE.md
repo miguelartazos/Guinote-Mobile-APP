@@ -263,3 +263,112 @@ BREAKING CHANGE: a commit that has a footer BREAKING CHANGE:, or appends a ! aft
 types other than fix: and feat: are allowed, for example @commitlint/config-conventional (based on the Angular convention) recommends build:, chore:, ci:, docs:, style:, refactor:, perf:, test:, and others.
 footers other than BREAKING CHANGE: <description> may be provided and follow a convention similar to git trailer format.
 ```
+
+---
+
+## 🚀 SUBAGENT-POWERED SHORTCUTS
+
+The following shortcuts now automatically trigger specialized subagents for enhanced capabilities:
+
+### QPLAN (Enhanced with code-planner subagent)
+
+When I type "qplan", this AUTOMATICALLY means:
+
+```
+1. Delegate to the code-planner subagent
+2. The subagent will:
+   - Search for similar implementations in the codebase
+   - Identify naming conventions and patterns
+   - Check for existing utilities to reuse
+   - Create a detailed implementation plan
+   - Specify files to modify/create
+   - Identify potential risks
+3. Present the plan for your approval
+```
+
+### QCODE (Enhanced with tdd-coder subagent)
+
+When I type "qcode", this AUTOMATICALLY means:
+
+```
+1. Delegate to the tdd-coder subagent
+2. The subagent will:
+   - Follow strict TDD (Red-Green-Refactor)
+   - Write tests FIRST (*.spec.ts)
+   - Implement minimal code to pass tests
+   - Refactor for quality
+   - Run prettier, typecheck, and lint
+   - Confirm all tests pass
+3. Show implementation results
+```
+
+### QCHECK (Enhanced with skeptical-reviewer subagent)
+
+When I type "qcheck", this AUTOMATICALLY means:
+
+```
+1. Delegate to the skeptical-reviewer subagent
+2. The subagent will:
+   - Review with BRUTAL honesty
+   - Check all function quality metrics
+   - Verify test coverage and quality
+   - Validate best practices compliance
+   - Identify critical issues, warnings, and suggestions
+3. Provide verdict: PASS/FAIL/NEEDS_WORK
+```
+
+### QTEST (NEW - Powered by test-writer subagent)
+
+When I type "qtest [function/module]", this means:
+
+```
+1. Delegate to the test-writer subagent
+2. The subagent will:
+   - Analyze the specified function/module
+   - Generate comprehensive test suite
+   - Include: happy path, edge cases, error cases, properties
+   - Use fast-check for property testing
+   - Create *.spec.ts file in same directory
+   - Run tests and show coverage
+3. Present test results and coverage report
+```
+
+### QGAME (NEW - Powered by game-rules-validator subagent)
+
+When I type "qgame [move/state]", this means:
+
+```
+1. Delegate to the game-rules-validator subagent
+2. The subagent will:
+   - Validate move legality
+   - Check phase-specific rules (arrastre/vueltas)
+   - Verify cante conditions
+   - Ensure proper card hierarchy
+   - Detect bot behavior issues
+   - Identify rule violations
+3. Present validation results with corrections
+```
+
+### Subagent Auto-Triggers
+
+Subagents will ALSO automatically activate when:
+
+- **code-planner**: Planning any feature > 3 files
+- **tdd-coder**: Implementing new functions/features
+- **skeptical-reviewer**: After significant code changes
+- **test-writer**: When new functions lack tests
+- **game-rules-validator**: Any game logic modifications
+
+---
+
+## Subagent Configuration
+
+All subagents are defined in `.claude/subagents/`:
+
+- `code-planner.md` - Analyzes codebase patterns
+- `tdd-coder.md` - Implements with TDD
+- `skeptical-reviewer.md` - Performs code review
+- `test-writer.md` - Generates test suites
+- `game-rules-validator.md` - Validates game rules
+
+To add custom subagents, create a new `.md` file with YAML frontmatter specifying name, description, and tools.

@@ -47,18 +47,25 @@ export type AjustesStackParamList = {
   Settings: undefined;
 };
 
-export type MainTabScreenProps<T extends keyof MainTabParamList> =
-  BottomTabScreenProps<MainTabParamList, T>;
+export type MainTabScreenProps<T extends keyof MainTabParamList> = BottomTabScreenProps<
+  MainTabParamList,
+  T
+>;
 
-export type JugarStackScreenProps<T extends keyof JugarStackParamList> =
-  StackScreenProps<JugarStackParamList, T>;
+export type JugarStackScreenProps<T extends keyof JugarStackParamList> = StackScreenProps<
+  JugarStackParamList,
+  T
+>;
 
-export type RankingStackScreenProps<T extends keyof RankingStackParamList> =
-  StackScreenProps<RankingStackParamList, T>;
+export type RankingStackScreenProps<T extends keyof RankingStackParamList> = StackScreenProps<
+  RankingStackParamList,
+  T
+>;
 
-export type AjustesStackScreenProps<T extends keyof AjustesStackParamList> =
-  StackScreenProps<AjustesStackParamList, T>;
+export type AjustesStackScreenProps<T extends keyof AjustesStackParamList> = StackScreenProps<
+  AjustesStackParamList,
+  T
+>;
 
 // Navigation prop types
-export type JugarStackNavigationProp =
-  StackScreenProps<JugarStackParamList>['navigation'];
+export type JugarStackNavigationProp = StackScreenProps<JugarStackParamList>['navigation'];

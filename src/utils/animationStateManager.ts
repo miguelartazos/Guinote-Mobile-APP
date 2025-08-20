@@ -1,9 +1,4 @@
-import type {
-  DealTarget,
-  AnimationPhase,
-  AnimationState,
-  SlotIndex,
-} from '../types/slots.types';
+import type { DealTarget, AnimationPhase, AnimationState, SlotIndex } from '../types/slots.types';
 import type { PlayerId } from '../types/game.types';
 
 /**

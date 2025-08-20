@@ -1,16 +1,10 @@
 import React, { useState, useRef } from 'react';
-import {
-  View,
-  StyleSheet,
-  StatusBar,
-  Text,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+import { View, StyleSheet, StatusBar, Text, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { GameTable } from '../components/game/GameTable';
 import { CardDealingAnimation } from '../components/game/CardDealingAnimation';
 import { GameEndCelebration } from '../components/game/GameEndCelebration';
+import { MatchProgressIndicator } from '../components/game/MatchProgressIndicator';
 import { PassDeviceOverlay } from '../components/game/PassDeviceOverlay';
 import { CompactActionBar } from '../components/game/CompactActionBar';
 import { GameModals } from '../components/game/GameModals';
@@ -22,7 +16,8 @@ import { GameErrorBoundary } from '../components/game/GameErrorBoundary';
 import { haptics } from '../utils/haptics';
 import type { JugarStackScreenProps } from '../types/navigation';
 import { useGameState } from '../hooks/useGameState';
-import { useConvexAuth } from '../hooks/useConvexAuth';
+import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
+import { useUnifiedGame } from '../hooks/useUnifiedGame';
 import { canCantar, shouldStartVueltas } from '../utils/gameLogic';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
@@ -56,27 +51,23 @@ const RENUNCIO_REASONS = [
   },
 ];
 
-export function GameScreen({
-  navigation,
-  route,
-}: JugarStackScreenProps<'Game'>) {
-  const { playerName, difficulty, gameMode, playerNames, roomId, roomCode } =
-    route.params;
+export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>) {
+  const { playerName, difficulty, gameMode, playerNames, roomId, roomCode } = route.params;
   const isLocalMultiplayer = gameMode === 'local';
   const isOnline = gameMode === 'friends' || gameMode === 'online';
 
   // Get user for online games
-  const { user: convexUser } = useConvexAuth();
+  const { user, isAuthenticated } = useUnifiedAuth();
 
-  // Use single game state hook for all modes
-  const gameStateHook = useGameState({
-    playerName: playerName || convexUser?.username || 'Tú',
-    difficulty:
-      difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
-    playerNames: playerNames,
-    // TODO: Add network support in the future
-    // gameId: roomId,
-  });
+  // Use appropriate game state hook based on game mode
+  const gameStateHook =
+    isOnline && roomId
+      ? useUnifiedGame(roomId)
+      : useGameState({
+          playerName: playerName || user?.username || 'Tú',
+          difficulty: difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
+          playerNames: playerNames,
+        });
 
   const {
     gameState,
@@ -85,6 +76,7 @@ export function GameScreen({
     cambiar7,
     reorderPlayerHand,
     continueFromScoring,
+    continueToNextPartida,
     declareVictory,
     declareRenuncio,
     getValidCardsForCurrentPlayer,
@@ -106,7 +98,7 @@ export function GameScreen({
   const [showPassDevice, setShowPassDevice] = useState(false);
   const [lastPlayerIndex, setLastPlayerIndex] = useState<number | null>(null);
   const [gameStartTime] = useState(Date.now());
-  
+
   // Track if we've already recorded this game to prevent infinite loop
   const gameRecordedRef = useRef(false);
   const lastRecordedGameIdRef = useRef<string | null>(null);
@@ -199,10 +191,7 @@ export function GameScreen({
     // Play turn sound for current device player
     if (!isLocalMultiplayer && isPlayerTurn()) {
       playTurnSound();
-    } else if (
-      isLocalMultiplayer &&
-      !gameState.players[gameState.currentPlayerIndex].isBot
-    ) {
+    } else if (isLocalMultiplayer && !gameState.players[gameState.currentPlayerIndex].isBot) {
       playTurnSound();
     }
   }, [
@@ -216,19 +205,21 @@ export function GameScreen({
 
   // Play game over sound and record statistics
   React.useEffect(() => {
-    if (gameState?.phase === 'gameOver') {
+    // Show celebration for partida/coto wins (scoring phase) or full match wins (gameOver phase)
+    if (
+      gameState?.phase === 'gameOver' ||
+      (gameState?.phase === 'scoring' && gameState?.matchScore)
+    ) {
       // Create a unique game session ID based on game start time and current state
       const gameSessionId = `${gameStartTime}-${gameState.teams[0].score}-${gameState.teams[1].score}`;
-      
-      // Check if we've already recorded this specific game
-      if (lastRecordedGameIdRef.current === gameSessionId) {
+
+      // Check if we've already recorded this specific game (only for final game over)
+      if (gameState.phase === 'gameOver' && lastRecordedGameIdRef.current === gameSessionId) {
         return; // Already recorded this game, skip
       }
-      
+
       const winningTeam = gameState.teams.find(t => t.score >= 101);
-      const playerTeam = gameState.teams.find(t =>
-        t.playerIds.includes(gameState.players[0].id),
-      );
+      const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
       const playerWon = winningTeam?.id === playerTeam?.id;
 
       if (playerWon) {
@@ -243,7 +234,7 @@ export function GameScreen({
       if (!gameRecordedRef.current) {
         gameRecordedRef.current = true;
         lastRecordedGameIdRef.current = gameSessionId;
-        
+
         if (!isOnline) {
           // Offline games - local stats
           const playerScore = playerTeam?.score || 0;
@@ -258,16 +249,19 @@ export function GameScreen({
           ).catch(error => {
             console.error('Failed to record offline game stats:', error);
           });
-        } else if (convexUser?._id && gameState.matchScore && !isOfflineUser) {
-          // Online games - Convex stats (only for real Convex users)
-          recordGameResult(
-            gameState,
-            convexUser._id,
-            gameMode as 'ranked' | 'casual' | 'friends',
-            gameStartTime,
-          ).catch(error => {
-            console.error('Failed to record online game stats:', error);
-          });
+        } else if (user && gameState.matchScore) {
+          // Online games - Record stats for authenticated users
+          const userId = user.id || user._id;
+          if (userId) {
+            recordGameResult(
+              gameState,
+              userId,
+              gameMode as 'ranked' | 'casual' | 'friends',
+              gameStartTime,
+            ).catch(error => {
+              console.error('Failed to record online game stats:', error);
+            });
+          }
         }
       }
     } else if (gameState?.phase === 'dealing' || gameState?.phase === 'playing') {
@@ -283,7 +277,7 @@ export function GameScreen({
     recordGameResult,
     difficulty,
     isOnline,
-    convexUser,
+    user,
     gameMode,
     gameStartTime,
   ]);
@@ -416,17 +410,11 @@ export function GameScreen({
     if (!currentPlayer) return;
 
     const playerHand = gameState?.hands.get(currentPlayer.id) || [];
-    const playerTeam = gameState.teams.find(t =>
-      t.playerIds.includes(currentPlayer.id),
-    );
+    const playerTeam = gameState.teams.find(t => t.playerIds.includes(currentPlayer.id));
 
     if (!playerTeam) return;
 
-    const cantableSuits = canCantar(
-      playerHand,
-      gameState.trumpSuit,
-      playerTeam.cantes,
-    );
+    const cantableSuits = canCantar(playerHand, gameState.trumpSuit, playerTeam.cantes);
 
     // For now, cantar the first available suit
     if (cantableSuits.length > 0) {
@@ -449,21 +437,17 @@ export function GameScreen({
   };
 
   const handleSalir = () => {
-    Alert.alert(
-      '¿Salir del juego?',
-      'Se perderá el progreso actual de la partida.',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Salir',
-          style: 'destructive',
-          onPress: () => navigation.goBack(),
-        },
-      ],
-    );
+    Alert.alert('¿Salir del juego?', 'Se perderá el progreso actual de la partida.', [
+      {
+        text: 'Cancelar',
+        style: 'cancel',
+      },
+      {
+        text: 'Salir',
+        style: 'destructive',
+        onPress: () => navigation.goBack(),
+      },
+    ]);
   };
 
   const handleDeclareVictory = () => {
@@ -533,8 +517,7 @@ export function GameScreen({
 
         {(team1.cardPoints < 30 || team2.cardPoints < 30) && (
           <Text style={styles.malasWarning}>
-            ⚠️ Puntos de cartas - Nosotros: {team1.cardPoints} | Ellos:{' '}
-            {team2.cardPoints}
+            ⚠️ Puntos de cartas - Nosotros: {team1.cardPoints} | Ellos: {team2.cardPoints}
           </Text>
         )}
 
@@ -554,20 +537,31 @@ export function GameScreen({
   // Show game over screen
   if (gameState.phase === 'gameOver') {
     const winningTeam = gameState.teams.find(t => t.score >= 101);
-    const playerTeam = gameState.teams.find(t =>
-      t.playerIds.includes(gameState.players[0].id),
-    );
+    const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
     const playerWon = winningTeam?.id === playerTeam?.id;
     const team1 = gameState.teams[0];
     const team2 = gameState.teams[1];
 
     if (showGameEndCelebration) {
+      // Determine celebration type based on match progress
+      const matchScore = gameState.matchScore;
+      let celebrationType: 'partida' | 'coto' | 'match' = 'partida';
+
+      if (gameState.phase === 'gameOver') {
+        celebrationType = 'match'; // Full match is complete
+      } else if (matchScore && (matchScore.team1Cotos > 0 || matchScore.team2Cotos > 0)) {
+        celebrationType = 'coto'; // A coto was just won
+      }
+
       return (
         <GameEndCelebration
           isWinner={playerWon}
           finalScore={{ player: team1.score, opponent: team2.score }}
           onComplete={() => setShowGameEndCelebration(false)}
           playSound={playerWon ? playVictorySound : playDefeatSound}
+          celebrationType={celebrationType}
+          matchScore={matchScore}
+          onContinue={celebrationType !== 'match' ? continueToNextPartida : undefined}
         />
       );
     }
@@ -575,12 +569,7 @@ export function GameScreen({
     return (
       <ScreenContainer orientation="landscape" style={styles.gameOverContainer}>
         <StatusBar hidden />
-        <Text
-          style={[
-            styles.gameOverTitle,
-            playerWon ? styles.victoryTitle : styles.defeatTitle,
-          ]}
-        >
+        <Text style={[styles.gameOverTitle, playerWon ? styles.victoryTitle : styles.defeatTitle]}>
           {playerWon ? '¡VICTORIA!' : 'DERROTA'}
         </Text>
 
@@ -629,7 +618,7 @@ export function GameScreen({
   }
 
   return (
-    <GameErrorBoundary 
+    <GameErrorBoundary
       gameState={gameState}
       onReset={() => {
         // Reset game state on error recovery
@@ -663,138 +652,141 @@ export function GameScreen({
           />
         )}
 
+        {/* Show match progress if we have match score */}
+        {gameState.matchScore && (
+          <View style={styles.matchProgressWrapper}>
+            <MatchProgressIndicator matchScore={gameState.matchScore} compact />
+          </View>
+        )}
+
         <GameTable
-        players={
-          players as [
-            (typeof players)[0],
-            (typeof players)[1],
-            (typeof players)[2],
-            (typeof players)[3],
-          ]
-        }
-        currentPlayerIndex={isLocalMultiplayer ? 0 : gameState.currentPlayerIndex}
-        trumpCard={{
-          suit: gameState.trumpSuit,
-          value: gameState.trumpCard.value,
-        }}
-        currentTrick={gameState.currentTrick.map(tc => ({
-          playerId: tc.playerId,
-          card: { suit: tc.card.suit, value: tc.card.value },
-        }))}
-        onCardPlay={handleCardPlay}
-        onCardReorder={reorderPlayerHand}
-        onExitGame={handleSalir}
-        onRenuncio={() => setShowRenuncio(true)}
-        thinkingPlayerId={thinkingPlayer}
-        tableColor={settings?.tableColor || 'green'}
-        isDealing={gameState?.phase === 'dealing'}
-        deckCount={gameState?.deck?.length || 0}
-        validCardIndices={getValidCardIndices()}
-        isVueltas={gameState.isVueltas}
-        canDeclareVictory={gameState.canDeclareVictory}
-        collectedTricks={gameState.collectedTricks}
-        trickAnimating={gameState.trickAnimating}
-        pendingTrickWinner={
-          gameState.pendingTrickWinner
-            ? {
-                playerId: gameState.pendingTrickWinner.playerId,
-                points: gameState.pendingTrickWinner.points,
-                cards: gameState.pendingTrickWinner.cards.map(c => ({
-                  suit: c.suit,
-                  value: c.value,
-                })),
-              }
-            : undefined
-        }
-        onCompleteTrickAnimation={completeTrickAnimation}
-      />
-
-      {/* Small corner score display during gameplay */}
-      {gameState?.teams && gameState.phase === 'playing' && (
-        <View style={styles.cornerScore}>
-          <Text style={styles.cornerScoreText}>
-            {gameState.teams[0].score} - {gameState.teams[1].score}
-          </Text>
-        </View>
-      )}
-
-      {/* Cantes display */}
-      {(gameState.teams[0].cantes.length > 0 ||
-        gameState.teams[1].cantes.length > 0) && (
-        <View style={styles.cantesContainer}>
-          {gameState.teams[0].cantes.map((cante, idx) => {
-            // Show if it's our team or if it's visible (Veinte)
-            const showCante = true; // Always show our team's cantes
-            if (showCante) {
-              return (
-                <View key={`team0-cante-${idx}`} style={styles.canteItem}>
-                  <Text style={styles.canteText}>
-                    Nosotros: {cante.points === 40 ? 'Las 40' : '20'} en{' '}
-                    {cante.suit}
-                  </Text>
-                </View>
-              );
-            }
-            return null;
-          })}
-          {gameState.teams[1].cantes.map((cante, idx) => {
-            // Show only if it's visible (Veinte = 20 points)
-            if (cante.isVisible) {
-              return (
-                <View key={`team1-cante-${idx}`} style={styles.canteItem}>
-                  <Text style={styles.canteText}>
-                    Ellos: 20 en {cante.suit}
-                  </Text>
-                </View>
-              );
-            }
-            return null;
-          })}
-        </View>
-      )}
-
-      {/* Compact action bar */}
-      {gameState && isDealingComplete && (
-        <CompactActionBar
-          gameState={gameState}
-          onCantar={handleCantar}
-          onCambiar7={handleCambiar7}
-          disabled={!isPlayerTurn() || thinkingPlayer !== null}
-        />
-      )}
-
-      {/* Game modals */}
-      {gameState && (
-        <GameModals
-          showLastTrick={showLastTrick}
-          lastTrick={gameState.lastTrick?.map(tc => tc.card) || []}
-          onCloseLastTrick={() => setShowLastTrick(false)}
-          showDeclareVictory={showDeclareVictory}
-          onCloseDeclareVictory={() => setShowDeclareVictory(false)}
-          onConfirmVictory={handleDeclareVictory}
-          showRenuncio={showRenuncio}
-          selectedRenuncioReason={selectedRenuncioReason}
-          onCloseRenuncio={() => {
-            setShowRenuncio(false);
-            setSelectedRenuncioReason('');
+          players={
+            players as [
+              (typeof players)[0],
+              (typeof players)[1],
+              (typeof players)[2],
+              (typeof players)[3],
+            ]
+          }
+          currentPlayerIndex={isLocalMultiplayer ? 0 : gameState.currentPlayerIndex}
+          trumpCard={{
+            suit: gameState.trumpSuit,
+            value: gameState.trumpCard.value,
           }}
-          onSelectRenuncioReason={setSelectedRenuncioReason}
-          onConfirmRenuncio={handleRenuncio}
-          renuncioReasons={RENUNCIO_REASONS}
+          currentTrick={gameState.currentTrick.map(tc => ({
+            playerId: tc.playerId,
+            card: { suit: tc.card.suit, value: tc.card.value },
+          }))}
+          onCardPlay={handleCardPlay}
+          onCardReorder={reorderPlayerHand}
+          onExitGame={handleSalir}
+          onRenuncio={() => setShowRenuncio(true)}
+          thinkingPlayerId={thinkingPlayer}
+          tableColor={settings?.tableColor || 'green'}
+          isDealing={gameState?.phase === 'dealing'}
+          deckCount={gameState?.deck?.length || 0}
+          validCardIndices={getValidCardIndices()}
+          isVueltas={gameState.isVueltas}
+          canDeclareVictory={gameState.canDeclareVictory}
+          collectedTricks={gameState.collectedTricks}
+          trickAnimating={gameState.trickAnimating}
+          pendingTrickWinner={
+            gameState.pendingTrickWinner
+              ? {
+                  playerId: gameState.pendingTrickWinner.playerId,
+                  points: gameState.pendingTrickWinner.points,
+                  cards: gameState.pendingTrickWinner.cards.map(c => ({
+                    suit: c.suit,
+                    value: c.value,
+                  })),
+                }
+              : undefined
+          }
+          onCompleteTrickAnimation={completeTrickAnimation}
         />
-      )}
 
-      {/* Pass Device Overlay for Local Multiplayer */}
-      {isLocalMultiplayer && gameState && (
-        <PassDeviceOverlay
-          visible={showPassDevice}
-          playerName={gameState.players[gameState.currentPlayerIndex].name}
-          playerAvatar={gameState.players[gameState.currentPlayerIndex].avatar}
-          onContinue={() => setShowPassDevice(false)}
-          autoHideDelay={3000}
-        />
-      )}
-    </ScreenContainer>
+        {/* Small corner score display during gameplay */}
+        {gameState?.teams && gameState.phase === 'playing' && (
+          <View style={styles.cornerScore}>
+            <Text style={styles.cornerScoreText}>
+              {gameState.teams[0].score} - {gameState.teams[1].score}
+            </Text>
+          </View>
+        )}
+
+        {/* Cantes display */}
+        {(gameState.teams[0].cantes.length > 0 || gameState.teams[1].cantes.length > 0) && (
+          <View style={styles.cantesContainer}>
+            {gameState.teams[0].cantes.map((cante, idx) => {
+              // Show if it's our team or if it's visible (Veinte)
+              const showCante = true; // Always show our team's cantes
+              if (showCante) {
+                return (
+                  <View key={`team0-cante-${idx}`} style={styles.canteItem}>
+                    <Text style={styles.canteText}>
+                      Nosotros: {cante.points === 40 ? 'Las 40' : '20'} en {cante.suit}
+                    </Text>
+                  </View>
+                );
+              }
+              return null;
+            })}
+            {gameState.teams[1].cantes.map((cante, idx) => {
+              // Show only if it's visible (Veinte = 20 points)
+              if (cante.isVisible) {
+                return (
+                  <View key={`team1-cante-${idx}`} style={styles.canteItem}>
+                    <Text style={styles.canteText}>Ellos: 20 en {cante.suit}</Text>
+                  </View>
+                );
+              }
+              return null;
+            })}
+          </View>
+        )}
+
+        {/* Compact action bar */}
+        {gameState && isDealingComplete && (
+          <CompactActionBar
+            gameState={gameState}
+            onCantar={handleCantar}
+            onCambiar7={handleCambiar7}
+            disabled={!isPlayerTurn() || thinkingPlayer !== null}
+          />
+        )}
+
+        {/* Game modals */}
+        {gameState && (
+          <GameModals
+            showLastTrick={showLastTrick}
+            lastTrick={gameState.lastTrick?.map(tc => tc.card) || []}
+            onCloseLastTrick={() => setShowLastTrick(false)}
+            showDeclareVictory={showDeclareVictory}
+            onCloseDeclareVictory={() => setShowDeclareVictory(false)}
+            onConfirmVictory={handleDeclareVictory}
+            showRenuncio={showRenuncio}
+            selectedRenuncioReason={selectedRenuncioReason}
+            onCloseRenuncio={() => {
+              setShowRenuncio(false);
+              setSelectedRenuncioReason('');
+            }}
+            onSelectRenuncioReason={setSelectedRenuncioReason}
+            onConfirmRenuncio={handleRenuncio}
+            renuncioReasons={RENUNCIO_REASONS}
+          />
+        )}
+
+        {/* Pass Device Overlay for Local Multiplayer */}
+        {isLocalMultiplayer && gameState && (
+          <PassDeviceOverlay
+            visible={showPassDevice}
+            playerName={gameState.players[gameState.currentPlayerIndex].name}
+            playerAvatar={gameState.players[gameState.currentPlayerIndex].avatar}
+            onContinue={() => setShowPassDevice(false)}
+            autoHideDelay={3000}
+          />
+        )}
+      </ScreenContainer>
     </GameErrorBoundary>
   );
 }
@@ -808,6 +800,12 @@ const styles = StyleSheet.create({
   gameContainer: {
     paddingHorizontal: 0,
     paddingVertical: 0,
+  },
+  matchProgressWrapper: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 100,
   },
   loadingContainer: {
     justifyContent: 'center',

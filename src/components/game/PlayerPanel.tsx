@@ -95,21 +95,11 @@ export function PlayerPanel({
           </View>
         )}
         <View style={styles.playerInfo}>
-          <Text
-            style={[
-              styles.playerName,
-              isCurrentPlayer && styles.currentPlayerText,
-            ]}
-          >
+          <Text style={[styles.playerName, isCurrentPlayer && styles.currentPlayerText]}>
             {getPlayerDisplayName(playerName)}
           </Text>
           {showRanking && (
-            <Text
-              style={[
-                styles.ranking,
-                isCurrentPlayer && styles.currentPlayerText,
-              ]}
-            >
+            <Text style={[styles.ranking, isCurrentPlayer && styles.currentPlayerText]}>
               Ranking: {ranking.toLocaleString()}
             </Text>
           )}

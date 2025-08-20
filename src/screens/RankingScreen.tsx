@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { colors } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
@@ -13,11 +7,8 @@ import { typography } from '../constants/typography';
 import { useGameStatistics } from '../hooks/useGameStatistics';
 import type { MainTabScreenProps } from '../types/navigation';
 
-export function RankingScreen({
-  navigation: _,
-}: MainTabScreenProps<'Ranking'>) {
-  const { statistics, winRate, averageScore, resetStatistics } =
-    useGameStatistics();
+export function RankingScreen({ navigation: _ }: MainTabScreenProps<'Ranking'>) {
+  const { statistics, winRate, averageScore, resetStatistics } = useGameStatistics();
 
   if (!statistics) {
     return (
@@ -47,15 +38,11 @@ export function RankingScreen({
             </View>
             <View style={styles.statRow}>
               <Text style={styles.statLabel}>Victorias:</Text>
-              <Text style={[styles.statValue, styles.winText]}>
-                {statistics.gamesWon}
-              </Text>
+              <Text style={[styles.statValue, styles.winText]}>{statistics.gamesWon}</Text>
             </View>
             <View style={styles.statRow}>
               <Text style={styles.statLabel}>Derrotas:</Text>
-              <Text style={[styles.statValue, styles.lossText]}>
-                {statistics.gamesLost}
-              </Text>
+              <Text style={[styles.statValue, styles.lossText]}>{statistics.gamesLost}</Text>
             </View>
             <View style={styles.statRow}>
               <Text style={styles.statLabel}>Porcentaje de victorias:</Text>
@@ -76,15 +63,11 @@ export function RankingScreen({
             </View>
             <View style={styles.statRow}>
               <Text style={styles.statLabel}>Racha actual:</Text>
-              <Text style={styles.statValue}>
-                {statistics.currentWinStreak} victorias
-              </Text>
+              <Text style={styles.statValue}>{statistics.currentWinStreak} victorias</Text>
             </View>
             <View style={styles.statRow}>
               <Text style={styles.statLabel}>Mejor racha:</Text>
-              <Text style={styles.statValue}>
-                {statistics.longestWinStreak} victorias
-              </Text>
+              <Text style={styles.statValue}>{statistics.longestWinStreak} victorias</Text>
             </View>
           </View>
 
@@ -94,22 +77,22 @@ export function RankingScreen({
             <View style={styles.difficultySection}>
               <Text style={styles.difficultyTitle}>Fácil</Text>
               <Text style={styles.difficultyStats}>
-                {statistics.difficultyStats.easy.won}/
-                {statistics.difficultyStats.easy.played} ganadas
+                {statistics.difficultyStats.easy.won}/{statistics.difficultyStats.easy.played}{' '}
+                ganadas
               </Text>
             </View>
             <View style={styles.difficultySection}>
               <Text style={styles.difficultyTitle}>Medio</Text>
               <Text style={styles.difficultyStats}>
-                {statistics.difficultyStats.medium.won}/
-                {statistics.difficultyStats.medium.played} ganadas
+                {statistics.difficultyStats.medium.won}/{statistics.difficultyStats.medium.played}{' '}
+                ganadas
               </Text>
             </View>
             <View style={styles.difficultySection}>
               <Text style={styles.difficultyTitle}>Difícil</Text>
               <Text style={styles.difficultyStats}>
-                {statistics.difficultyStats.hard.won}/
-                {statistics.difficultyStats.hard.played} ganadas
+                {statistics.difficultyStats.hard.won}/{statistics.difficultyStats.hard.played}{' '}
+                ganadas
               </Text>
             </View>
           </View>
@@ -118,9 +101,7 @@ export function RankingScreen({
           {statistics.favoritePartner && (
             <View style={styles.statsCard}>
               <Text style={styles.cardTitle}>Compañero Favorito</Text>
-              <Text style={styles.partnerName}>
-                {statistics.favoritePartner.name}
-              </Text>
+              <Text style={styles.partnerName}>{statistics.favoritePartner.name}</Text>
               <Text style={styles.partnerGames}>
                 {statistics.favoritePartner.gamesPlayed} partidas juntos
               </Text>

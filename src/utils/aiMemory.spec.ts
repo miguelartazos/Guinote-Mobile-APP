@@ -155,11 +155,7 @@ describe('aiMemory', () => {
       let memory = createMemory();
       const highValues = [1, 3, 12, 11, 10];
       highValues.forEach(value => {
-        memory = updateMemory(
-          memory,
-          'p1' as PlayerId,
-          createCard('oros', value),
-        );
+        memory = updateMemory(memory, 'p1' as PlayerId, createCard('oros', value));
       });
 
       expect(getRemainingHighCards(memory, 'oros')).toBe(0);
@@ -176,11 +172,7 @@ describe('aiMemory', () => {
       let memory = createMemory();
       memory = updateMemory(memory, 'p1' as PlayerId, createCard('oros', 1)); // 11 points
       memory = updateMemory(memory, 'p2' as PlayerId, createCard('copas', 3)); // 10 points
-      memory = updateMemory(
-        memory,
-        'p3' as PlayerId,
-        createCard('espadas', 12),
-      ); // 4 points
+      memory = updateMemory(memory, 'p3' as PlayerId, createCard('espadas', 12)); // 4 points
       memory = updateMemory(memory, 'p4' as PlayerId, createCard('bastos', 7)); // 0 points
 
       expect(countPlayedPoints(memory)).toBe(25);

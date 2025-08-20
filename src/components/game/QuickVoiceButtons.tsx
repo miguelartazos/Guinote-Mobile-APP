@@ -1,11 +1,5 @@
 import React, { useState, useRef } from 'react';
-import {
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Animated,
-  ScrollView,
-} from 'react-native';
+import { Text, StyleSheet, TouchableOpacity, Animated, ScrollView } from 'react-native';
 import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
@@ -26,8 +20,7 @@ export function QuickVoiceButtons({
   disabled = false,
   visible = true,
 }: QuickVoiceButtonsProps) {
-  const [pressedButton, setPressedButton] =
-    useState<QuickVoiceMessageId | null>(null);
+  const [pressedButton, setPressedButton] = useState<QuickVoiceMessageId | null>(null);
   const fadeAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
 
   React.useEffect(() => {

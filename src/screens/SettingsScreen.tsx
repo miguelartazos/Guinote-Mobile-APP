@@ -1,13 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Switch,
-  ScrollView,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, Alert } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { ColorButton } from '../components/game/ColorButton';
@@ -20,9 +12,7 @@ import type { MainTabScreenProps } from '../types/navigation';
 import type { DifficultyLevel } from '../types/game.types';
 import type { CardSize, TableColor } from '../utils/gameSettings';
 
-export function SettingsScreen({
-  navigation: _,
-}: MainTabScreenProps<'Ajustes'>) {
+export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>) {
   const {
     globalVoiceEnabled,
     autoPlay,
@@ -197,9 +187,7 @@ export function SettingsScreen({
                   false: colors.secondary,
                   true: colors.accent,
                 }}
-                thumbColor={
-                  globalVoiceEnabled ? colors.white : colors.textMuted
-                }
+                thumbColor={globalVoiceEnabled ? colors.white : colors.textMuted}
               />
             </View>
 
@@ -213,18 +201,12 @@ export function SettingsScreen({
                   false: colors.secondary,
                   true: colors.accent,
                 }}
-                thumbColor={
-                  autoPlay && globalVoiceEnabled
-                    ? colors.white
-                    : colors.textMuted
-                }
+                thumbColor={autoPlay && globalVoiceEnabled ? colors.white : colors.textMuted}
               />
             </View>
 
             <View style={styles.settingColumn}>
-              <Text style={styles.settingLabel}>
-                Volumen: {Math.round(volume * 100)}%
-              </Text>
+              <Text style={styles.settingLabel}>Volumen: {Math.round(volume * 100)}%</Text>
               <Slider
                 style={styles.slider}
                 minimumValue={0}
@@ -247,16 +229,14 @@ export function SettingsScreen({
                 <TouchableOpacity
                   style={[
                     styles.optionButton,
-                    gameSettings.difficulty === 'easy' &&
-                      styles.optionButtonActive,
+                    gameSettings.difficulty === 'easy' && styles.optionButtonActive,
                   ]}
                   onPress={() => handleDifficultyChange('easy')}
                 >
                   <Text
                     style={[
                       styles.optionButtonText,
-                      gameSettings.difficulty === 'easy' &&
-                        styles.optionButtonTextActive,
+                      gameSettings.difficulty === 'easy' && styles.optionButtonTextActive,
                     ]}
                   >
                     Fácil
@@ -265,16 +245,14 @@ export function SettingsScreen({
                 <TouchableOpacity
                   style={[
                     styles.optionButton,
-                    gameSettings.difficulty === 'medium' &&
-                      styles.optionButtonActive,
+                    gameSettings.difficulty === 'medium' && styles.optionButtonActive,
                   ]}
                   onPress={() => handleDifficultyChange('medium')}
                 >
                   <Text
                     style={[
                       styles.optionButtonText,
-                      gameSettings.difficulty === 'medium' &&
-                        styles.optionButtonTextActive,
+                      gameSettings.difficulty === 'medium' && styles.optionButtonTextActive,
                     ]}
                   >
                     Medio
@@ -283,16 +261,14 @@ export function SettingsScreen({
                 <TouchableOpacity
                   style={[
                     styles.optionButton,
-                    gameSettings.difficulty === 'hard' &&
-                      styles.optionButtonActive,
+                    gameSettings.difficulty === 'hard' && styles.optionButtonActive,
                   ]}
                   onPress={() => handleDifficultyChange('hard')}
                 >
                   <Text
                     style={[
                       styles.optionButtonText,
-                      gameSettings.difficulty === 'hard' &&
-                        styles.optionButtonTextActive,
+                      gameSettings.difficulty === 'hard' && styles.optionButtonTextActive,
                     ]}
                   >
                     Difícil
@@ -310,11 +286,7 @@ export function SettingsScreen({
                   false: colors.secondary,
                   true: colors.accent,
                 }}
-                thumbColor={
-                  gameSettings.soundEffectsEnabled
-                    ? colors.white
-                    : colors.textMuted
-                }
+                thumbColor={gameSettings.soundEffectsEnabled ? colors.white : colors.textMuted}
               />
             </View>
 
@@ -324,16 +296,14 @@ export function SettingsScreen({
                 <TouchableOpacity
                   style={[
                     styles.optionButton,
-                    gameSettings.cardSize === 'normal' &&
-                      styles.optionButtonActive,
+                    gameSettings.cardSize === 'normal' && styles.optionButtonActive,
                   ]}
                   onPress={() => handleCardSizeChange('normal')}
                 >
                   <Text
                     style={[
                       styles.optionButtonText,
-                      gameSettings.cardSize === 'normal' &&
-                        styles.optionButtonTextActive,
+                      gameSettings.cardSize === 'normal' && styles.optionButtonTextActive,
                     ]}
                   >
                     Normal
@@ -342,16 +312,14 @@ export function SettingsScreen({
                 <TouchableOpacity
                   style={[
                     styles.optionButton,
-                    gameSettings.cardSize === 'large' &&
-                      styles.optionButtonActive,
+                    gameSettings.cardSize === 'large' && styles.optionButtonActive,
                   ]}
                   onPress={() => handleCardSizeChange('large')}
                 >
                   <Text
                     style={[
                       styles.optionButtonText,
-                      gameSettings.cardSize === 'large' &&
-                        styles.optionButtonTextActive,
+                      gameSettings.cardSize === 'large' && styles.optionButtonTextActive,
                     ]}
                   >
                     Grande
@@ -399,11 +367,7 @@ export function SettingsScreen({
                   false: colors.secondary,
                   true: colors.accent,
                 }}
-                thumbColor={
-                  gameSettings.backgroundMusicEnabled
-                    ? colors.white
-                    : colors.textMuted
-                }
+                thumbColor={gameSettings.backgroundMusicEnabled ? colors.white : colors.textMuted}
               />
             </View>
 
@@ -425,8 +389,7 @@ export function SettingsScreen({
 
             <View style={styles.settingColumn}>
               <Text style={styles.settingLabel}>
-                Volumen de efectos:{' '}
-                {Math.round(gameSettings.effectsVolume * 100)}%
+                Volumen de efectos: {Math.round(gameSettings.effectsVolume * 100)}%
               </Text>
               <Slider
                 style={styles.slider}
@@ -441,8 +404,7 @@ export function SettingsScreen({
 
             <View style={styles.settingColumn}>
               <Text style={styles.settingLabel}>
-                Volumen de reacciones:{' '}
-                {Math.round(gameSettings.reactionsVolume * 100)}%
+                Volumen de reacciones: {Math.round(gameSettings.reactionsVolume * 100)}%
               </Text>
               <Slider
                 style={styles.slider}
@@ -531,11 +493,7 @@ export function SettingsScreen({
                   false: colors.secondary,
                   true: colors.accent,
                 }}
-                thumbColor={
-                  gameSettings.accessibilityAudioCues
-                    ? colors.white
-                    : colors.textMuted
-                }
+                thumbColor={gameSettings.accessibilityAudioCues ? colors.white : colors.textMuted}
               />
             </View>
 
@@ -548,11 +506,7 @@ export function SettingsScreen({
                   false: colors.secondary,
                   true: colors.accent,
                 }}
-                thumbColor={
-                  gameSettings.voiceAnnouncements
-                    ? colors.white
-                    : colors.textMuted
-                }
+                thumbColor={gameSettings.voiceAnnouncements ? colors.white : colors.textMuted}
               />
             </View>
 
@@ -565,18 +519,14 @@ export function SettingsScreen({
                   false: colors.secondary,
                   true: colors.accent,
                 }}
-                thumbColor={
-                  gameSettings.highContrastMode
-                    ? colors.white
-                    : colors.textMuted
-                }
+                thumbColor={gameSettings.highContrastMode ? colors.white : colors.textMuted}
               />
             </View>
 
             <Text style={styles.accessibilityInfo}>
-              Las señales de audio proporcionan sonidos adicionales para eventos
-              importantes del juego. Los anuncios de voz describen las cartas y
-              acciones para usuarios con discapacidad visual.
+              Las señales de audio proporcionan sonidos adicionales para eventos importantes del
+              juego. Los anuncios de voz describen las cartas y acciones para usuarios con
+              discapacidad visual.
             </Text>
           </View>
 
@@ -586,9 +536,7 @@ export function SettingsScreen({
               onPress={handleResetSettings}
               activeOpacity={0.7}
             >
-              <Text style={styles.resetButtonText}>
-                Restablecer configuración
-              </Text>
+              <Text style={styles.resetButtonText}>Restablecer configuración</Text>
             </TouchableOpacity>
           </View>
 

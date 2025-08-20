@@ -21,10 +21,10 @@ import { InputField } from '../components/ui/InputField';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Divider } from '../components/ui/Divider';
 import { LoadingOverlay } from '../components/ui/LoadingOverlay';
-// Using Convex for backend
-import { useConvexAuth } from '../hooks/useConvexAuth';
-import { useConvexRooms } from '../hooks/useConvexRooms';
-import { useConvexFriends } from '../hooks/useConvexFriends';
+// Using unified hooks
+import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
+import { useUnifiedRooms } from '../hooks/useUnifiedRooms';
+import { useUnifiedFriends } from '../hooks/useUnifiedFriends';
 
 export function FriendsLobbyScreen() {
   const navigation = useNavigation<JugarStackNavigationProp>();
@@ -33,12 +33,13 @@ export function FriendsLobbyScreen() {
   const [isJoining, setIsJoining] = useState(false);
 
   // Auth hooks
-  const { user: convexUser } = useConvexAuth();
-  const profile = convexUser;
+  const { user, isAuthenticated } = useUnifiedAuth();
+  const profile = user;
+  const userId = user?.id || user?._id;
 
-  // Convex hooks
-  const convexRooms = useConvexRooms();
-  const { onlineFriends } = useConvexFriends(convexUser?._id);
+  // Unified hooks
+  const rooms = useUnifiedRooms();
+  const { onlineFriends } = useUnifiedFriends(userId);
 
   const handleCreateRoom = async () => {
     if (!profile) {
@@ -48,21 +49,18 @@ export function FriendsLobbyScreen() {
 
     setIsCreating(true);
     try {
-      if (!convexUser) {
+      if (!userId) {
         throw new Error('User not authenticated');
       }
 
-      const room = await convexRooms.createFriendsRoom(convexUser._id);
+      const room = await rooms.createFriendsRoom(userId);
 
       navigation.navigate('GameRoom', {
         roomId: room.roomId,
         roomCode: room.code,
       });
     } catch (error) {
-      Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'No se pudo crear la sala',
-      );
+      Alert.alert('Error', error instanceof Error ? error.message : 'No se pudo crear la sala');
     } finally {
       setIsCreating(false);
     }
@@ -81,24 +79,18 @@ export function FriendsLobbyScreen() {
 
     setIsJoining(true);
     try {
-      if (!convexUser) {
+      if (!userId) {
         throw new Error('User not authenticated');
       }
 
-      const result = await convexRooms.joinRoomByCode(
-        roomCode.toUpperCase(),
-        convexUser._id,
-      );
+      const result = await rooms.joinRoomByCode(roomCode.toUpperCase(), userId);
 
       navigation.navigate('GameRoom', {
         roomId: result.roomId,
         roomCode: roomCode.toUpperCase(),
       });
     } catch (error) {
-      Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'No se pudo unir a la sala',
-      );
+      Alert.alert('Error', error instanceof Error ? error.message : 'No se pudo unir a la sala');
     } finally {
       setIsJoining(false);
     }
@@ -110,7 +102,7 @@ export function FriendsLobbyScreen() {
   };
 
   const renderOnlineFriends = () => {
-    if (!convexUser) {
+    if (!isAuthenticated || !user) {
       return (
         <EmptyState
           icon="🔒"
@@ -145,9 +137,7 @@ export function FriendsLobbyScreen() {
                 <View style={styles.onlineIndicator} />
               </View>
               <View style={styles.friendDetails}>
-                <Text style={styles.friendName}>
-                  {friend.displayName || friend.username}
-                </Text>
+                <Text style={styles.friendName}>{friend.displayName || friend.username}</Text>
                 <View style={styles.friendStats}>
                   <Text style={styles.friendElo}>⭐ {friend.elo}</Text>
                   <Text style={styles.friendStatus}>En línea</Text>
@@ -158,10 +148,7 @@ export function FriendsLobbyScreen() {
               variant="primary"
               size="small"
               onPress={() => {
-                Alert.alert(
-                  'Próximamente',
-                  'Función de invitación en desarrollo',
-                );
+                Alert.alert('Próximamente', 'Función de invitación en desarrollo');
               }}
               icon="📨"
             >
@@ -178,22 +165,15 @@ export function FriendsLobbyScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Jugar con Amigos</Text>
-          <Text style={styles.headerSubtitle}>
-            Crea o únete a una sala privada
-          </Text>
-          {convexUser && (
+          <Text style={styles.headerSubtitle}>Crea o únete a una sala privada</Text>
+          {user && (
             <View style={styles.userBadge}>
               <Text style={styles.userIcon}>👤</Text>
-              <Text style={styles.userName}>
-                {convexUser.username || 'Jugador'}
-              </Text>
+              <Text style={styles.userName}>{user.username || 'Jugador'}</Text>
             </View>
           )}
         </View>
@@ -204,9 +184,7 @@ export function FriendsLobbyScreen() {
             <Text style={styles.cardIcon}>🎮</Text>
             <View style={styles.cardTitleContainer}>
               <Text style={styles.cardTitle}>Crear Nueva Sala</Text>
-              <Text style={styles.cardDescription}>
-                Invita hasta 3 amigos a jugar
-              </Text>
+              <Text style={styles.cardDescription}>Invita hasta 3 amigos a jugar</Text>
             </View>
           </View>
           <Button
@@ -220,9 +198,7 @@ export function FriendsLobbyScreen() {
           >
             Crear Sala
           </Button>
-          <Text style={styles.hint}>
-            📍 Se generará un código único para compartir
-          </Text>
+          <Text style={styles.hint}>📍 Se generará un código único para compartir</Text>
         </Card>
 
         <Divider text="o" spacing="medium" />
@@ -233,9 +209,7 @@ export function FriendsLobbyScreen() {
             <Text style={styles.cardIcon}>🔑</Text>
             <View style={styles.cardTitleContainer}>
               <Text style={styles.cardTitle}>Unirse a Sala</Text>
-              <Text style={styles.cardDescription}>
-                Ingresa el código de invitación
-              </Text>
+              <Text style={styles.cardDescription}>Ingresa el código de invitación</Text>
             </View>
           </View>
 
@@ -250,10 +224,7 @@ export function FriendsLobbyScreen() {
             style={styles.codeInput}
             validation={{
               isValid: roomCode.length === 6,
-              message:
-                roomCode.length > 0
-                  ? `${roomCode.length}/6 caracteres`
-                  : undefined,
+              message: roomCode.length > 0 ? `${roomCode.length}/6 caracteres` : undefined,
             }}
           />
 

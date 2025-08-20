@@ -12,9 +12,7 @@ describe('tutorialContent', () => {
   describe('completeTutorialSteps', () => {
     test('contains complete tutorial steps', () => {
       expect(completeTutorialSteps).toHaveLength(9);
-      expect(completeTutorialSteps[0].title).toBe(
-        '🎓 Has llegado al final del camino',
-      );
+      expect(completeTutorialSteps[0].title).toBe('🎓 Has llegado al final del camino');
     });
 
     test('all steps have required properties', () => {
@@ -31,9 +29,7 @@ describe('tutorialContent', () => {
   describe('basicTutorialSteps', () => {
     test('contains basic tutorial steps', () => {
       expect(basicTutorialSteps).toHaveLength(7);
-      expect(basicTutorialSteps[0].title).toBe(
-        '¡Hola, futuro campeón/a de Guiñote! 🏆',
-      );
+      expect(basicTutorialSteps[0].title).toBe('¡Hola, futuro campeón/a de Guiñote! 🏆');
     });
 
     test('all steps have required properties', () => {
@@ -48,9 +44,7 @@ describe('tutorialContent', () => {
   describe('cantesTutorialSteps', () => {
     test('contains cante-specific steps', () => {
       expect(cantesTutorialSteps).toHaveLength(8);
-      expect(cantesTutorialSteps[0].title).toBe(
-        '🚀 ¿Ya te sientes cómodo/a con lo básico?',
-      );
+      expect(cantesTutorialSteps[0].title).toBe('🚀 ¿Ya te sientes cómodo/a con lo básico?');
     });
 
     test('all steps have required properties', () => {
@@ -65,9 +59,7 @@ describe('tutorialContent', () => {
   describe('specialTutorialSteps', () => {
     test('contains special rules steps', () => {
       expect(specialTutorialSteps).toHaveLength(4);
-      expect(specialTutorialSteps[0].title).toBe(
-        '⭐ Reglas Especiales y Situaciones Avanzadas',
-      );
+      expect(specialTutorialSteps[0].title).toBe('⭐ Reglas Especiales y Situaciones Avanzadas');
     });
 
     test('all steps have required properties', () => {
@@ -113,9 +105,7 @@ describe('tutorialContent', () => {
       expect(getContextualHelp('trump-change')).toContain('7 de triunfo');
       expect(getContextualHelp('last-cards')).toContain('Quedan pocas cartas');
       expect(getContextualHelp('waiting-turn')).toContain('Espera tu turno');
-      expect(getContextualHelp('partner-turn')).toContain(
-        'turno de tu compañero',
-      );
+      expect(getContextualHelp('partner-turn')).toContain('turno de tu compañero');
     });
 
     test('returns default help for unknown context', () => {

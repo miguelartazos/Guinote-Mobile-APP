@@ -9,9 +9,7 @@ import {
 } from 'react-native';
 import { VoiceButton } from './VoiceButton';
 import { VoiceHistoryList } from './VoiceHistoryList';
-import { useConvexVoice } from '../../hooks/useConvexVoice';
-import { useConvexAuth } from '../../hooks/useConvexAuth';
-import type { Id } from '../../../convex/_generated/dataModel';
+import { useAuth } from '../../hooks/useAuth';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 
@@ -22,25 +20,23 @@ interface VoiceMessagingProps {
 
 export function VoiceMessaging({ roomId, gameMode }: VoiceMessagingProps) {
   const [showHistory, setShowHistory] = useState(false);
-  const { user } = useConvexAuth();
-  
+  const { user } = useAuth();
+
   // Only use voice for online games
   const isOnline = gameMode === 'online' || gameMode === 'friends';
-  
-  const {
-    voiceMessages,
-    sendRecording,
-    isSending,
-    isPlaying,
-    playRecording,
-    stopPlayback,
-    getPlaybackUrl,
-  } = useConvexVoice(isOnline && roomId ? (roomId as Id<'rooms'>) : undefined);
-  
+
+  const voiceMessages: any[] = [];
+  const isSending = false;
+  const isPlaying = false;
+  const playRecording = async (_url: string) => {};
+  const stopPlayback = async () => {};
+  const getPlaybackUrl = async (_storageId: string) => null as string | null;
+  const sendRecording = async (_recordingId: string, _userId: string) => {};
+
   if (!isOnline || !user) {
     return null;
   }
-  
+
   const handleRecordingComplete = async (recordingId: string) => {
     try {
       await sendRecording(recordingId as any, user._id);
@@ -48,7 +44,7 @@ export function VoiceMessaging({ roomId, gameMode }: VoiceMessagingProps) {
       console.error('Failed to send voice message:', error);
     }
   };
-  
+
   return (
     <View style={styles.container}>
       {/* Voice Button */}
@@ -59,25 +55,18 @@ export function VoiceMessaging({ roomId, gameMode }: VoiceMessagingProps) {
           disabled={isSending}
         />
         {isSending && (
-          <ActivityIndicator
-            style={styles.sendingIndicator}
-            size="small"
-            color={colors.accent}
-          />
+          <ActivityIndicator style={styles.sendingIndicator} size="small" color={colors.accent} />
         )}
       </View>
-      
+
       {/* History Toggle */}
-      <TouchableOpacity
-        style={styles.historyToggle}
-        onPress={() => setShowHistory(!showHistory)}
-      >
+      <TouchableOpacity style={styles.historyToggle} onPress={() => setShowHistory(!showHistory)}>
         <Text style={styles.historyToggleText}>
           {showHistory ? 'Hide' : 'Show'} Voice History
           {voiceMessages.length > 0 && ` (${voiceMessages.length})`}
         </Text>
       </TouchableOpacity>
-      
+
       {/* Voice History */}
       {showHistory && (
         <View style={styles.historyContainer}>

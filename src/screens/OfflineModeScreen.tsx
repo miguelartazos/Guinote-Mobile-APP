@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Button } from '../components/Button';
 import { Card } from '../components/ui/Card';
@@ -14,19 +7,16 @@ import { colors } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
 import { useGameSettings } from '../hooks/useGameSettings';
-import { useConvexAuth } from '../hooks/useConvexAuth';
+import { useAuth } from '../hooks/useAuth';
 import { hasSavedGame, clearGameState } from '../utils/gameStatePersistence';
 import type { JugarStackScreenProps } from '../types/navigation';
 
 type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'expert';
 
-export function OfflineModeScreen({
-  navigation,
-}: JugarStackScreenProps<'OfflineMode'>) {
+export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'OfflineMode'>) {
   const { settings } = useGameSettings();
-  const { user } = useConvexAuth();
-  const [selectedDifficulty, setSelectedDifficulty] =
-    useState<DifficultyLevel>('medium');
+  const { user } = useAuth();
+  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyLevel>('medium');
   const [hasSaved, setHasSaved] = useState(false);
 
   useEffect(() => {
@@ -78,9 +68,7 @@ export function OfflineModeScreen({
           {user && (
             <View style={styles.playerInfo}>
               <Text style={styles.playerIcon}>👤</Text>
-              <Text style={styles.playerName}>
-                {user.username || 'Jugador'}
-              </Text>
+              <Text style={styles.playerName}>{user.username || 'Jugador'}</Text>
             </View>
           )}
         </View>
@@ -94,8 +82,7 @@ export function OfflineModeScreen({
                 key={difficulty.level}
                 style={[
                   styles.difficultyOption,
-                  selectedDifficulty === difficulty.level &&
-                    styles.difficultyOptionSelected,
+                  selectedDifficulty === difficulty.level && styles.difficultyOptionSelected,
                 ]}
                 onPress={() => setSelectedDifficulty(difficulty.level)}
                 activeOpacity={0.7}
@@ -104,8 +91,7 @@ export function OfflineModeScreen({
                 <Text
                   style={[
                     styles.difficultyText,
-                    selectedDifficulty === difficulty.level &&
-                      styles.difficultyTextSelected,
+                    selectedDifficulty === difficulty.level && styles.difficultyTextSelected,
                   ]}
                 >
                   {difficulty.title}
@@ -122,9 +108,7 @@ export function OfflineModeScreen({
               <Text style={styles.infoIcon}>{selectedDiff.icon}</Text>
               <View style={styles.infoContent}>
                 <Text style={styles.infoTitle}>{selectedDiff.title}</Text>
-                <Text style={styles.infoDescription}>
-                  {selectedDiff.description}
-                </Text>
+                <Text style={styles.infoDescription}>{selectedDiff.description}</Text>
               </View>
             </View>
           </Card>
@@ -190,11 +174,7 @@ export function OfflineModeScreen({
             {hasSaved ? 'Nueva Partida' : 'Comenzar Partida'}
           </Button>
 
-          <Button
-            variant="secondary"
-            onPress={() => navigation.goBack()}
-            icon="⬅️"
-          >
+          <Button variant="secondary" onPress={() => navigation.goBack()} icon="⬅️">
             Volver
           </Button>
         </View>

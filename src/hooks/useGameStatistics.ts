@@ -27,12 +27,7 @@ export function useGameStatistics() {
   }, []);
 
   const recordGame = useCallback(
-    async (
-      won: boolean,
-      score: number,
-      partnerName: string,
-      difficulty: DifficultyLevel,
-    ) => {
+    async (won: boolean, score: number, partnerName: string, difficulty: DifficultyLevel) => {
       try {
         await recordGameResult(won, score, partnerName, difficulty);
         const updatedStats = await loadStatistics();

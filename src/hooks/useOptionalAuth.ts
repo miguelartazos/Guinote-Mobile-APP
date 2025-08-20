@@ -15,7 +15,7 @@ export interface MockUser {
 export function useOptionalAuth() {
   // Always return a mock user for now since auth is not working
   // When auth is properly implemented, check APP_CONFIG.ENABLE_AUTH
-  
+
   const mockUser: MockUser = {
     _id: 'local-player',
     username: 'Jugador',

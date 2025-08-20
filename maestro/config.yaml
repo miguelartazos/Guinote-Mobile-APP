@@ -1,0 +1,4 @@
+# Maestro Configuration for Guinote2
+appId: com.guinote2
+name: Guinote2 Tests
+testTimeout: 120000

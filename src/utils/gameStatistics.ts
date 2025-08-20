@@ -77,10 +77,7 @@ function updateBasicStats(stats: GameStatistics, won: boolean): void {
   if (won) {
     stats.gamesWon++;
     stats.currentWinStreak++;
-    stats.longestWinStreak = Math.max(
-      stats.longestWinStreak,
-      stats.currentWinStreak,
-    );
+    stats.longestWinStreak = Math.max(stats.longestWinStreak, stats.currentWinStreak);
   } else {
     stats.gamesLost++;
     stats.currentWinStreak = 0;
@@ -105,10 +102,7 @@ function updateDifficultyStats(
   }
 }
 
-function updateFavoritePartner(
-  stats: GameStatistics,
-  partnerName: string,
-): void {
+function updateFavoritePartner(stats: GameStatistics, partnerName: string): void {
   if (!stats.favoritePartner || partnerName === stats.favoritePartner.name) {
     stats.favoritePartner = {
       name: partnerName,

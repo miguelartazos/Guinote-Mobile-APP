@@ -1,12 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Platform, Alert } from 'react-native';
-import {
-  check,
-  request,
-  PERMISSIONS,
-  RESULTS,
-  Permission,
-} from 'react-native-permissions';
+import { check, request, PERMISSIONS, RESULTS, Permission } from 'react-native-permissions';
 
 export function useVoicePermissions() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -46,10 +40,7 @@ export function useVoicePermissions() {
   const requestPermission = useCallback(async () => {
     const permission = getMicrophonePermission();
     if (!permission) {
-      Alert.alert(
-        'Error',
-        'Microphone permissions are not supported on this platform',
-      );
+      Alert.alert('Error', 'Microphone permissions are not supported on this platform');
       return false;
     }
 

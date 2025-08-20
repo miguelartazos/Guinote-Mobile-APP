@@ -7,10 +7,7 @@ import {
   type StyleProp,
 } from 'react-native';
 import { haptics } from '../../utils/haptics';
-import {
-  BUTTON_PRESS_SCALE,
-  BUTTON_PRESS_DURATION,
-} from '../../constants/animations';
+import { BUTTON_PRESS_SCALE, BUTTON_PRESS_DURATION } from '../../constants/animations';
 
 type AnimatedButtonProps = TouchableOpacityProps & {
   children: React.ReactNode;

@@ -18,7 +18,7 @@ class ErrorHandler {
   public handleError(
     error: Error | string,
     severity: ErrorSeverity = 'error',
-    context?: Record<string, any>
+    context?: Record<string, any>,
   ): void {
     const appError: AppError = {
       message: typeof error === 'string' ? error : error.message,
@@ -55,12 +55,7 @@ class ErrorHandler {
   }
 
   private showUserError(error: AppError): void {
-    Alert.alert(
-      'Error',
-      error.message,
-      [{ text: 'OK', style: 'default' }],
-      { cancelable: true }
-    );
+    Alert.alert('Error', error.message, [{ text: 'OK', style: 'default' }], { cancelable: true });
   }
 
   public getRecentErrors(): AppError[] {
@@ -74,48 +69,31 @@ class ErrorHandler {
 
 export const errorHandler = new ErrorHandler();
 
-// Convex-specific error handling
-export function handleConvexError(error: any): void {
+// Backend-specific error handling (generic)
+export function handleBackendError(error: any): void {
   if (error?.message?.includes('Invalid auth')) {
-    errorHandler.handleError(
-      'Authentication expired. Please log in again.',
-      'warning',
-      { convexError: error }
-    );
+    errorHandler.handleError('Authentication expired. Please log in again.', 'warning', {
+      backendError: error,
+    });
   } else if (error?.message?.includes('Network')) {
-    errorHandler.handleError(
-      'Network error. Please check your connection.',
-      'warning',
-      { convexError: error }
-    );
+    errorHandler.handleError('Network error. Please check your connection.', 'warning', {
+      backendError: error,
+    });
   } else {
-    errorHandler.handleError(
-      error,
-      'error',
-      { convexError: error }
-    );
+    errorHandler.handleError(error, 'error', { backendError: error });
   }
 }
 
 // Game-specific error handling
 export function handleGameError(error: any, context?: Record<string, any>): void {
   if (error?.message?.includes('Invalid move')) {
-    errorHandler.handleError(
-      'Invalid move. Please try again.',
-      'info',
-      { gameError: error, ...context }
-    );
+    errorHandler.handleError('Invalid move. Please try again.', 'info', {
+      gameError: error,
+      ...context,
+    });
   } else if (error?.message?.includes('turn')) {
-    errorHandler.handleError(
-      'Not your turn.',
-      'info',
-      { gameError: error, ...context }
-    );
+    errorHandler.handleError('Not your turn.', 'info', { gameError: error, ...context });
   } else {
-    errorHandler.handleError(
-      error,
-      'error',
-      { gameError: error, ...context }
-    );
+    errorHandler.handleError(error, 'error', { gameError: error, ...context });
   }
 }

@@ -24,50 +24,36 @@ const MockNavigationWrapper = ({
 
 describe('TutorialViewerScreen', () => {
   test('renders first step of basic tutorial', () => {
-    const { getByText } = render(
-      <MockNavigationWrapper tutorialType="basic" />,
-    );
+    const { getByText } = render(<MockNavigationWrapper tutorialType="basic" />);
 
     expect(getByText('Paso 1 de 7')).toBeTruthy();
     expect(getByText('¡Hola, futuro campeón/a de Guiñote! 🏆')).toBeTruthy();
-    expect(
-      getByText(/Estás a punto de aprender un juego legendario/),
-    ).toBeTruthy();
+    expect(getByText(/Estás a punto de aprender un juego legendario/)).toBeTruthy();
   });
 
   test('renders first step of complete tutorial', () => {
-    const { getByText } = render(
-      <MockNavigationWrapper tutorialType="complete" />,
-    );
+    const { getByText } = render(<MockNavigationWrapper tutorialType="complete" />);
 
     expect(getByText('Paso 1 de 9')).toBeTruthy();
     expect(getByText('🎓 Has llegado al final del camino')).toBeTruthy();
   });
 
   test('renders first step of cantes tutorial', () => {
-    const { getByText } = render(
-      <MockNavigationWrapper tutorialType="cantes" />,
-    );
+    const { getByText } = render(<MockNavigationWrapper tutorialType="cantes" />);
 
     expect(getByText('Paso 1 de 8')).toBeTruthy();
     expect(getByText('🚀 ¿Ya te sientes cómodo/a con lo básico?')).toBeTruthy();
   });
 
   test('renders first step of special tutorial', () => {
-    const { getByText } = render(
-      <MockNavigationWrapper tutorialType="special" />,
-    );
+    const { getByText } = render(<MockNavigationWrapper tutorialType="special" />);
 
     expect(getByText('Paso 1 de 4')).toBeTruthy();
-    expect(
-      getByText('⭐ Reglas Especiales y Situaciones Avanzadas'),
-    ).toBeTruthy();
+    expect(getByText('⭐ Reglas Especiales y Situaciones Avanzadas')).toBeTruthy();
   });
 
   test('navigation buttons work correctly', () => {
-    const { getByText, queryByText } = render(
-      <MockNavigationWrapper tutorialType="basic" />,
-    );
+    const { getByText, queryByText } = render(<MockNavigationWrapper tutorialType="basic" />);
 
     // First step - no Previous button visible, only Next
     expect(queryByText('Anterior')).toBeTruthy(); // Button exists but is disabled/hidden
@@ -85,9 +71,7 @@ describe('TutorialViewerScreen', () => {
   });
 
   test('shows Finalizar button on last step', () => {
-    const { getByText } = render(
-      <MockNavigationWrapper tutorialType="special" />,
-    );
+    const { getByText } = render(<MockNavigationWrapper tutorialType="special" />);
 
     // Navigate to last step (step 4 of 4)
     fireEvent.press(getByText('Siguiente')); // Step 2
@@ -100,9 +84,7 @@ describe('TutorialViewerScreen', () => {
   });
 
   test('navigates through multiple steps correctly', () => {
-    const { getByText } = render(
-      <MockNavigationWrapper tutorialType="basic" />,
-    );
+    const { getByText } = render(<MockNavigationWrapper tutorialType="basic" />);
 
     // Navigate to step 3
     fireEvent.press(getByText('Siguiente')); // Step 2
@@ -113,20 +95,14 @@ describe('TutorialViewerScreen', () => {
   });
 
   test('displays tutorial content with proper formatting', () => {
-    const { getByText } = render(
-      <MockNavigationWrapper tutorialType="basic" />,
-    );
+    const { getByText } = render(<MockNavigationWrapper tutorialType="basic" />);
 
     // Check that the description text is displayed
-    expect(
-      getByText(/Estás a punto de aprender un juego legendario/),
-    ).toBeTruthy();
+    expect(getByText(/Estás a punto de aprender un juego legendario/)).toBeTruthy();
   });
 
   test('step progress updates correctly', () => {
-    const { getByText } = render(
-      <MockNavigationWrapper tutorialType="basic" />,
-    );
+    const { getByText } = render(<MockNavigationWrapper tutorialType="basic" />);
 
     // First step should show progress
     expect(getByText('Paso 1 de 7')).toBeTruthy();

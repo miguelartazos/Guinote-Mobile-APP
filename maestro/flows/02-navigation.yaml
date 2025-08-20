@@ -1,0 +1,22 @@
+appId: com.guinote2
+---
+# Test: Basic Navigation
+- launchApp:
+    clearState: true
+
+# Check bottom navigation tabs
+- assertVisible: "Jugar"
+- assertVisible: "Ranking"
+- assertVisible: "Ajustes"
+
+# Navigate to Ranking
+- tapOn: "Ranking"
+- assertVisible: "Estadísticas"
+
+# Navigate to Settings
+- tapOn: "Ajustes"
+- assertVisible: "Configuración"
+
+# Return to Play
+- tapOn: "Jugar"
+- assertVisible: "Modo Sin Conexión"

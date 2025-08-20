@@ -16,11 +16,7 @@ describe('tutorialProgress', () => {
   const mockProgress = {
     tutorialType: tutorialType('complete'),
     currentStepIndex: 3,
-    completedSteps: [
-      tutorialStepId('step1'),
-      tutorialStepId('step2'),
-      tutorialStepId('step3'),
-    ],
+    completedSteps: [tutorialStepId('step1'), tutorialStepId('step2'), tutorialStepId('step3')],
     startedAt: '2024-01-01T10:00:00.000Z',
     lastUpdated: '2024-01-01T10:05:00.000Z',
     isCompleted: false,
@@ -47,9 +43,7 @@ describe('tutorialProgress', () => {
         currentProgress: mockProgress,
         completedTutorials: [],
       };
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
-        JSON.stringify(storedData),
-      );
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(storedData));
 
       const result = await loadTutorialProgress();
 
@@ -57,9 +51,7 @@ describe('tutorialProgress', () => {
     });
 
     test('handles storage errors gracefully', async () => {
-      (AsyncStorage.getItem as jest.Mock).mockRejectedValue(
-        new Error('Storage error'),
-      );
+      (AsyncStorage.getItem as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
       const result = await loadTutorialProgress();
 
@@ -94,15 +86,11 @@ describe('tutorialProgress', () => {
           },
         ],
       };
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
-        JSON.stringify(existingData),
-      );
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(existingData));
 
       await saveTutorialProgress(mockProgress);
 
-      const savedData = JSON.parse(
-        (AsyncStorage.setItem as jest.Mock).mock.calls[0][1],
-      );
+      const savedData = JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1]);
       expect(savedData.completedTutorials).toHaveLength(1);
       expect(savedData.currentProgress).toEqual(
         expect.objectContaining({
@@ -120,9 +108,7 @@ describe('tutorialProgress', () => {
 
       await completeTutorial(tutorialType('complete'), startedAt);
 
-      const savedData = JSON.parse(
-        (AsyncStorage.setItem as jest.Mock).mock.calls[0][1],
-      );
+      const savedData = JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1]);
       expect(savedData.completedTutorials).toHaveLength(1);
       expect(savedData.completedTutorials[0]).toEqual({
         tutorialType: tutorialType('complete'),
@@ -136,15 +122,11 @@ describe('tutorialProgress', () => {
         currentProgress: mockProgress,
         completedTutorials: [],
       };
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
-        JSON.stringify(existingData),
-      );
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(existingData));
 
       await completeTutorial(tutorialType('complete'), mockProgress.startedAt);
 
-      const savedData = JSON.parse(
-        (AsyncStorage.setItem as jest.Mock).mock.calls[0][1],
-      );
+      const savedData = JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1]);
       expect(savedData.currentProgress).toBeUndefined();
     });
   });
@@ -161,15 +143,11 @@ describe('tutorialProgress', () => {
           },
         ],
       };
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
-        JSON.stringify(existingData),
-      );
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(existingData));
 
       await clearCurrentProgress();
 
-      const savedData = JSON.parse(
-        (AsyncStorage.setItem as jest.Mock).mock.calls[0][1],
-      );
+      const savedData = JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1]);
       expect(savedData.currentProgress).toBeUndefined();
       expect(savedData.completedTutorials).toHaveLength(1);
     });
@@ -201,9 +179,7 @@ describe('tutorialProgress', () => {
           },
         ],
       };
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
-        JSON.stringify(existingData),
-      );
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(existingData));
 
       const result = await hasCompletedTutorial(tutorialType('basic'));
 
@@ -234,9 +210,7 @@ describe('tutorialProgress', () => {
           },
         ],
       };
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
-        JSON.stringify(existingData),
-      );
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(existingData));
 
       const stats = await getTutorialCompletionStats();
 

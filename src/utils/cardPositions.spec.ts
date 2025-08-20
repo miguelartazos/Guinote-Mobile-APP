@@ -25,18 +25,10 @@ describe('cardPositions', () => {
       const visibleWidth = cardWidth * 0.88; // 88% visible
 
       // Test first card
-      const firstCard = getBottomPlayerCardPosition(
-        0,
-        totalCards,
-        mockScreenWidth,
-      );
+      const firstCard = getBottomPlayerCardPosition(0, totalCards, mockScreenWidth);
 
       // Test second card - should be 88% of card width apart
-      const secondCard = getBottomPlayerCardPosition(
-        1,
-        totalCards,
-        mockScreenWidth,
-      );
+      const secondCard = getBottomPlayerCardPosition(1, totalCards, mockScreenWidth);
       expect(secondCard.x - firstCard.x).toBeCloseTo(visibleWidth, 5);
 
       // Test no rotation
@@ -54,11 +46,7 @@ describe('cardPositions', () => {
       const totalWidth = cardWidth + (totalCards - 1) * visibleWidth;
       const expectedStartX = (mockScreenWidth - totalWidth) / 2;
 
-      const firstCard = getBottomPlayerCardPosition(
-        0,
-        totalCards,
-        mockScreenWidth,
-      );
+      const firstCard = getBottomPlayerCardPosition(0, totalCards, mockScreenWidth);
       expect(firstCard.x).toBeCloseTo(expectedStartX, 5);
     });
 
@@ -80,16 +68,8 @@ describe('cardPositions', () => {
       const totalCards = 6;
       const visibleCardWidth = getCardWidth('small') * 0.35; // 35% visible
 
-      const firstCard = getTopPlayerCardPosition(
-        0,
-        totalCards,
-        mockScreenWidth,
-      );
-      const secondCard = getTopPlayerCardPosition(
-        1,
-        totalCards,
-        mockScreenWidth,
-      );
+      const firstCard = getTopPlayerCardPosition(0, totalCards, mockScreenWidth);
+      const secondCard = getTopPlayerCardPosition(1, totalCards, mockScreenWidth);
 
       expect(secondCard.x - firstCard.x).toBeCloseTo(visibleCardWidth, 5);
       expect(firstCard.rotation).toBe(0);
@@ -109,18 +89,8 @@ describe('cardPositions', () => {
       const totalCards = 6;
       const visibleCardHeight = getCardHeight('small') * 0.35; // 35% visible
 
-      const firstCard = getSidePlayerCardPosition(
-        0,
-        totalCards,
-        mockScreenHeight,
-        true,
-      );
-      const secondCard = getSidePlayerCardPosition(
-        1,
-        totalCards,
-        mockScreenHeight,
-        true,
-      );
+      const firstCard = getSidePlayerCardPosition(0, totalCards, mockScreenHeight, true);
+      const secondCard = getSidePlayerCardPosition(1, totalCards, mockScreenHeight, true);
 
       expect(secondCard.y - firstCard.y).toBeCloseTo(visibleCardHeight, 5);
       expect(firstCard.rotation).toBe(90);
@@ -130,18 +100,8 @@ describe('cardPositions', () => {
       const totalCards = 6;
       const visibleCardHeight = getCardHeight('small') * 0.35;
 
-      const firstCard = getSidePlayerCardPosition(
-        0,
-        totalCards,
-        mockScreenHeight,
-        false,
-      );
-      const secondCard = getSidePlayerCardPosition(
-        1,
-        totalCards,
-        mockScreenHeight,
-        false,
-      );
+      const firstCard = getSidePlayerCardPosition(0, totalCards, mockScreenHeight, false);
+      const secondCard = getSidePlayerCardPosition(1, totalCards, mockScreenHeight, false);
 
       expect(secondCard.y - firstCard.y).toBeCloseTo(visibleCardHeight, 5);
       expect(firstCard.rotation).toBe(-90);
@@ -163,12 +123,7 @@ describe('cardPositions', () => {
 
     test('uses decreasing z-index for topmost on top', () => {
       const firstCard = getSidePlayerCardPosition(0, 6, mockScreenHeight, true);
-      const secondCard = getSidePlayerCardPosition(
-        1,
-        6,
-        mockScreenHeight,
-        true,
-      );
+      const secondCard = getSidePlayerCardPosition(1, 6, mockScreenHeight, true);
 
       expect(firstCard.zIndex).toBe(15);
       expect(secondCard.zIndex).toBe(14);
@@ -194,11 +149,7 @@ describe('cardPositions', () => {
         boardLayout: { x: 100, y: 200, width: 300, height: 400 },
       };
 
-      const deckPos = getDeckPosition(
-        mockScreenWidth,
-        mockScreenHeight,
-        layoutInfo,
-      );
+      const deckPos = getDeckPosition(mockScreenWidth, mockScreenHeight, layoutInfo);
 
       // Should be anchored to left of board with gap
       const cardWidth = getCardWidth('medium');
@@ -240,12 +191,7 @@ describe('cardPositions', () => {
         boardLayout: { x: 50, y: 100, width: 200, height: 300 },
       };
 
-      const position = getCenterPlayPosition(
-        0,
-        mockScreenWidth,
-        mockScreenHeight,
-        layoutInfo,
-      );
+      const position = getCenterPlayPosition(0, mockScreenWidth, mockScreenHeight, layoutInfo);
 
       // Should be centered in board, not screen
       expect(position.x).toBe(150); // 50 + 200/2

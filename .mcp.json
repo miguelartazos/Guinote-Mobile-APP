@@ -1,0 +1,46 @@
+{
+  "mcpServers": {
+    "jest": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-jest@latest",
+        "--project",
+        "/Users/maiky/Documents/guinote2"
+      ],
+      "env": {}
+    },
+    "eslint": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-eslint@latest",
+        "--project",
+        "/Users/maiky/Documents/guinote2"
+      ],
+      "env": {}
+    },
+    "prettier": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-prettier@latest",
+        "--project",
+        "/Users/maiky/Documents/guinote2"
+      ],
+      "env": {}
+    },
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--read-only",
+        "--project-ref=xewzprfamxswxtmzucbt"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
+    }
+  }
+}

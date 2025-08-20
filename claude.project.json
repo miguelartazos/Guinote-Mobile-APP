@@ -1,0 +1,92 @@
+{
+  "name": "Guinote Game",
+  "description": "Spanish card game with Convex backend",
+  "mcp_servers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem"],
+      "env": {
+        "MCP_FS_ALLOW_PATHS": "/Users/maiky/Documents/guinote2"
+      }
+    },
+    "terminal": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-terminal"],
+      "env": {
+        "MCP_TERMINAL_CWD": "/Users/maiky/Documents/guinote2",
+        "MCP_TERMINAL_ALLOW_COMMANDS": "npm,yarn,npx,jest,eslint,prettier,pod,expo,eas,git,convex,brew,supabase"
+      }
+    },
+    "git": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-git"],
+      "env": {
+        "MCP_GIT_REPO_PATH": "/Users/maiky/Documents/guinote2"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "GITHUB_REPO": "your-username/guinote2"
+      }
+    },
+    "jest": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-jest"],
+      "env": {
+        "JEST_PROJECT_ROOT": "/Users/maiky/Documents/guinote2"
+      }
+    },
+    "convex": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-convex"],
+      "env": {
+        "CONVEX_URL": "${CONVEX_URL}",
+        "CONVEX_DEPLOY_KEY": "${CONVEX_DEPLOY_KEY}"
+      }
+    },
+    "sentry": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-sentry"],
+      "env": {
+        "SENTRY_DSN": "${SENTRY_DSN}",
+        "SENTRY_ORG": "${SENTRY_ORG}",
+        "SENTRY_PROJECT": "${SENTRY_PROJECT}",
+        "SENTRY_AUTH_TOKEN": "${SENTRY_AUTH_TOKEN}"
+      }
+    },
+    "expo": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-expo"],
+      "env": {
+        "EXPO_TOKEN": "${EXPO_TOKEN}",
+        "EAS_PROJECT_ID": "${EAS_PROJECT_ID}"
+      }
+    }
+  },
+  "context": {
+    "include": [
+      "src/**/*",
+      "convex/**/*",
+      "*.json",
+      "*.js",
+      "*.ts",
+      "*.tsx",
+      "*.md",
+      ".eslintrc.*",
+      ".prettierrc.*"
+    ],
+    "exclude": [
+      "node_modules/**",
+      "android/build/**",
+      "ios/build/**",
+      "*.log",
+      ".git/**",
+      "coverage/**",
+      "dist/**"
+    ]
+  },
+  "instructions": "Follow the best practices in CLAUDE.md. Use TDD approach, write tests first, keep functions simple and testable."
+}

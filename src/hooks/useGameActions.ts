@@ -9,11 +9,7 @@ interface UseGameActionsProps {
   sendMove: (move: GameMove) => Promise<boolean>;
 }
 
-export function useGameActions({
-  gameState,
-  userId,
-  sendMove,
-}: UseGameActionsProps) {
+export function useGameActions({ gameState, userId, sendMove }: UseGameActionsProps) {
   const playCard = useCallback(
     async (card: Card): Promise<boolean> => {
       if (!gameState || !userId) return false;
@@ -80,9 +76,7 @@ export function useGameActions({
     const playerHand = gameState.hands.get(userId as PlayerId);
     if (!playerHand) return false;
 
-    return playerHand.some(
-      card => card.suit === gameState.trumpSuit && card.value === 2,
-    );
+    return playerHand.some(card => card.suit === gameState.trumpSuit && card.value === 2);
   }, [gameState, userId]);
 
   const canDeclareCante = useCallback(

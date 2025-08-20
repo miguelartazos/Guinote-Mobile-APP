@@ -16,13 +16,13 @@ export function useConnectionStatus() {
     isOnline: true,
     reconnectAttempts: 0,
   });
-  
+
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const reconnectAttemptsRef = useRef(0);
-  
+
   useEffect(() => {
     let isSubscribed = true;
-    
+
     // Monitor app state changes
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
@@ -30,9 +30,9 @@ export function useConnectionStatus() {
         checkConnection();
       }
     };
-    
+
     const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-    
+
     // Periodic connection check (simplified for now)
     const checkConnection = async () => {
       try {
@@ -53,33 +53,33 @@ export function useConnectionStatus() {
         }));
       }
     };
-    
+
     // Handle reconnection with exponential backoff
     const handleReconnect = () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
-      
+
       setConnectionInfo(prev => ({
         ...prev,
         status: 'reconnecting',
         reconnectAttempts: reconnectAttemptsRef.current,
       }));
-      
+
       const backoffDelay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-      
+
       reconnectTimeoutRef.current = setTimeout(() => {
         reconnectAttemptsRef.current++;
         checkConnection();
       }, backoffDelay);
     };
-    
+
     // Initial check
     checkConnection();
-    
+
     // Set up periodic checks
     const checkInterval = setInterval(checkConnection, 10000); // Check every 10 seconds
-    
+
     return () => {
       isSubscribed = false;
       appStateSubscription.remove();
@@ -89,14 +89,14 @@ export function useConnectionStatus() {
       }
     };
   }, []);
-  
+
   // Reset reconnect attempts when connected
   useEffect(() => {
     if (connectionInfo.status === 'connected') {
       reconnectAttemptsRef.current = 0;
     }
   }, [connectionInfo.status]);
-  
+
   return {
     ...connectionInfo,
     isConnected: connectionInfo.status === 'connected',

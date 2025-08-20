@@ -16,10 +16,7 @@ describe('QuickVoiceButtons', () => {
   describe('rendering', () => {
     test('renders all quick message buttons when visible', () => {
       const { getByText } = render(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          visible={true}
-        />,
+        <QuickVoiceButtons onQuickMessage={mockOnQuickMessage} visible={true} />,
       );
 
       QUICK_VOICE_MESSAGES.forEach(message => {
@@ -30,10 +27,7 @@ describe('QuickVoiceButtons', () => {
 
     test('does not render when not visible', () => {
       const { queryByText } = render(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          visible={false}
-        />,
+        <QuickVoiceButtons onQuickMessage={mockOnQuickMessage} visible={false} />,
       );
 
       QUICK_VOICE_MESSAGES.forEach(message => {
@@ -43,11 +37,7 @@ describe('QuickVoiceButtons', () => {
 
     test('applies disabled styles when disabled', () => {
       const { getByText } = render(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          disabled={true}
-          visible={true}
-        />,
+        <QuickVoiceButtons onQuickMessage={mockOnQuickMessage} disabled={true} visible={true} />,
       );
 
       const firstButton = getByText(QUICK_VOICE_MESSAGES[0].text);
@@ -59,10 +49,7 @@ describe('QuickVoiceButtons', () => {
   describe('interactions', () => {
     test('calls onQuickMessage when button is pressed', async () => {
       const { getByText } = render(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          visible={true}
-        />,
+        <QuickVoiceButtons onQuickMessage={mockOnQuickMessage} visible={true} />,
       );
 
       const firstMessage = QUICK_VOICE_MESSAGES[0];
@@ -82,11 +69,7 @@ describe('QuickVoiceButtons', () => {
 
     test('does not call onQuickMessage when disabled', () => {
       const { getByText } = render(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          disabled={true}
-          visible={true}
-        />,
+        <QuickVoiceButtons onQuickMessage={mockOnQuickMessage} disabled={true} visible={true} />,
       );
 
       const button = getByText(QUICK_VOICE_MESSAGES[0].text);
@@ -101,10 +84,7 @@ describe('QuickVoiceButtons', () => {
 
     test('shows pressed state temporarily when button is pressed', async () => {
       const { getByText } = render(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          visible={true}
-        />,
+        <QuickVoiceButtons onQuickMessage={mockOnQuickMessage} visible={true} />,
       );
 
       const firstMessage = QUICK_VOICE_MESSAGES[0];
@@ -127,10 +107,7 @@ describe('QuickVoiceButtons', () => {
 
     test('handles multiple quick presses correctly', async () => {
       const { getByText } = render(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          visible={true}
-        />,
+        <QuickVoiceButtons onQuickMessage={mockOnQuickMessage} visible={true} />,
       );
 
       const firstButton = getByText(QUICK_VOICE_MESSAGES[0].text);
@@ -145,14 +122,8 @@ describe('QuickVoiceButtons', () => {
 
       await waitFor(() => {
         expect(mockOnQuickMessage).toHaveBeenCalledTimes(2);
-        expect(mockOnQuickMessage).toHaveBeenNthCalledWith(
-          1,
-          QUICK_VOICE_MESSAGES[0],
-        );
-        expect(mockOnQuickMessage).toHaveBeenNthCalledWith(
-          2,
-          QUICK_VOICE_MESSAGES[1],
-        );
+        expect(mockOnQuickMessage).toHaveBeenNthCalledWith(1, QUICK_VOICE_MESSAGES[0]);
+        expect(mockOnQuickMessage).toHaveBeenNthCalledWith(2, QUICK_VOICE_MESSAGES[1]);
       });
     });
   });
@@ -160,18 +131,10 @@ describe('QuickVoiceButtons', () => {
   describe('visibility transitions', () => {
     test('shows with animation when becoming visible', () => {
       const { rerender } = render(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          visible={false}
-        />,
+        <QuickVoiceButtons onQuickMessage={mockOnQuickMessage} visible={false} />,
       );
 
-      rerender(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          visible={true}
-        />,
-      );
+      rerender(<QuickVoiceButtons onQuickMessage={mockOnQuickMessage} visible={true} />);
 
       // Animation should start
       act(() => {
@@ -184,18 +147,10 @@ describe('QuickVoiceButtons', () => {
 
     test('hides with animation when becoming invisible', () => {
       const { rerender } = render(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          visible={true}
-        />,
+        <QuickVoiceButtons onQuickMessage={mockOnQuickMessage} visible={true} />,
       );
 
-      rerender(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          visible={false}
-        />,
-      );
+      rerender(<QuickVoiceButtons onQuickMessage={mockOnQuickMessage} visible={false} />);
 
       // Animation should start
       act(() => {
@@ -210,10 +165,7 @@ describe('QuickVoiceButtons', () => {
   describe('accessibility', () => {
     test('buttons are accessible and have proper text', () => {
       const { getByText } = render(
-        <QuickVoiceButtons
-          onQuickMessage={mockOnQuickMessage}
-          visible={true}
-        />,
+        <QuickVoiceButtons onQuickMessage={mockOnQuickMessage} visible={true} />,
       );
 
       QUICK_VOICE_MESSAGES.forEach(message => {

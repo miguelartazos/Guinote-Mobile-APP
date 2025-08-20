@@ -48,10 +48,10 @@ export function useOfflineAuth() {
 
   const updateUsername = async (username: string) => {
     if (!user) return;
-    
+
     const updatedUser = { ...user, username };
     setUser(updatedUser);
-    
+
     try {
       await AsyncStorage.setItem(OFFLINE_USER_KEY, JSON.stringify(updatedUser));
     } catch (error) {

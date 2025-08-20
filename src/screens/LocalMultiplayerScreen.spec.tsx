@@ -27,9 +27,7 @@ describe('LocalMultiplayerScreen', () => {
     );
 
     expect(getByText('Paso y Juego')).toBeTruthy();
-    expect(
-      getByText('Configura los jugadores para la partida local'),
-    ).toBeTruthy();
+    expect(getByText('Configura los jugadores para la partida local')).toBeTruthy();
     expect(getByText('4 Jugadores')).toBeTruthy();
 
     const nameInputs = getAllByPlaceholderText(/Jugador \d+/);
@@ -45,9 +43,7 @@ describe('LocalMultiplayerScreen', () => {
 
     const nameInputs = getAllByPlaceholderText(/Jugador \d+/);
     expect(nameInputs).toHaveLength(2);
-    expect(
-      getByText('⚠️ Modo simplificado: cada jugador controla dos manos'),
-    ).toBeTruthy();
+    expect(getByText('⚠️ Modo simplificado: cada jugador controla dos manos')).toBeTruthy();
   });
 
   it('updates player names correctly', () => {
@@ -89,9 +85,7 @@ describe('LocalMultiplayerScreen', () => {
   });
 
   it('shows error when trying to select dealer without all names', () => {
-    const { getByText } = render(
-      <LocalMultiplayerScreen navigation={navigation} route={route} />,
-    );
+    const { getByText } = render(<LocalMultiplayerScreen navigation={navigation} route={route} />);
 
     fireEvent.press(getByText('🎲 Seleccionar Dealer al Azar'));
 
@@ -165,9 +159,7 @@ describe('LocalMultiplayerScreen', () => {
   });
 
   it('navigates back when Volver is pressed', () => {
-    const { getByText } = render(
-      <LocalMultiplayerScreen navigation={navigation} route={route} />,
-    );
+    const { getByText } = render(<LocalMultiplayerScreen navigation={navigation} route={route} />);
 
     fireEvent.press(getByText('Volver'));
 
@@ -175,16 +167,10 @@ describe('LocalMultiplayerScreen', () => {
   });
 
   it('shows correct team information', () => {
-    const { getByText } = render(
-      <LocalMultiplayerScreen navigation={navigation} route={route} />,
-    );
+    const { getByText } = render(<LocalMultiplayerScreen navigation={navigation} route={route} />);
 
-    expect(
-      getByText('🟦 Equipo 1: Jugadores 1 y 3 (enfrentados)'),
-    ).toBeTruthy();
-    expect(
-      getByText('🟥 Equipo 2: Jugadores 2 y 4 (enfrentados)'),
-    ).toBeTruthy();
+    expect(getByText('🟦 Equipo 1: Jugadores 1 y 3 (enfrentados)')).toBeTruthy();
+    expect(getByText('🟥 Equipo 2: Jugadores 2 y 4 (enfrentados)')).toBeTruthy();
   });
 
   it('enforces max name length', () => {

@@ -9,18 +9,14 @@ import {
   ScrollView,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import type {
-  JugarStackNavigationProp,
-  JugarStackScreenProps,
-} from '../types/navigation';
+import type { JugarStackNavigationProp, JugarStackScreenProps } from '../types/navigation';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
-// Using Convex for backend
+// Using unified hooks for backend
 import { shareRoomViaWhatsApp } from '../services/sharing/whatsappShare';
-import { useConvexAuth } from '../hooks/useConvexAuth';
-import { useConvexGame } from '../hooks/useConvexGame';
-import { useConvexRooms } from '../hooks/useConvexRooms';
-import type { Id } from '../../convex/_generated/dataModel';
+import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
+import { useUnifiedGame } from '../hooks/useUnifiedGame';
+import { useUnifiedRooms } from '../hooks/useUnifiedRooms';
 
 type Props = JugarStackScreenProps<'GameRoom'>;
 
@@ -44,18 +40,21 @@ export function GameRoomScreen() {
   const [isStarting, setIsStarting] = useState(false);
 
   // Auth hooks
-  const { user: convexUser } = useConvexAuth();
-  const profile = convexUser;
+  const { user, isAuthenticated } = useUnifiedAuth();
+  const profile = user;
+  const userId = user?.id || user?._id;
 
-  // Convex hooks
-  const { room: convexRoom, actions: convexActions } = useConvexGame(
-    roomId ? (roomId as Id<'rooms'>) : undefined,
-  );
-  const convexRooms = useConvexRooms();
+  // Unified hooks
+  const gameHook = useUnifiedGame(roomId || '');
+  const rooms = useUnifiedRooms();
 
-  // Data from Convex
-  const players = convexRoom ? convexRoom.players : [];
-  const isConnected = !!convexRoom;
+  // Extract room and actions from the game hook
+  const room = gameHook?.room;
+  const actions = gameHook?.actions || gameHook;
+
+  // Data from backend
+  const players = room ? room.players : [];
+  const isConnected = !!room;
 
   useEffect(() => {
     if (players && players.length > 0) {
@@ -70,9 +69,9 @@ export function GameRoomScreen() {
           let isAI = false;
           let userId: string | undefined;
 
-          // Convex data structure
+          // Check if current user is host
           isCurrentUserHost =
-            convexRoom?.hostId === convexUser?._id && position === 0;
+            (room?.hostId === userId || room?.host_id === userId) && position === 0;
           isAI = player.isAI || false;
           playerName = isAI
             ? `IA ${player.aiDifficulty || 'medium'}`
@@ -115,7 +114,7 @@ export function GameRoomScreen() {
       setPlayerSlots(emptySlots);
       setIsLoading(false);
     }
-  }, [players, profile, convexRoom, convexUser]);
+  }, [players, profile, room, userId]);
 
   const handleAddAI = async () => {
     const emptySlots = playerSlots.filter(slot => !slot.isOccupied).length;
@@ -125,8 +124,8 @@ export function GameRoomScreen() {
     }
 
     try {
-      if (convexRoom) {
-        await convexActions.addAIPlayer('medium');
+      if (room && actions?.addAIPlayer) {
+        await actions.addAIPlayer('medium');
       }
     } catch (error) {
       Alert.alert('Error', 'No se pudo añadir jugador IA');
@@ -135,14 +134,11 @@ export function GameRoomScreen() {
 
   const handleRemoveAI = async () => {
     try {
-      if (convexRoom) {
+      if (room) {
         // Find first AI player to remove
         const aiPlayer = playerSlots.find(slot => slot.isAI);
-        if (aiPlayer) {
-          await convexRooms.removeAIPlayer(
-            roomId as Id<'rooms'>,
-            aiPlayer.position,
-          );
+        if (aiPlayer && rooms.removeAIPlayer) {
+          await rooms.removeAIPlayer(roomId, aiPlayer.position);
         }
       }
     } catch (error) {
@@ -165,10 +161,10 @@ export function GameRoomScreen() {
         {
           text: 'Completar con IA',
           onPress: async () => {
-            if (convexRoom) {
+            if (room && actions?.addAIPlayer) {
               // Add AI players one by one
               for (let i = 0; i < 4 - occupiedSlots; i++) {
-                await convexActions.addAIPlayer('medium');
+                await actions.addAIPlayer('medium');
               }
             }
             setTimeout(() => startGame(), 1000);
@@ -196,8 +192,8 @@ export function GameRoomScreen() {
         text: 'Salir',
         style: 'destructive',
         onPress: async () => {
-          if (convexUser) {
-            await convexActions.leaveRoom(convexUser._id);
+          if (userId && actions?.leaveRoom) {
+            await actions.leaveRoom(userId);
           }
           navigation.goBack();
         },
@@ -205,7 +201,7 @@ export function GameRoomScreen() {
     ]);
   };
 
-  const isHost = convexRoom?.hostId === convexUser?._id;
+  const isHost = room && userId && (room.hostId === userId || room.host_id === userId);
   const hasAI = playerSlots.some(slot => slot.isAI);
   const canStart = playerSlots.filter(slot => slot.isOccupied).length >= 2;
 
@@ -224,16 +220,9 @@ export function GameRoomScreen() {
         {/* Room Code */}
         <View style={styles.roomCodeContainer}>
           <Text style={styles.roomCodeLabel}>Código de Sala</Text>
-          <Text style={styles.roomCode}>
-            {roomCode || convexRoom?.code || 'LOADING'}
-          </Text>
-          <TouchableOpacity
-            style={styles.shareButton}
-            onPress={handleShareRoom}
-          >
-            <Text style={styles.shareButtonText}>
-              📱 Compartir por WhatsApp
-            </Text>
+          <Text style={styles.roomCode}>{roomCode || room?.code || 'LOADING'}</Text>
+          <TouchableOpacity style={styles.shareButton} onPress={handleShareRoom}>
+            <Text style={styles.shareButtonText}>📱 Compartir por WhatsApp</Text>
           </TouchableOpacity>
         </View>
 
@@ -252,9 +241,7 @@ export function GameRoomScreen() {
                         {slot.isAI ? '🤖 ' : '👤 '}
                         {slot.name}
                       </Text>
-                      {slot.isHost && (
-                        <Text style={styles.hostBadge}>Anfitrión</Text>
-                      )}
+                      {slot.isHost && <Text style={styles.hostBadge}>Anfitrión</Text>}
                     </>
                   ) : (
                     <Text style={styles.emptySlot}>Esperando jugador...</Text>
@@ -276,9 +263,7 @@ export function GameRoomScreen() {
                         {slot.isAI ? '🤖 ' : '👤 '}
                         {slot.name}
                       </Text>
-                      {slot.isHost && (
-                        <Text style={styles.hostBadge}>Anfitrión</Text>
-                      )}
+                      {slot.isHost && <Text style={styles.hostBadge}>Anfitrión</Text>}
                     </>
                   ) : (
                     <Text style={styles.emptySlot}>Esperando jugador...</Text>
@@ -298,23 +283,23 @@ export function GameRoomScreen() {
         )}
 
         {/* Room Status */}
-        {convexRoom && (
+        {room && (
           <View style={styles.statusContainer}>
             <Text style={styles.statusText}>
               Estado:{' '}
-              {convexRoom.status === 'waiting'
+              {room.status === 'waiting'
                 ? 'Esperando jugadores'
-                : convexRoom.status === 'playing'
+                : room.status === 'playing'
                 ? 'En juego'
-                : convexRoom.status}
+                : room.status}
             </Text>
             <Text style={styles.statusText}>
               Modo:{' '}
-              {convexRoom.gameMode === 'friends'
+              {(room.gameMode || room.game_mode) === 'friends'
                 ? 'Amigos'
-                : convexRoom.gameMode === 'ranked'
+                : (room.gameMode || room.game_mode) === 'ranked'
                 ? 'Clasificatoria'
-                : convexRoom.gameMode}
+                : room.gameMode || room.game_mode}
             </Text>
           </View>
         )}

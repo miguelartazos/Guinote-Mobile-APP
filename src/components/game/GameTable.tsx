@@ -13,11 +13,7 @@ import { typography } from '../../constants/typography';
 import { getCardDimensions } from '../../utils/responsive';
 import { useOrientation } from '../../hooks/useOrientation';
 import { useTableLayout } from '../../hooks/useTableLayout';
-import {
-  getPlayerCardPosition,
-  getDeckPosition,
-  type LayoutInfo,
-} from '../../utils/cardPositions';
+import { getPlayerCardPosition, getDeckPosition, type LayoutInfo } from '../../utils/cardPositions';
 import { getTrickCardPositionWithinBoard } from '../../utils/trickCardPositions';
 
 type Player = {
@@ -33,16 +29,9 @@ type GameTableProps = {
   currentPlayerIndex: number;
   trumpCard?: SpanishCardData;
   currentTrick?: Array<{ playerId: string; card: SpanishCardData }>;
-  collectedTricks?: Map<
-    string,
-    Array<Array<{ playerId: string; card: SpanishCardData }>>
-  >;
+  collectedTricks?: Map<string, Array<Array<{ playerId: string; card: SpanishCardData }>>>;
   onCardPlay: (cardIndex: number) => void;
-  onCardReorder?: (
-    playerId: string,
-    fromIndex: number,
-    toIndex: number,
-  ) => void;
+  onCardReorder?: (playerId: string, fromIndex: number, toIndex: number) => void;
   onExitGame?: () => void;
   onRenuncio?: () => void;
   thinkingPlayerId?: string | null;
@@ -121,36 +110,28 @@ export function GameTable({
       <MinimalPlayerPanel
         playerName={topPlayer.name}
         position="top"
-        isCurrentPlayer={
-          currentPlayerIndex === playerIdToPosition[topPlayer.id]
-        }
+        isCurrentPlayer={currentPlayerIndex === playerIdToPosition[topPlayer.id]}
         teamId="team1"
         isThinking={thinkingPlayerId === topPlayer.id}
       />
       <MinimalPlayerPanel
         playerName={leftPlayer.name}
         position="left"
-        isCurrentPlayer={
-          currentPlayerIndex === playerIdToPosition[leftPlayer.id]
-        }
+        isCurrentPlayer={currentPlayerIndex === playerIdToPosition[leftPlayer.id]}
         teamId="team2"
         isThinking={thinkingPlayerId === leftPlayer.id}
       />
       <MinimalPlayerPanel
         playerName={rightPlayer.name}
         position="right"
-        isCurrentPlayer={
-          currentPlayerIndex === playerIdToPosition[rightPlayer.id]
-        }
+        isCurrentPlayer={currentPlayerIndex === playerIdToPosition[rightPlayer.id]}
         teamId="team2"
         isThinking={thinkingPlayerId === rightPlayer.id}
       />
       <MinimalPlayerPanel
         playerName={bottomPlayer.name}
         position="bottom"
-        isCurrentPlayer={
-          currentPlayerIndex === playerIdToPosition[bottomPlayer.id]
-        }
+        isCurrentPlayer={currentPlayerIndex === playerIdToPosition[bottomPlayer.id]}
         teamId="team1"
         isThinking={thinkingPlayerId === bottomPlayer.id}
       />
@@ -303,9 +284,7 @@ export function GameTable({
       {trickAnimating && pendingTrickWinner && (
         <TrickCollectionAnimation
           cards={pendingTrickWinner.cards}
-          winnerPosition={getPlayerPosition(
-            playerIdToPosition[pendingTrickWinner.playerId] ?? 0,
-          )}
+          winnerPosition={getPlayerPosition(playerIdToPosition[pendingTrickWinner.playerId] ?? 0)}
           points={pendingTrickWinner.points}
           onComplete={() => {
             onCompleteTrickAnimation?.();
@@ -322,24 +301,12 @@ export function GameTable({
           style={[
             styles.deckPileContainer,
             {
-              left: getDeckPosition(
-                layout.table.width,
-                layout.table.height,
-                layoutInfo,
-              ).x,
-              top: getDeckPosition(
-                layout.table.width,
-                layout.table.height,
-                layoutInfo,
-              ).y,
+              left: getDeckPosition(layout.table.width, layout.table.height, layoutInfo).x,
+              top: getDeckPosition(layout.table.width, layout.table.height, layoutInfo).y,
             },
           ]}
         >
-          <DeckPile
-            cardsRemaining={deckCount}
-            trumpCard={trumpCard}
-            showTrump={true}
-          />
+          <DeckPile cardsRemaining={deckCount} trumpCard={trumpCard} showTrump={true} />
         </View>
       )}
 
@@ -396,15 +363,9 @@ export function GameTable({
 
       {/* Bottom Player Hand - Only render when not dealing */}
       {!isDealing && layout.isReady && (
-        <View
-          style={[
-            styles.bottomPlayerHand,
-            landscape && styles.bottomPlayerHandLandscape,
-          ]}
-        >
+        <View style={[styles.bottomPlayerHand, landscape && styles.bottomPlayerHandLandscape]}>
           {bottomPlayer.cards.map((card, index) => {
-            const isValidCard =
-              !validCardIndices || validCardIndices.includes(index);
+            const isValidCard = !validCardIndices || validCardIndices.includes(index);
             const isPlayerTurn = currentPlayerIndex === 0;
             const position = getPlayerCardPosition(
               0,
@@ -424,14 +385,11 @@ export function GameTable({
                 onCardPlay={onCardPlay}
                 onReorder={
                   onCardReorder
-                    ? (fromIndex, toIndex) =>
-                        onCardReorder(bottomPlayer.id, fromIndex, toIndex)
+                    ? (fromIndex, toIndex) => onCardReorder(bottomPlayer.id, fromIndex, toIndex)
                     : undefined
                 }
                 dropZoneBounds={dropZoneBounds || undefined}
-                isEnabled={
-                  !isDealing && !!dropZoneBounds && isPlayerTurn && isValidCard
-                }
+                isEnabled={!isDealing && !!dropZoneBounds && isPlayerTurn && isValidCard}
                 cardSize="medium" // match dealing size for consistency
                 totalCards={bottomPlayer.cards.length}
                 cardWidth={scaledCardWidth}

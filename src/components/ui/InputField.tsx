@@ -91,15 +91,10 @@ export function InputField({
 
   const borderColor = focusAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [
-      error ? colors.error : colors.border,
-      error ? colors.error : colors.accent,
-    ],
+    outputRange: [error ? colors.error : colors.border, error ? colors.error : colors.accent],
   });
 
-  const shouldShowPassword = showPasswordToggle
-    ? !showPassword
-    : !secureTextEntry;
+  const shouldShowPassword = showPasswordToggle ? !showPassword : !secureTextEntry;
 
   return (
     <View style={styles.container}>

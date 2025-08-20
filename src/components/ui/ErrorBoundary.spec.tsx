@@ -75,9 +75,7 @@ describe('ErrorBoundary', () => {
   });
 
   test('uses custom fallback when provided', () => {
-    const customFallback = (error: Error, _reset: () => void) => (
-      <>Custom error: {error.message}</>
-    );
+    const customFallback = (error: Error, _reset: () => void) => <>Custom error: {error.message}</>;
 
     const { getByText } = render(
       <ErrorBoundary fallback={customFallback}>

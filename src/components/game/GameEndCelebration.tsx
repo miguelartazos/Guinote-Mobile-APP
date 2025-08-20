@@ -13,11 +13,21 @@ import {
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
+type CelebrationType = 'partida' | 'coto' | 'match';
+
 type GameEndCelebrationProps = {
   isWinner: boolean;
   finalScore: { player: number; opponent: number };
   onComplete: () => void;
   playSound?: () => void;
+  celebrationType?: CelebrationType;
+  matchScore?: {
+    team1Partidas: number;
+    team2Partidas: number;
+    team1Cotos: number;
+    team2Cotos: number;
+  };
+  onContinue?: () => void; // For continuing to next partida/coto
 };
 
 type ConfettiPiece = {
@@ -33,6 +43,9 @@ export function GameEndCelebration({
   finalScore,
   onComplete,
   playSound,
+  celebrationType = 'match',
+  matchScore,
+  onContinue,
 }: GameEndCelebrationProps) {
   const screenDimensions = Dimensions.get('window');
 
@@ -54,9 +67,7 @@ export function GameEndCelebration({
       y: new Animated.Value(-50),
       rotation: new Animated.Value(0),
       opacity: new Animated.Value(1),
-      color: [colors.accent, colors.warning, colors.text][
-        Math.floor(Math.random() * 3)
-      ],
+      color: [colors.accent, colors.warning, colors.text][Math.floor(Math.random() * 3)],
     })),
   ).current;
 
@@ -194,15 +205,22 @@ export function GameEndCelebration({
           styles.titleContainer,
           {
             opacity: titleAnimation.opacity,
-            transform: [
-              { scale: titleAnimation.scale },
-              { translateY: titleAnimation.translateY },
-            ],
+            transform: [{ scale: titleAnimation.scale }, { translateY: titleAnimation.translateY }],
           },
         ]}
       >
         <Text style={[styles.titleText, isWinner && styles.winnerText]}>
-          {isWinner ? '¡VICTORIA!' : '¡Fin del Juego!'}
+          {celebrationType === 'partida'
+            ? isWinner
+              ? '¡Partida Ganada!'
+              : 'Partida Perdida'
+            : celebrationType === 'coto'
+            ? isWinner
+              ? '¡Coto Ganado!'
+              : 'Coto Perdido'
+            : isWinner
+            ? '¡VICTORIA TOTAL!'
+            : '¡Fin del Juego!'}
         </Text>
       </Animated.View>
 
@@ -223,6 +241,25 @@ export function GameEndCelebration({
           />
         </View>
       </View>
+
+      {/* Match progress display */}
+      {matchScore && celebrationType !== 'match' && (
+        <View style={styles.matchProgressContainer}>
+          <Text style={styles.matchProgressText}>
+            Partidas: {matchScore.team1Partidas} - {matchScore.team2Partidas}
+          </Text>
+          <Text style={styles.matchProgressText}>
+            Cotos: {matchScore.team1Cotos} - {matchScore.team2Cotos}
+          </Text>
+          {onContinue && (
+            <View style={styles.continueButton}>
+              <Text style={styles.continueButtonText} onPress={onContinue}>
+                Continuar al siguiente {celebrationType === 'coto' ? 'coto' : 'partida'}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Confetti */}
       {isWinner && (
@@ -347,5 +384,37 @@ const styles = StyleSheet.create({
   },
   cardEmoji: {
     fontSize: 80,
+  },
+  matchProgressContainer: {
+    position: 'absolute',
+    bottom: '30%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 5,
+    backgroundColor: colors.surface,
+    marginHorizontal: 40,
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  matchProgressText: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginVertical: 4,
+  },
+  continueButton: {
+    marginTop: 16,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  continueButtonText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
   },
 });

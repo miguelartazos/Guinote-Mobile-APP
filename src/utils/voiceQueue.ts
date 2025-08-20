@@ -33,9 +33,7 @@ class VoiceMessageQueue {
     };
 
     // Insert based on priority
-    const insertIndex = this.queue.findIndex(
-      msg => msg.priority < message.priority,
-    );
+    const insertIndex = this.queue.findIndex(msg => msg.priority < message.priority);
 
     if (insertIndex === -1) {
       this.queue.push(queuedMessage);
@@ -125,10 +123,7 @@ class VoiceMessageQueue {
   }
 
   // Get priority for different message types
-  static getPriority(
-    isCurrentPlayer: boolean,
-    isTeammate: boolean = false,
-  ): number {
+  static getPriority(isCurrentPlayer: boolean, isTeammate: boolean = false): number {
     if (isCurrentPlayer) return 100;
     if (isTeammate) return 50;
     return 10;

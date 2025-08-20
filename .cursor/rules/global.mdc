@@ -1,0 +1,39 @@
+description: Project-wide Cursor rules for Guinote2 (React Native + offline-first). Based on "awesome-cursorrules" and adapted to Cursor Project Rules.
+globs: **/*
+
+@technologystack.md
+@directorystructure.md
+
+---
+
+Goals
+- Keep the app offline-first and Hermes-safe. Avoid loading browser/Node-specific SDKs in React Native runtime.
+- Prefer small, surgical edits; do not refactor unrelated code.
+
+React Native + Hermes constraints
+- Do not import or dynamically import Node/web SDKs (crypto, Buffer, URL, fs, etc.) in app code. If needed, isolate them into separate scripts outside React Native.
+- Supabase: never import `@supabase/supabase-js` in React Native runtime unless a dedicated RN-safe setup is explicitly enabled by feature flags. Do not call `import('../lib/supabase')` from screens.
+- Orientation/haptics: load native modules lazily inside effects/handlers using `require()` only when needed. Avoid top-level requires that run during module initialization.
+- Reanimated: ensure `react-native-reanimated` import exists at the very top of `index.js` and Babel plugin is enabled. Keep worklets syntax valid.
+
+Coding style
+- Use descriptive names (functions: verbs, variables: nouns). Avoid 1–2 char identifiers.
+- Exported/public APIs must be typed. Avoid `any` unless absolutely necessary.
+- Prefer guard clauses and shallow nesting. Handle errors meaningfully; no empty catch blocks.
+- Do not add TODO comments; implement or remove. Add brief comments only for non-obvious decisions (the "why").
+- Match existing formatting; do not reformat unrelated files.
+
+Safety and scope control
+- Gate online features behind feature flags from `src/config/featureFlags.ts`. Default to offline behavior.
+- Never introduce runtime imports that can execute before flags are checked.
+- For new deps, confirm Hermes/RN compatibility and add required polyfills explicitly.
+
+Edits checklist (apply on every change)
+- When touching auth or online modules, verify no Supabase/Convex/Clerk code is imported at startup paths.
+- When adding animations, confirm Reanimated plugin/imports are preserved.
+- After edits, ensure lints pass and no new native build steps are required for JS-only changes.
+
+Deliverables format
+- Provide only relevant code snippets. Use fenced code blocks per file with minimal context.
+- Refer to files and folders using backticks.
+

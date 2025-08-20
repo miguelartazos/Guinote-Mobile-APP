@@ -36,9 +36,7 @@ export class PlayerPositionRegistry {
   getPosition(playerId: PlayerId): PlayerPosition {
     const position = this.playerMap.get(playerId);
     if (position === undefined) {
-      console.warn(
-        `Player ${playerId} not found in registry, defaulting to position 0`,
-      );
+      console.warn(`Player ${playerId} not found in registry, defaulting to position 0`);
       return 0;
     }
     return position;
@@ -67,12 +65,7 @@ export class PlayerPositionRegistry {
    * Get all registered players in position order
    */
   getAllPlayers(): [PlayerId, PlayerId, PlayerId, PlayerId] | null {
-    const players: (PlayerId | undefined)[] = [
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-    ];
+    const players: (PlayerId | undefined)[] = [undefined, undefined, undefined, undefined];
 
     for (const [id, pos] of this.playerMap.entries()) {
       players[pos] = id;

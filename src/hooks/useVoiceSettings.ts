@@ -16,12 +16,10 @@ type VoiceSettingsState = VoiceSettings & {
 };
 
 export function useVoiceSettings() {
-  const [settingsState, setSettingsState] = useState<VoiceSettingsState>(
-    () => ({
-      ...getVoiceSettings(),
-      isLoading: false,
-    }),
-  );
+  const [settingsState, setSettingsState] = useState<VoiceSettingsState>(() => ({
+    ...getVoiceSettings(),
+    isLoading: false,
+  }));
 
   const listenersRef = useRef<Set<() => void>>(new Set());
 
@@ -34,20 +32,17 @@ export function useVoiceSettings() {
   }, []);
 
   // Update settings with optimistic update
-  const updateSettings = useCallback(
-    (updates: Partial<Omit<VoiceSettings, 'mutedPlayers'>>) => {
-      setSettingsState(prev => ({
-        ...prev,
-        ...updates,
-      }));
+  const updateSettings = useCallback((updates: Partial<Omit<VoiceSettings, 'mutedPlayers'>>) => {
+    setSettingsState(prev => ({
+      ...prev,
+      ...updates,
+    }));
 
-      updateVoiceSettings(updates);
+    updateVoiceSettings(updates);
 
-      // Notify other instances
-      listenersRef.current.forEach(listener => listener());
-    },
-    [],
-  );
+    // Notify other instances
+    listenersRef.current.forEach(listener => listener());
+  }, []);
 
   const mutePlayerById = useCallback(
     (playerId: string) => {

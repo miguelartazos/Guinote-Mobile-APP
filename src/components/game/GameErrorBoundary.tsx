@@ -1,11 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
@@ -102,15 +96,12 @@ export class GameErrorBoundary extends Component<Props, State> {
             <Text style={styles.emoji}>🎴</Text>
             <Text style={styles.title}>¡Ups! Algo salió mal</Text>
             <Text style={styles.message}>
-              Ha ocurrido un error en el juego. No te preocupes, tu progreso ha
-              sido guardado.
+              Ha ocurrido un error en el juego. No te preocupes, tu progreso ha sido guardado.
             </Text>
 
             {this.state.savedGameState && (
               <View style={styles.savedStateContainer}>
-                <Text style={styles.savedStateText}>
-                  ✅ {this.state.savedGameState}
-                </Text>
+                <Text style={styles.savedStateText}>✅ {this.state.savedGameState}</Text>
               </View>
             )}
 
@@ -141,9 +132,7 @@ export class GameErrorBoundary extends Component<Props, State> {
               <View style={styles.debugInfo}>
                 <Text style={styles.debugTitle}>Debug Info (Dev Only):</Text>
                 <ScrollView style={styles.debugScroll} horizontal>
-                  <Text style={styles.debugText}>
-                    {this.state.errorInfo.componentStack}
-                  </Text>
+                  <Text style={styles.debugText}>{this.state.errorInfo.componentStack}</Text>
                 </ScrollView>
               </View>
             )}

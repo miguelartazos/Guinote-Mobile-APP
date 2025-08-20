@@ -48,9 +48,7 @@ export function isValidMove(gameState: GameState, move: GameMove): boolean {
         const playerHand = gameState.hands.get(move.playerId);
         if (!playerHand) return false;
 
-        return playerHand.some(
-          c => c.suit === gameState.trumpSuit && c.value === 7,
-        );
+        return playerHand.some(c => c.suit === gameState.trumpSuit && c.value === 7);
       }
 
       case 'declare_cante': {
@@ -61,12 +59,8 @@ export function isValidMove(gameState: GameState, move: GameMove): boolean {
         const playerHand = gameState.hands.get(move.playerId);
         if (!playerHand) return false;
 
-        const hasRey = playerHand.some(
-          c => c.suit === move.data.suit && c.value === 12,
-        );
-        const hasSota = playerHand.some(
-          c => c.suit === move.data.suit && c.value === 10,
-        );
+        const hasRey = playerHand.some(c => c.suit === move.data.suit && c.value === 12);
+        const hasSota = playerHand.some(c => c.suit === move.data.suit && c.value === 10);
 
         return hasRey && hasSota;
       }
@@ -98,10 +92,7 @@ export function isValidMove(gameState: GameState, move: GameMove): boolean {
 /**
  * Check if a player can make any valid move
  */
-export function canPlayerMove(
-  gameState: GameState,
-  playerId: PlayerId,
-): boolean {
+export function canPlayerMove(gameState: GameState, playerId: PlayerId): boolean {
   // Check if it's this player's turn
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   if (currentPlayer.id !== playerId) return false;
@@ -121,10 +112,7 @@ export function canPlayerMove(
 /**
  * Get all valid moves for a player
  */
-export function getValidMoves(
-  gameState: GameState,
-  playerId: PlayerId,
-): GameMove[] {
+export function getValidMoves(gameState: GameState, playerId: PlayerId): GameMove[] {
   const moves: GameMove[] = [];
 
   // Check if it's this player's turn
@@ -136,9 +124,7 @@ export function getValidMoves(
 
   // Add valid card plays
   playerHand.forEach(card => {
-    if (
-      isValidPlay(card, playerHand, gameState.currentTrick, gameState.trumpSuit)
-    ) {
+    if (isValidPlay(card, playerHand, gameState.currentTrick, gameState.trumpSuit)) {
       moves.push({
         type: 'play_card',
         playerId,

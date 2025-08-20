@@ -13,9 +13,7 @@ describe('trickCardPositions', () => {
   describe('getTrickCardPositionWithinBoard', () => {
     test('positions cards in cross pattern when board layout provided', () => {
       // Test all 4 positions
-      const positions = [0, 1, 2, 3].map(i =>
-        getTrickCardPositionWithinBoard(i, mockBoardLayout),
-      );
+      const positions = [0, 1, 2, 3].map(i => getTrickCardPositionWithinBoard(i, mockBoardLayout));
 
       // Bottom player card
       expect(positions[0]).toMatchObject({
@@ -77,14 +75,8 @@ describe('trickCardPositions', () => {
     });
 
     test('defaults to position 0 for invalid player index', () => {
-      const invalidPosition = getTrickCardPositionWithinBoard(
-        99,
-        mockBoardLayout,
-      );
-      const defaultPosition = getTrickCardPositionWithinBoard(
-        0,
-        mockBoardLayout,
-      );
+      const invalidPosition = getTrickCardPositionWithinBoard(99, mockBoardLayout);
+      const defaultPosition = getTrickCardPositionWithinBoard(0, mockBoardLayout);
 
       expect(invalidPosition).toEqual(defaultPosition);
     });

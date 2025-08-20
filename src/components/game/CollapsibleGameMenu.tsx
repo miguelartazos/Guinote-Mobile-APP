@@ -90,11 +90,7 @@ export function CollapsibleGameMenu({
         transparent
         animationType="none"
         onRequestClose={() => setIsOpen(false)}
-        supportedOrientations={[
-          'landscape',
-          'landscape-left',
-          'landscape-right',
-        ]}
+        supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       >
         <TouchableWithoutFeedback onPress={() => setIsOpen(false)}>
           <Animated.View
@@ -115,17 +111,11 @@ export function CollapsibleGameMenu({
             },
           ]}
         >
-          <ScrollView
-            style={styles.menuContent}
-            showsVerticalScrollIndicator={false}
-          >
+          <ScrollView style={styles.menuContent} showsVerticalScrollIndicator={false}>
             <Text style={styles.menuTitle}>MENÚ</Text>
 
             <View style={styles.menuItems}>
-              <AnimatedButton
-                style={styles.menuItem}
-                onPress={() => handleMenuAction(onExitGame)}
-              >
+              <AnimatedButton style={styles.menuItem} onPress={() => handleMenuAction(onExitGame)}>
                 <Text style={styles.menuItemIcon}>🚪</Text>
                 <Text style={styles.menuItemText}>Salir del Juego</Text>
               </AnimatedButton>
@@ -161,20 +151,14 @@ export function CollapsibleGameMenu({
               )}
 
               {onEmojis && (
-                <AnimatedButton
-                  style={styles.menuItem}
-                  onPress={() => handleMenuAction(onEmojis)}
-                >
+                <AnimatedButton style={styles.menuItem} onPress={() => handleMenuAction(onEmojis)}>
                   <Text style={styles.menuItemIcon}>😊</Text>
                   <Text style={styles.menuItemText}>Emoticonos</Text>
                 </AnimatedButton>
               )}
 
               {onHelp && (
-                <AnimatedButton
-                  style={styles.menuItem}
-                  onPress={() => handleMenuAction(onHelp)}
-                >
+                <AnimatedButton style={styles.menuItem} onPress={() => handleMenuAction(onHelp)}>
                   <Text style={styles.menuItemIcon}>❓</Text>
                   <Text style={styles.menuItemText}>Ayuda</Text>
                 </AnimatedButton>
@@ -183,10 +167,7 @@ export function CollapsibleGameMenu({
           </ScrollView>
 
           {/* Close button */}
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setIsOpen(false)}
-          >
+          <TouchableOpacity style={styles.closeButton} onPress={() => setIsOpen(false)}>
             <Text style={styles.closeIcon}>✕</Text>
           </TouchableOpacity>
         </Animated.View>

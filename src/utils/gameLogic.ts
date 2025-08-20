@@ -7,19 +7,20 @@ import type {
   TeamId,
   Cante,
   GamePhase,
+  MatchScore,
+  TeamIndex,
 } from '../types/game.types';
 import type { SpanishSuit, CardValue } from '../types/cardTypes';
 import { CARD_POINTS } from '../types/game.types';
+import { resetGameStateForVueltas } from './gameStateFactory';
 
 // Export constants for reuse
-export const SPANISH_SUITS: SpanishSuit[] = [
-  'espadas',
-  'bastos',
-  'oros',
-  'copas',
-];
+export const SPANISH_SUITS: SpanishSuit[] = ['espadas', 'bastos', 'oros', 'copas'];
 export const CARD_VALUES: CardValue[] = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];
 export const CARD_POWER: CardValue[] = [1, 3, 12, 10, 11, 7, 6, 5, 4, 2];
+export const WINNING_SCORE = 101;
+export const DEFAULT_PARTIDAS_PER_COTO = 3;
+export const DEFAULT_COTOS_PER_MATCH = 2;
 
 export function createDeck(): Card[] {
   const deck: Card[] = [];
@@ -118,16 +119,13 @@ export function isValidPlay(
       const currentWinnerId = calculateTrickWinner(currentTrick, trumpSuit);
       const currentPlayerTeam = findPlayerTeam(currentPlayerId, gameState);
       const winnerTeam = findPlayerTeam(currentWinnerId, gameState);
-      partnerIsWinning =
-        currentPlayerTeam === winnerTeam && currentWinnerId !== currentPlayerId;
+      partnerIsWinning = currentPlayerTeam === winnerTeam && currentWinnerId !== currentPlayerId;
     }
 
     // If following suit, must beat if possible (unless partner is winning)
     if (card.suit === leadSuit && !partnerIsWinning) {
       const suitCards = hand.filter(c => c.suit === leadSuit);
-      const canBeat = suitCards.some(c =>
-        canBeatTrick(c, currentTrick, trumpSuit),
-      );
+      const canBeat = suitCards.some(c => canBeatTrick(c, currentTrick, trumpSuit));
 
       if (canBeat && !canBeatTrick(card, currentTrick, trumpSuit)) {
         // Has a card that can beat but playing one that doesn't
@@ -144,9 +142,7 @@ export function isValidPlay(
     // If trumping, must beat other trumps if possible (unless partner is winning)
     if (!hasSuit && card.suit === trumpSuit && !partnerIsWinning) {
       const trumpCards = hand.filter(c => c.suit === trumpSuit);
-      const canBeatWithTrump = trumpCards.some(c =>
-        canBeatTrick(c, currentTrick, trumpSuit),
-      );
+      const canBeatWithTrump = trumpCards.some(c => canBeatTrick(c, currentTrick, trumpSuit));
 
       if (canBeatWithTrump && !canBeatTrick(card, currentTrick, trumpSuit)) {
         return false;
@@ -164,8 +160,7 @@ export function calculateTrickWinner(
   trick: readonly TrickCard[],
   trumpSuit: SpanishSuit,
 ): PlayerId {
-  if (trick.length === 0)
-    throw new Error('Cannot calculate winner of empty trick');
+  if (trick.length === 0) throw new Error('Cannot calculate winner of empty trick');
 
   const leadSuit = trick[0].card.suit;
   let winningIndex = 0;
@@ -248,18 +243,11 @@ export function canCantar(
   return cantableSuits;
 }
 
-export function calculateCantePoints(
-  suit: SpanishSuit,
-  trumpSuit: SpanishSuit,
-): 20 | 40 {
+export function calculateCantePoints(suit: SpanishSuit, trumpSuit: SpanishSuit): 20 | 40 {
   return suit === trumpSuit ? 40 : 20;
 }
 
-export function canCambiar7(
-  hand: readonly Card[],
-  trumpCard: Card,
-  deckSize: number,
-): boolean {
+export function canCambiar7(hand: readonly Card[], trumpCard: Card, deckSize: number): boolean {
   // Can only exchange if there are cards left in deck
   if (deckSize === 0) return false;
 
@@ -270,18 +258,12 @@ export function canCambiar7(
   return hand.some(c => c.suit === trumpCard.suit && c.value === 7);
 }
 
-export function getNextPlayerIndex(
-  currentIndex: number,
-  totalPlayers: number,
-): number {
+export function getNextPlayerIndex(currentIndex: number, totalPlayers: number): number {
   // Counter-clockwise: 0 -> 3 -> 2 -> 1 -> 0
   return (currentIndex - 1 + totalPlayers) % totalPlayers;
 }
 
-export function findPlayerTeam(
-  playerId: PlayerId,
-  gameState: GameState,
-): TeamId | undefined {
+export function findPlayerTeam(playerId: PlayerId, gameState: GameState): TeamId | undefined {
   const team = gameState.teams.find(t => t.playerIds.includes(playerId));
   return team?.id;
 }
@@ -291,18 +273,13 @@ export function shouldStartVueltas(gameState: GameState): boolean {
   const noWinner = !gameState.teams.some(team => team.score >= 101);
 
   // Check if all cards have been played
-  const allHandsEmpty = Array.from(gameState.hands.values()).every(
-    hand => hand.length === 0,
-  );
+  const allHandsEmpty = Array.from(gameState.hands.values()).every(hand => hand.length === 0);
   const deckEmpty = gameState.deck.length === 0;
 
   return noWinner && allHandsEmpty && deckEmpty && !gameState.isVueltas;
 }
 
-export function canDeclareVictory(
-  teamId: TeamId,
-  gameState: GameState,
-): boolean {
+export function canDeclareVictory(teamId: TeamId, gameState: GameState): boolean {
   if (!gameState.isVueltas || !gameState.initialScores) return false;
 
   const team = gameState.teams.find(t => t.id === teamId);
@@ -314,8 +291,7 @@ export function canDeclareVictory(
 
   // Calculate total scores (initial + current)
   const teamTotal = (gameState.initialScores.get(teamId) || 0) + team.score;
-  const otherTeamTotal =
-    (gameState.initialScores.get(otherTeam.id) || 0) + otherTeam.score;
+  const otherTeamTotal = (gameState.initialScores.get(otherTeam.id) || 0) + otherTeam.score;
 
   // Win if:
   // 1. Total score >= 101 (not just > 100)
@@ -328,6 +304,27 @@ export function canDeclareVictory(
   );
 }
 
+export function determineVueltasWinner(gameState: GameState): TeamId | null {
+  if (!gameState.isVueltas || !gameState.initialScores) return null;
+
+  const team1 = gameState.teams[0];
+  const team2 = gameState.teams[1];
+
+  // Calculate total scores (initial + current)
+  const team1Total = (gameState.initialScores.get(team1.id) || 0) + team1.score;
+  const team2Total = (gameState.initialScores.get(team2.id) || 0) + team2.score;
+
+  // Determine winner
+  if (team1Total > team2Total) {
+    return team1.id;
+  } else if (team2Total > team1Total) {
+    return team2.id;
+  } else {
+    // In case of tie, team that won last trick in first hand wins
+    return gameState.lastTrickWinnerTeam || null;
+  }
+}
+
 export function isGameOver(gameState: GameState): boolean {
   return gameState.teams.some(team => {
     // Must have 101+ points AND at least 30 points from cards (30 malas rule)
@@ -335,9 +332,7 @@ export function isGameOver(gameState: GameState): boolean {
   });
 }
 
-export function calculateFinalPoints(
-  gameState: GameState,
-): Map<TeamId, number> {
+export function calculateFinalPoints(gameState: GameState): Map<TeamId, number> {
   const finalPoints = new Map<TeamId, number>();
 
   gameState.teams.forEach(team => {
@@ -387,15 +382,7 @@ export function getValidCards(
   // In arrastre phase, filter cards based on strict rules
   if (phase === 'arrastre') {
     const validCards = hand.filter(card =>
-      isValidPlay(
-        card,
-        hand,
-        currentTrick,
-        trumpSuit,
-        phase,
-        playerId,
-        gameState,
-      ),
+      isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState),
     );
 
     // If no cards are valid (shouldn't happen with correct rules), log error and return all cards
@@ -434,4 +421,162 @@ export function generateRandomCard(): { suit: SpanishSuit; value: CardValue } {
   const suit = SPANISH_SUITS[Math.floor(Math.random() * SPANISH_SUITS.length)];
   const value = CARD_VALUES[Math.floor(Math.random() * CARD_VALUES.length)];
   return { suit, value };
+}
+
+// Validate if a number is a valid team index
+export function isValidTeamIndex(index: number): index is TeamIndex {
+  return index === 0 || index === 1;
+}
+
+// Match progression functions for Cotos and Partidas
+export function checkPartidaWon(teamScore: number): boolean {
+  return teamScore >= WINNING_SCORE;
+}
+
+export function checkCotoWon(partidas: number, partidasPerCoto: number): boolean {
+  return partidas >= partidasPerCoto;
+}
+
+export function checkMatchWon(cotos: number, cotosPerMatch: number): boolean {
+  return cotos >= cotosPerMatch;
+}
+
+export function createInitialMatchScore(): MatchScore {
+  return {
+    team1Partidas: 0,
+    team2Partidas: 0,
+    team1Cotos: 0,
+    team2Cotos: 0,
+    partidasPerCoto: DEFAULT_PARTIDAS_PER_COTO,
+    cotosPerMatch: DEFAULT_COTOS_PER_MATCH,
+    // Legacy compatibility
+    team1Sets: 0,
+    team2Sets: 0,
+    currentSet: 'buenas',
+  };
+}
+
+export function updateMatchScoreForPartida(
+  matchScore: MatchScore,
+  winningTeamIndex: TeamIndex,
+): MatchScore {
+  const newScore = { ...matchScore };
+
+  // Award partida to winning team
+  if (winningTeamIndex === 0) {
+    newScore.team1Partidas++;
+    newScore.team1Sets = newScore.team1Partidas; // Legacy compatibility
+  } else {
+    newScore.team2Partidas++;
+    newScore.team2Sets = newScore.team2Partidas; // Legacy compatibility
+  }
+
+  // Check if team1 won the coto
+  if (checkCotoWon(newScore.team1Partidas, newScore.partidasPerCoto)) {
+    return {
+      ...newScore,
+      team1Cotos: newScore.team1Cotos + 1,
+      team1Partidas: 0,
+      team2Partidas: 0,
+      team1Sets: 0, // Reset legacy
+      team2Sets: 0,
+      currentSet: 'buenas',
+    };
+  }
+
+  // Check if team2 won the coto
+  if (checkCotoWon(newScore.team2Partidas, newScore.partidasPerCoto)) {
+    return {
+      ...newScore,
+      team2Cotos: newScore.team2Cotos + 1,
+      team1Partidas: 0,
+      team2Partidas: 0,
+      team1Sets: 0, // Reset legacy
+      team2Sets: 0,
+      currentSet: 'buenas',
+    };
+  }
+
+  // Update current set name based on partida count
+  if (newScore.team1Partidas === 1 && newScore.team2Partidas === 1) {
+    newScore.currentSet = 'bella';
+  } else if (newScore.team1Partidas > 0 || newScore.team2Partidas > 0) {
+    newScore.currentSet = 'malas';
+  } else {
+    newScore.currentSet = 'buenas';
+  }
+
+  return newScore;
+}
+
+export function isMatchComplete(matchScore: MatchScore): boolean {
+  return (
+    checkMatchWon(matchScore.team1Cotos, matchScore.cotosPerMatch) ||
+    checkMatchWon(matchScore.team2Cotos, matchScore.cotosPerMatch)
+  );
+}
+
+export function getMatchWinner(matchScore: MatchScore): 0 | 1 | null {
+  if (checkMatchWon(matchScore.team1Cotos, matchScore.cotosPerMatch)) {
+    return 0;
+  }
+  if (checkMatchWon(matchScore.team2Cotos, matchScore.cotosPerMatch)) {
+    return 1;
+  }
+  return null;
+}
+
+export function migrateMatchScore(oldScore?: Partial<MatchScore>): MatchScore {
+  if (!oldScore) {
+    return createInitialMatchScore();
+  }
+
+  return {
+    team1Partidas: oldScore.team1Partidas ?? oldScore.team1Sets ?? 0,
+    team2Partidas: oldScore.team2Partidas ?? oldScore.team2Sets ?? 0,
+    team1Cotos: oldScore.team1Cotos ?? 0,
+    team2Cotos: oldScore.team2Cotos ?? 0,
+    partidasPerCoto: oldScore.partidasPerCoto ?? DEFAULT_PARTIDAS_PER_COTO,
+    cotosPerMatch: oldScore.cotosPerMatch ?? DEFAULT_COTOS_PER_MATCH,
+    // Legacy fields
+    team1Sets: oldScore.team1Sets ?? oldScore.team1Partidas ?? 0,
+    team2Sets: oldScore.team2Sets ?? oldScore.team2Partidas ?? 0,
+    currentSet: oldScore.currentSet ?? 'buenas',
+  };
+}
+
+export function updateMatchScoreAndDeterminePhase(
+  winningTeamIndex: TeamIndex,
+  matchScore: MatchScore,
+): { matchScore: MatchScore; phase: GamePhase } {
+  // Update match score for this partida win
+  const updatedMatchScore = updateMatchScoreForPartida(matchScore, winningTeamIndex);
+
+  // Determine if the entire match is complete
+  const phase: GamePhase = isMatchComplete(updatedMatchScore) ? 'gameOver' : 'scoring';
+
+  return { matchScore: updatedMatchScore, phase };
+}
+
+export function startNewPartida(previousState: GameState, matchScore: MatchScore): GameState {
+  // Create initial scores map from match score
+  const initialScores = new Map<TeamId, number>();
+  initialScores.set('team1' as TeamId, 0);
+  initialScores.set('team2' as TeamId, 0);
+
+  // Use the existing vueltas reset function to start a new partida
+  const resetState = resetGameStateForVueltas(previousState, initialScores);
+
+  // Return a new immutable state object with scores reset to 0
+  return {
+    ...resetState,
+    phase: 'dealing' as GamePhase,
+    isVueltas: false,
+    initialScores: undefined,
+    matchScore, // Preserve the match score
+    teams: resetState.teams.map(team => ({
+      ...team,
+      score: 0, // Reset score for new partida
+    })) as GameState['teams'],
+  };
 }

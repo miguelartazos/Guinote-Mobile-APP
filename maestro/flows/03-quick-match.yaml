@@ -1,0 +1,26 @@
+appId: com.guinote2
+---
+# Test: Quick Match Flow
+- launchApp:
+    clearState: true
+
+# Wait for main screen
+- assertVisible: "Jugar"
+
+# Try Quick Match (may require login)
+- tapOn: "Partida Rápida"
+
+# Handle possible login screen
+- runFlow:
+    when:
+      visible: "Iniciar Sesión"
+    commands:
+      - tapOn: "Cancelar"
+      
+# If no login required, should see matchmaking
+- runFlow:
+    when:
+      visible: "Buscando"
+    commands:
+      - waitForAnimationToEnd
+      - pressKey: back

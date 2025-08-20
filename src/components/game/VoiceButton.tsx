@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  Animated,
-  Vibration,
-} from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, Animated, Vibration } from 'react-native';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { useVoicePermissions } from '../../hooks/useVoicePermissions';
@@ -18,19 +12,10 @@ type VoiceButtonProps = {
   disabled?: boolean;
 };
 
-export function VoiceButton({
-  playerId,
-  onRecordingComplete,
-  disabled = false,
-}: VoiceButtonProps) {
+export function VoiceButton({ playerId, onRecordingComplete, disabled = false }: VoiceButtonProps) {
   const { hasPermission, requestPermission } = useVoicePermissions();
-  const {
-    isRecording,
-    recordingDuration,
-    startRecording,
-    stopRecording,
-    MAX_RECORDING_DURATION,
-  } = useVoiceRecorder();
+  const { isRecording, recordingDuration, startRecording, stopRecording, MAX_RECORDING_DURATION } =
+    useVoiceRecorder();
 
   const [isPressing, setIsPressing] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
@@ -62,8 +47,7 @@ export function VoiceButton({
   }, [isRecording, pulseAnim]);
 
   const handlePressIn = async () => {
-    if (disabled || isProcessingRef.current || isRecording || showCountdown)
-      return;
+    if (disabled || isProcessingRef.current || isRecording || showCountdown) return;
 
     isProcessingRef.current = true;
 
@@ -128,10 +112,7 @@ export function VoiceButton({
     isProcessingRef.current = false;
   };
 
-  const _remainingTime = Math.max(
-    0,
-    (MAX_RECORDING_DURATION - recordingDuration) / 1000,
-  );
+  const _remainingTime = Math.max(0, (MAX_RECORDING_DURATION - recordingDuration) / 1000);
 
   const _recordingProgress = recordingDuration / MAX_RECORDING_DURATION;
 

@@ -1,0 +1,63 @@
+import React, { useEffect } from 'react';
+import { AppState, AppStateStatus, Platform } from 'react-native';
+import { useFeatureFlags } from '../config/featureFlags';
+
+/**
+ * SupabaseLifecycleProvider
+ *
+ * Manages Supabase auth token auto-refresh based on app state.
+ * Only mounts and imports Supabase when ANY Supabase feature flag is enabled.
+ * This prevents loading Supabase on app startup when running in offline mode.
+ */
+export function SupabaseLifecycleProvider({ children }: { children: React.ReactNode }) {
+  const flags = useFeatureFlags();
+
+  // Check if ANY Supabase feature is enabled
+  const isSupabaseEnabled = Object.keys(flags).some(
+    key => key.startsWith('useSupabase') && flags[key as keyof typeof flags],
+  );
+
+  useEffect(() => {
+    if (!isSupabaseEnabled || Platform.OS === 'web') {
+      return;
+    }
+
+    let appStateSubscription: any;
+
+    // Dynamically import Supabase only when needed
+    const setupAutoRefresh = async () => {
+      try {
+        const { supabase } = await import('../lib/supabase');
+
+        const handleAppStateChange = (nextAppState: AppStateStatus) => {
+          if (nextAppState === 'active') {
+            // App is in foreground - start auto refresh
+            supabase.auth.startAutoRefresh();
+          } else {
+            // App is in background/inactive - stop auto refresh
+            supabase.auth.stopAutoRefresh();
+          }
+        };
+
+        // Set initial state
+        handleAppStateChange(AppState.currentState);
+
+        // Listen for app state changes
+        appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+      } catch (error) {
+        console.error('Failed to setup Supabase auto-refresh:', error);
+      }
+    };
+
+    setupAutoRefresh();
+
+    // Cleanup
+    return () => {
+      if (appStateSubscription?.remove) {
+        appStateSubscription.remove();
+      }
+    };
+  }, [isSupabaseEnabled]);
+
+  return <>{children}</>;
+}

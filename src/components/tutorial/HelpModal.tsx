@@ -30,16 +30,12 @@ type HelpModalProps = {
   contextualHelp?: string;
 };
 
-export function HelpModal({
-  visible,
-  onClose,
-  contextualHelp,
-}: HelpModalProps) {
+export function HelpModal({ visible, onClose, contextualHelp }: HelpModalProps) {
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(300))[0];
-  const [expandedSections, setExpandedSections] = useState<
-    Record<HelpSectionId, boolean>
-  >({} as Record<HelpSectionId, boolean>);
+  const [expandedSections, setExpandedSections] = useState<Record<HelpSectionId, boolean>>(
+    {} as Record<HelpSectionId, boolean>,
+  );
 
   const helpSections: HelpSection[] = [
     {
@@ -173,21 +169,16 @@ export function HelpModal({
                   <View style={styles.sectionHeader}>
                     <Text style={styles.sectionIcon}>{section.icon}</Text>
                     <Text style={styles.sectionTitle}>{section.title}</Text>
-                    <Text style={styles.expandIcon}>
-                      {isExpanded ? '−' : '+'}
-                    </Text>
+                    <Text style={styles.expandIcon}>{isExpanded ? '−' : '+'}</Text>
                   </View>
-                  {isExpanded && (
-                    <Text style={styles.sectionContent}>{section.content}</Text>
-                  )}
+                  {isExpanded && <Text style={styles.sectionContent}>{section.content}</Text>}
                 </TouchableOpacity>
               );
             })}
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>
-                💡 Consejo: La práctica hace al maestro. ¡Juega el tutorial para
-                aprender haciendo!
+                💡 Consejo: La práctica hace al maestro. ¡Juega el tutorial para aprender haciendo!
               </Text>
             </View>
           </ScrollView>

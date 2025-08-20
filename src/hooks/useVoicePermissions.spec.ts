@@ -118,11 +118,9 @@ describe('useVoicePermissions', () => {
       (request as jest.Mock).mockResolvedValue(RESULTS.GRANTED);
 
       // Mock Alert to immediately call "Permitir" button
-      (Alert.alert as jest.Mock).mockImplementation(
-        (title, message, buttons) => {
-          buttons[1].onPress();
-        },
-      );
+      (Alert.alert as jest.Mock).mockImplementation((title, message, buttons) => {
+        buttons[1].onPress();
+      });
 
       const { result } = renderHook(() => useVoicePermissions());
 
@@ -145,11 +143,9 @@ describe('useVoicePermissions', () => {
       (check as jest.Mock).mockResolvedValue(RESULTS.DENIED);
 
       // Mock Alert to immediately call "Cancelar" button
-      (Alert.alert as jest.Mock).mockImplementation(
-        (title, message, buttons) => {
-          buttons[0].onPress();
-        },
-      );
+      (Alert.alert as jest.Mock).mockImplementation((title, message, buttons) => {
+        buttons[0].onPress();
+      });
 
       const { result } = renderHook(() => useVoicePermissions());
 
@@ -168,15 +164,13 @@ describe('useVoicePermissions', () => {
       (request as jest.Mock).mockResolvedValue(RESULTS.BLOCKED);
 
       let alertCalls = 0;
-      (Alert.alert as jest.Mock).mockImplementation(
-        (title, message, buttons) => {
-          if (alertCalls === 0) {
-            // First alert - permission request
-            buttons[1].onPress();
-          }
-          alertCalls++;
-        },
-      );
+      (Alert.alert as jest.Mock).mockImplementation((title, message, buttons) => {
+        if (alertCalls === 0) {
+          // First alert - permission request
+          buttons[1].onPress();
+        }
+        alertCalls++;
+      });
 
       const { result } = renderHook(() => useVoicePermissions());
 

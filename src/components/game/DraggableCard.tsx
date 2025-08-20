@@ -1,10 +1,5 @@
 import React, { useRef } from 'react';
-import {
-  Animated,
-  TouchableOpacity,
-  type ViewStyle,
-  type StyleProp,
-} from 'react-native';
+import { Animated, TouchableOpacity, type ViewStyle, type StyleProp } from 'react-native';
 import {
   PanGestureHandler,
   type PanGestureHandlerGestureEvent,
@@ -115,10 +110,7 @@ export function DraggableCard({
         const cardSpacing = cardWidth * 0.55; // Account for overlap
         const dragDistance = translationX;
         const newPosition = Math.round(dragDistance / cardSpacing);
-        const targetIndex = Math.max(
-          0,
-          Math.min(totalCards - 1, index + newPosition),
-        );
+        const targetIndex = Math.max(0, Math.min(totalCards - 1, index + newPosition));
 
         if (targetIndex !== index) {
           haptics.medium();
@@ -150,10 +142,7 @@ export function DraggableCard({
         let shouldPlay = false;
 
         if (dropZoneBounds && !isDraggingHorizontally.current && canPlay) {
-          const inDropZone = isPointInBounds(
-            { x: absoluteX, y: absoluteY },
-            dropZoneBounds,
-          );
+          const inDropZone = isPointInBounds({ x: absoluteX, y: absoluteY }, dropZoneBounds);
 
           if (inDropZone) {
             shouldPlay = true;
@@ -162,13 +151,11 @@ export function DraggableCard({
             // Snap to center of drop zone
             Animated.parallel([
               Animated.spring(translateX, {
-                toValue:
-                  dropZoneBounds.x + dropZoneBounds.width / 2 - absoluteX,
+                toValue: dropZoneBounds.x + dropZoneBounds.width / 2 - absoluteX,
                 ...SPRING_CONFIG,
               }),
               Animated.spring(translateY, {
-                toValue:
-                  dropZoneBounds.y + dropZoneBounds.height / 2 - absoluteY,
+                toValue: dropZoneBounds.y + dropZoneBounds.height / 2 - absoluteY,
                 ...SPRING_CONFIG,
               }),
               Animated.timing(opacity, {
@@ -213,10 +200,7 @@ export function DraggableCard({
   const canReorder = onReorder !== undefined;
 
   return (
-    <PanGestureHandler
-      onGestureEvent={onGestureEvent}
-      onHandlerStateChange={onHandlerStateChange}
-    >
+    <PanGestureHandler onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
       <Animated.View
         style={[
           style,

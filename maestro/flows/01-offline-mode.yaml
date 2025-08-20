@@ -1,0 +1,36 @@
+appId: com.guinote2
+---
+# Test: Navigate to Offline Mode
+- launchApp:
+    clearState: true
+    
+# Wait for main screen to load
+- assertVisible:
+    text: "Jugar"
+    
+# Tap on Offline Mode button
+- tapOn: "Modo Sin Conexión"
+
+# Verify we're on the offline mode screen
+- assertVisible:
+    text: "Modo Sin Conexión"
+    
+# Start a new game
+- tapOn: "Nueva Partida"
+
+# Verify game started
+- assertVisible: 
+    text: "Ronda"
+    
+# Try to play a card (tap in the hand area)
+- tapOn:
+    point: "50%, 85%"
+    
+# Wait for AI to play
+- waitForAnimationToEnd
+
+# Go back to menu
+- pressKey: back
+
+- assertVisible:
+    text: "Modo Sin Conexión"

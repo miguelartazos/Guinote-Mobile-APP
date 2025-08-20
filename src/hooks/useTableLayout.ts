@@ -22,7 +22,10 @@ export function useTableLayout() {
     setLayout(prev => ({
       ...prev,
       table: { x, y, width, height },
-      board: prev.board.width > 0 ? prev.board : { x: board.x, y: board.y, width: board.width, height: board.height },
+      board:
+        prev.board.width > 0
+          ? prev.board
+          : { x: board.x, y: board.y, width: board.width, height: board.height },
       isReady: true,
     }));
   }, []);

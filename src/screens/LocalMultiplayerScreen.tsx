@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, Alert } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Button } from '../components/Button';
 import { colors } from '../constants/colors';
@@ -14,9 +7,7 @@ import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
 import type { JugarStackScreenProps } from '../types/navigation';
 
-export function LocalMultiplayerScreen({
-  navigation,
-}: JugarStackScreenProps<'LocalMultiplayer'>) {
+export function LocalMultiplayerScreen({ navigation }: JugarStackScreenProps<'LocalMultiplayer'>) {
   const [playerCount, setPlayerCount] = useState(4);
   const [playerNames, setPlayerNames] = useState(['', '', '', '']);
   const [selectedDealer, setSelectedDealer] = useState<number | null>(null);
@@ -34,10 +25,7 @@ export function LocalMultiplayerScreen({
       .filter(p => p.name.trim());
 
     if (activePlayers.length < playerCount) {
-      Alert.alert(
-        'Nombres incompletos',
-        'Por favor, introduce todos los nombres de los jugadores',
-      );
+      Alert.alert('Nombres incompletos', 'Por favor, introduce todos los nombres de los jugadores');
       return;
     }
 
@@ -45,9 +33,7 @@ export function LocalMultiplayerScreen({
     setSelectedDealer(randomIndex);
     Alert.alert(
       '¡Dealer seleccionado!',
-      `${
-        playerNames[randomIndex] || `Jugador ${randomIndex + 1}`
-      } será el dealer`,
+      `${playerNames[randomIndex] || `Jugador ${randomIndex + 1}`} será el dealer`,
     );
   };
 
@@ -56,25 +42,17 @@ export function LocalMultiplayerScreen({
     const hasAllNames = activePlayers.every(name => name.trim());
 
     if (!hasAllNames) {
-      Alert.alert(
-        'Nombres incompletos',
-        'Por favor, introduce todos los nombres de los jugadores',
-      );
+      Alert.alert('Nombres incompletos', 'Por favor, introduce todos los nombres de los jugadores');
       return;
     }
 
     if (selectedDealer === null) {
-      Alert.alert(
-        'Dealer no seleccionado',
-        'Por favor, selecciona quién será el dealer',
-      );
+      Alert.alert('Dealer no seleccionado', 'Por favor, selecciona quién será el dealer');
       return;
     }
 
     // Fill empty slots with default names
-    const finalNames = activePlayers.map(
-      (name, index) => name.trim() || `Jugador ${index + 1}`,
-    );
+    const finalNames = activePlayers.map((name, index) => name.trim() || `Jugador ${index + 1}`);
 
     navigation.navigate('Game', {
       gameMode: 'local',
@@ -95,9 +73,7 @@ export function LocalMultiplayerScreen({
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>Paso y Juego</Text>
-          <Text style={styles.subtitle}>
-            Configura los jugadores para la partida local
-          </Text>
+          <Text style={styles.subtitle}>Configura los jugadores para la partida local</Text>
         </View>
 
         <View style={styles.content}>
@@ -136,9 +112,7 @@ export function LocalMultiplayerScreen({
                   <Text style={styles.playerLabel}>
                     Jugador {index + 1} - {getTeamInfo(index)}
                   </Text>
-                  {selectedDealer === index && (
-                    <Text style={styles.dealerBadge}>DEALER</Text>
-                  )}
+                  {selectedDealer === index && <Text style={styles.dealerBadge}>DEALER</Text>}
                 </View>
                 <TextInput
                   style={styles.nameInput}
@@ -155,22 +129,14 @@ export function LocalMultiplayerScreen({
           {/* Team Info */}
           <View style={styles.teamInfoContainer}>
             <Text style={styles.sectionTitle}>Información de equipos</Text>
-            <Text style={styles.teamInfo}>
-              En Guiñote, los equipos son fijos:
-            </Text>
+            <Text style={styles.teamInfo}>En Guiñote, los equipos son fijos:</Text>
             {playerCount === 4 ? (
               <>
-                <Text style={styles.teamDetail}>
-                  🟦 Equipo 1: Jugadores 1 y 3 (enfrentados)
-                </Text>
-                <Text style={styles.teamDetail}>
-                  🟥 Equipo 2: Jugadores 2 y 4 (enfrentados)
-                </Text>
+                <Text style={styles.teamDetail}>🟦 Equipo 1: Jugadores 1 y 3 (enfrentados)</Text>
+                <Text style={styles.teamDetail}>🟥 Equipo 2: Jugadores 2 y 4 (enfrentados)</Text>
               </>
             ) : (
-              <Text style={styles.teamDetail}>
-                Cada jugador forma su propio equipo
-              </Text>
+              <Text style={styles.teamDetail}>Cada jugador forma su propio equipo</Text>
             )}
           </View>
 
@@ -180,11 +146,7 @@ export function LocalMultiplayerScreen({
             <Text style={styles.dealerInfo}>
               El dealer reparte las cartas. El jugador a su derecha empieza.
             </Text>
-            <Button
-              onPress={selectRandomDealer}
-              variant="secondary"
-              style={styles.dealerButton}
-            >
+            <Button onPress={selectRandomDealer} variant="secondary" style={styles.dealerButton}>
               🎲 Seleccionar Dealer al Azar
             </Button>
           </View>
@@ -195,11 +157,7 @@ export function LocalMultiplayerScreen({
             Comenzar Partida
           </Button>
 
-          <Button
-            variant="secondary"
-            onPress={() => navigation.goBack()}
-            style={styles.button}
-          >
+          <Button variant="secondary" onPress={() => navigation.goBack()} style={styles.button}>
             Volver
           </Button>
         </View>

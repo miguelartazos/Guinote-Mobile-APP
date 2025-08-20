@@ -30,8 +30,18 @@ describe('PlayerPositionRegistry', () => {
     });
 
     test('overwrites previous registration', () => {
-      registry.registerPlayers([makePlayerId('a'), makePlayerId('b'), makePlayerId('c'), makePlayerId('d')]);
-      registry.registerPlayers([makePlayerId('w'), makePlayerId('x'), makePlayerId('y'), makePlayerId('z')]);
+      registry.registerPlayers([
+        makePlayerId('a'),
+        makePlayerId('b'),
+        makePlayerId('c'),
+        makePlayerId('d'),
+      ]);
+      registry.registerPlayers([
+        makePlayerId('w'),
+        makePlayerId('x'),
+        makePlayerId('y'),
+        makePlayerId('z'),
+      ]);
 
       expect(registry.hasPlayer(makePlayerId('a'))).toBe(false);
       expect(registry.hasPlayer(makePlayerId('w'))).toBe(true);
@@ -41,19 +51,34 @@ describe('PlayerPositionRegistry', () => {
 
   describe('getPosition', () => {
     test('returns correct position for registered player', () => {
-      registry.registerPlayers([makePlayerId('p0'), makePlayerId('p1'), makePlayerId('p2'), makePlayerId('p3')]);
+      registry.registerPlayers([
+        makePlayerId('p0'),
+        makePlayerId('p1'),
+        makePlayerId('p2'),
+        makePlayerId('p3'),
+      ]);
       expect(registry.getPosition(makePlayerId('p2'))).toBe(2);
     });
 
     test('returns 0 for unregistered player', () => {
-      registry.registerPlayers([makePlayerId('p0'), makePlayerId('p1'), makePlayerId('p2'), makePlayerId('p3')]);
+      registry.registerPlayers([
+        makePlayerId('p0'),
+        makePlayerId('p1'),
+        makePlayerId('p2'),
+        makePlayerId('p3'),
+      ]);
       expect(registry.getPosition(makePlayerId('unknown'))).toBe(0);
     });
   });
 
   describe('getPlayerId', () => {
     test('returns player ID for given position', () => {
-      registry.registerPlayers([makePlayerId('alice'), makePlayerId('bob'), makePlayerId('charlie'), makePlayerId('dave')]);
+      registry.registerPlayers([
+        makePlayerId('alice'),
+        makePlayerId('bob'),
+        makePlayerId('charlie'),
+        makePlayerId('dave'),
+      ]);
 
       expect(registry.getPlayerId(0)).toBe('alice');
       expect(registry.getPlayerId(1)).toBe('bob');
@@ -68,7 +93,12 @@ describe('PlayerPositionRegistry', () => {
 
   describe('hasPlayer', () => {
     test('checks if player is registered', () => {
-      registry.registerPlayers([makePlayerId('a'), makePlayerId('b'), makePlayerId('c'), makePlayerId('d')]);
+      registry.registerPlayers([
+        makePlayerId('a'),
+        makePlayerId('b'),
+        makePlayerId('c'),
+        makePlayerId('d'),
+      ]);
 
       expect(registry.hasPlayer(makePlayerId('a'))).toBe(true);
       expect(registry.hasPlayer(makePlayerId('b'))).toBe(true);
@@ -97,7 +127,12 @@ describe('PlayerPositionRegistry', () => {
 
   describe('clear', () => {
     test('removes all registered players', () => {
-      registry.registerPlayers([makePlayerId('a'), makePlayerId('b'), makePlayerId('c'), makePlayerId('d')]);
+      registry.registerPlayers([
+        makePlayerId('a'),
+        makePlayerId('b'),
+        makePlayerId('c'),
+        makePlayerId('d'),
+      ]);
       registry.clear();
 
       expect(registry.hasPlayer(makePlayerId('a'))).toBe(false);

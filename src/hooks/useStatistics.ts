@@ -1,12 +1,12 @@
 /**
  * Wrapper hook for statistics that works both online and offline
  * In offline mode, it returns mock functions that do nothing
- * In online mode, it dynamically imports and uses Convex statistics
+ * Online providers are disabled
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import type { GameState } from '../types/game.types';
-import type { Id } from '../../convex/_generated/dataModel';
+// Convex types removed
 
 interface StatisticsHook {
   playerStats: {
@@ -42,46 +42,36 @@ const offlineStats: StatisticsHook = {
   },
 };
 
-export function useStatistics(userId?: Id<'users'> | string): StatisticsHook {
+export function useStatistics(userId?: string): StatisticsHook {
   const [stats, setStats] = useState<StatisticsHook>(offlineStats);
   const [isOnline, setIsOnline] = useState(false);
 
   useEffect(() => {
     // Check if we should use online statistics
-    const shouldUseOnline = 
-      userId && 
-      typeof userId === 'string' && 
+    const shouldUseOnline =
+      userId &&
+      typeof userId === 'string' &&
       !userId.startsWith('local-') &&
       !userId.startsWith('offline-') &&
-      userId.length > 10 && // Convex IDs are longer
-      !!process.env.EXPO_PUBLIC_CONVEX_URL; // Check if Convex is configured
+      userId.length > 10; // Convex IDs are longer
+    // Note: Removed process.env check as it doesn't work in React Native
 
-    if (shouldUseOnline) {
-      // Dynamically import Convex statistics hook
-      import('./useConvexStatistics')
-        .then(module => {
-          setIsOnline(true);
-          // This will cause a re-render with online stats
-        })
-        .catch(error => {
-          console.log('Failed to load online statistics:', error);
-          // Stay with offline stats
-        });
-    }
+    // Online stats disabled
   }, [userId]);
 
   // If online, use the actual hook (but we can't do this conditionally)
   // So we need a different approach...
-  
+
   return stats;
 }
 
 /**
- * Alternative approach: Create a safe version that doesn't import Convex at all
+ * Alternative approach: Create a safe version without external dependencies
  */
-export function useSafeStatistics(userId?: Id<'users'> | string) {
-  const isOfflineUser = !userId || 
-    typeof userId !== 'string' || 
+export function useSafeStatistics(userId?: string) {
+  const isOfflineUser =
+    !userId ||
+    typeof userId !== 'string' ||
     userId.startsWith('local-') ||
     userId.startsWith('offline-') ||
     userId.length <= 10;
@@ -89,7 +79,7 @@ export function useSafeStatistics(userId?: Id<'users'> | string) {
   const recordGameResult = useCallback(
     async (
       gameState: GameState,
-      userId: Id<'users'> | string,
+      userId: string,
       gameMode: 'ranked' | 'casual' | 'friends',
       startTime: number,
     ) => {
@@ -100,17 +90,12 @@ export function useSafeStatistics(userId?: Id<'users'> | string) {
 
       // Only try to record if we're online
       try {
-        // Dynamically import and use Convex statistics
-        const { useConvexStatistics } = await import('./useConvexStatistics');
-        // Note: We can't use hooks conditionally, so this won't work
-        // We need a different approach
-        
-        console.log('Would record game statistics for online user');
+        console.log('Would record game statistics for online user (disabled)');
       } catch (error) {
         console.log('Failed to record statistics:', error);
       }
     },
-    [isOfflineUser]
+    [isOfflineUser],
   );
 
   return {

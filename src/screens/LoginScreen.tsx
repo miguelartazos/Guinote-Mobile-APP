@@ -11,7 +11,6 @@ import {
   SafeAreaView,
   Switch,
 } from 'react-native';
-import { useSignIn } from '@clerk/clerk-expo';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
@@ -20,14 +19,19 @@ import { Button } from '../components/Button';
 import { InputField } from '../components/ui/InputField';
 import { LoadingOverlay } from '../components/ui/LoadingOverlay';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as WebBrowser from 'expo-web-browser';
-
-WebBrowser.maybeCompleteAuthSession();
+import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
+import { useFeatureFlag } from '../config/featureFlags';
 
 export function LoginScreen() {
-  const { signIn, setActive, isLoaded } = useSignIn();
   const navigation = useNavigation();
   const route = useRoute();
+  const useSupabaseAuth = useFeatureFlag('useSupabaseAuth');
+
+  // Unified auth for Supabase
+  const unifiedAuth = useSupabaseAuth ? useUnifiedAuth() : null;
+
+  // Clerk removed
+  const isLoaded = true;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -54,8 +58,6 @@ export function LoginScreen() {
   };
 
   const handleSignIn = async () => {
-    if (!isLoaded) return;
-
     if (!email || !password) {
       Alert.alert('Error', 'Por favor ingresa tu email y contraseña');
       return;
@@ -64,12 +66,10 @@ export function LoginScreen() {
     setIsLoading(true);
 
     try {
-      const result = await signIn.create({
-        identifier: email,
-        password,
-      });
+      if (useSupabaseAuth && unifiedAuth) {
+        // Use Supabase auth
+        await unifiedAuth.signIn(email, password);
 
-      if (result.status === 'complete') {
         // Save email if remember me is checked
         if (rememberMe) {
           await AsyncStorage.setItem('savedEmail', email);
@@ -79,8 +79,6 @@ export function LoginScreen() {
           await AsyncStorage.setItem('rememberMe', 'false');
         }
 
-        await setActive({ session: result.createdSessionId });
-
         // Navigate back to QuickMatch or previous screen
         if (route.params?.returnTo) {
           navigation.navigate(route.params.returnTo as never);
@@ -88,20 +86,23 @@ export function LoginScreen() {
           navigation.goBack();
         }
       } else {
-        console.log('Sign in status:', result.status);
+        throw new Error('Online auth disabled');
       }
     } catch (error: any) {
       console.error('Sign in error:', error);
       let errorMessage = 'Verifica tus credenciales e intenta de nuevo';
 
-      if (error.errors?.[0]?.message?.includes('clerk_test')) {
-        errorMessage =
-          'Para iniciar sesión en modo de prueba, usa un email con formato: tu_email+clerk_test@example.com';
-      } else if (error.errors?.[0]?.message?.includes('not found')) {
-        errorMessage =
-          'No se encontró una cuenta con ese email. ¿Quieres registrarte?';
-      } else if (error.errors?.[0]?.message) {
-        errorMessage = error.errors[0].message;
+      if (useSupabaseAuth) {
+        // Supabase error handling
+        if (error.message?.includes('Invalid login credentials')) {
+          errorMessage = 'Email o contraseña incorrectos';
+        } else if (error.message?.includes('Email not confirmed')) {
+          errorMessage = 'Por favor verifica tu email antes de iniciar sesión';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      } else {
+        errorMessage = 'Autenticación en línea deshabilitada';
       }
 
       Alert.alert('Error al iniciar sesión', errorMessage);
@@ -115,71 +116,11 @@ export function LoginScreen() {
   };
 
   const handleForgotPassword = async () => {
-    if (!email) {
-      Alert.alert('Error', 'Por favor ingresa tu email primero');
-      return;
-    }
-
-    if (!isLoaded || !signIn) return;
-
-    setIsLoading(true);
-    try {
-      await signIn.create({
-        strategy: 'reset_password_email_code',
-        identifier: email,
-      });
-
-      Alert.alert(
-        'Correo enviado',
-        'Te hemos enviado un correo con instrucciones para restablecer tu contraseña',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Navigate to password reset screen if you have one
-              // navigation.navigate('ResetPassword' as never);
-            },
-          },
-        ],
-      );
-    } catch (error: any) {
-      console.error('Forgot password error:', error);
-      Alert.alert(
-        'Error',
-        error.errors?.[0]?.message ||
-          'No se pudo enviar el correo de recuperación',
-      );
-    } finally {
-      setIsLoading(false);
-    }
+    Alert.alert('No disponible', 'Recuperación de contraseña no disponible en modo offline');
   };
 
-  const handleOAuthSignIn = async (
-    strategy: 'oauth_google' | 'oauth_apple',
-  ) => {
-    if (!isLoaded) return;
-
-    try {
-      const { createdSessionId, setActive: setActiveSession } =
-        await signIn.create({ strategy });
-
-      if (createdSessionId) {
-        await setActiveSession({ session: createdSessionId });
-
-        // Navigate back
-        if (route.params?.returnTo) {
-          navigation.navigate(route.params.returnTo as never);
-        } else {
-          navigation.goBack();
-        }
-      }
-    } catch (error: any) {
-      console.error('OAuth sign in error:', error);
-      Alert.alert(
-        'Error de autenticación',
-        'No se pudo iniciar sesión con este proveedor',
-      );
-    }
+  const handleOAuthSignIn = async () => {
+    Alert.alert('No disponible', 'El inicio de sesión con proveedores está deshabilitado.');
   };
 
   return (
@@ -209,6 +150,7 @@ export function LoginScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               editable={!isLoading}
+              testID="email-input"
               validation={{
                 isValid: email.includes('@') && email.includes('.'),
                 message: email.length > 0 ? 'Formato de email válido' : undefined,
@@ -224,6 +166,7 @@ export function LoginScreen() {
               secureTextEntry
               showPasswordToggle
               editable={!isLoading}
+              testID="password-input"
             />
 
             <View style={styles.rememberContainer}>
@@ -242,9 +185,7 @@ export function LoginScreen() {
               disabled={isLoading}
               style={styles.forgotPasswordButton}
             >
-              <Text style={styles.forgotPassword}>
-                ¿Olvidaste tu contraseña?
-              </Text>
+              <Text style={styles.forgotPassword}>¿Olvidaste tu contraseña?</Text>
             </TouchableOpacity>
 
             <Button
@@ -255,6 +196,7 @@ export function LoginScreen() {
               style={styles.signInButton}
               icon="➡️"
               iconPosition="right"
+              testID="login-button"
             >
               {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
@@ -293,17 +235,14 @@ export function LoginScreen() {
               style={styles.registerButton}
               onPress={handleSignUp}
               disabled={isLoading}
+              testID="register-link"
             >
-              <Text style={styles.registerButtonText}>
-                ¿No tienes cuenta? Regístrate
-              </Text>
+              <Text style={styles.registerButtonText}>¿No tienes cuenta? Regístrate</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.footerContainer}>
-            <Text style={styles.footerText}>
-              Al continuar, aceptas nuestros{' '}
-            </Text>
+            <Text style={styles.footerText}>Al continuar, aceptas nuestros </Text>
             <View style={styles.footerLinks}>
               <TouchableOpacity>
                 <Text style={styles.footerLink}>Términos de Servicio</Text>
@@ -316,10 +255,7 @@ export function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      <LoadingOverlay
-        visible={isLoading}
-        message="Iniciando sesión..."
-      />
+      <LoadingOverlay visible={isLoading} message="Iniciando sesión..." />
     </SafeAreaView>
   );
 }

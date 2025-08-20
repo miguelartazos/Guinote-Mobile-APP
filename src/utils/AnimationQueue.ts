@@ -49,15 +49,9 @@ class AnimationQueueManager {
     };
 
     // Insert based on priority
-    const priorityOrder: AnimationPriority[] = [
-      'critical',
-      'high',
-      'normal',
-      'low',
-    ];
+    const priorityOrder: AnimationPriority[] = ['critical', 'high', 'normal', 'low'];
     const insertIndex = this.queue.findIndex(
-      item =>
-        priorityOrder.indexOf(item.priority) > priorityOrder.indexOf(priority),
+      item => priorityOrder.indexOf(item.priority) > priorityOrder.indexOf(priority),
     );
 
     if (insertIndex === -1) {
@@ -93,10 +87,7 @@ class AnimationQueueManager {
         this.currentAnimation.onComplete?.();
         console.log(`✅ Completed animation: ${this.currentAnimation.type}`);
       } catch (error) {
-        console.error(
-          `❌ Animation failed: ${this.currentAnimation.type}`,
-          error,
-        );
+        console.error(`❌ Animation failed: ${this.currentAnimation.type}`, error);
         this.currentAnimation.onCancel?.();
       }
     }
@@ -152,10 +143,7 @@ class AnimationQueueManager {
    * Check if a specific type of animation is queued or running
    */
   hasAnimation(type: AnimationType): boolean {
-    return (
-      this.currentAnimation?.type === type ||
-      this.queue.some(item => item.type === type)
-    );
+    return this.currentAnimation?.type === type || this.queue.some(item => item.type === type);
   }
 
   /**
@@ -245,8 +233,6 @@ export const queueParallelAnimations = (
   }>,
 ): Promise<void[]> => {
   return Promise.all(
-    animations.map(({ animation, type = 'card_play' }) =>
-      queueCardAnimation(animation, type),
-    ),
+    animations.map(({ animation, type = 'card_play' }) => queueCardAnimation(animation, type)),
   );
 };

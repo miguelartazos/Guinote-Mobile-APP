@@ -1,9 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  voiceQueue,
-  VoiceQueueState,
-  VoiceMessageQueue,
-} from '../utils/voiceQueue';
+import { voiceQueue, VoiceQueueState, VoiceMessageQueue } from '../utils/voiceQueue';
 import { useVoiceRecorder } from './useVoiceRecorder';
 import type { VoiceRecordingId } from '../utils/voiceStorage';
 
@@ -20,9 +16,7 @@ export type VoiceMessageData = {
 const PLAYBACK_DELAY = 500; // Delay between messages
 
 export function useVoiceQueue() {
-  const [queueState, setQueueState] = useState<VoiceQueueState>(
-    voiceQueue.getState(),
-  );
+  const [queueState, setQueueState] = useState<VoiceQueueState>(voiceQueue.getState());
   const { playRecording, stopPlayback, isPlaying } = useVoiceRecorder();
   const playbackTimerRef = useRef<NodeJS.Timeout | null>(null);
   const currentMessageIdRef = useRef<string | null>(null);

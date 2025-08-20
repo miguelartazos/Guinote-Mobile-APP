@@ -33,13 +33,9 @@ export function Divider({
   if (text) {
     return (
       <View style={[styles.container, { marginVertical }]}>
-        <View
-          style={[styles.line, { backgroundColor: color, height: thickness }]}
-        />
+        <View style={[styles.line, { backgroundColor: color, height: thickness }]} />
         <Text style={styles.text}>{text}</Text>
-        <View
-          style={[styles.line, { backgroundColor: color, height: thickness }]}
-        />
+        <View style={[styles.line, { backgroundColor: color, height: thickness }]} />
       </View>
     );
   }

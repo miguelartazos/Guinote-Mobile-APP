@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  TouchableOpacity,
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-} from 'react-native';
+import { TouchableOpacity, View, Text, StyleSheet, Animated } from 'react-native';
 import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
@@ -46,20 +40,14 @@ export function VoiceBubble({
   const { playReactionSound } = useSounds();
   const [isVisible, setIsVisible] = useState(true);
   const [showReactions, setShowReactions] = useState(false);
-  const [reactionCounts, setReactionCounts] = useState(
-    getReactionCounts(recordingId),
-  );
+  const [reactionCounts, setReactionCounts] = useState(getReactionCounts(recordingId));
   const [currentPlayerReaction, setCurrentPlayerReaction] = useState(
     getPlayerReaction(recordingId, currentPlayerId)?.reactionType || null,
   );
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const translateX = useRef(
-    new Animated.Value(getSwooshStart(position).x),
-  ).current;
-  const translateY = useRef(
-    new Animated.Value(getSwooshStart(position).y),
-  ).current;
+  const translateX = useRef(new Animated.Value(getSwooshStart(position).x)).current;
+  const translateY = useRef(new Animated.Value(getSwooshStart(position).y)).current;
   const reactionFadeAnim = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -313,9 +301,7 @@ export function VoiceBubble({
             >
               <Text style={styles.reactionEmoji}>{reaction}</Text>
               {reactionCounts[reaction] > 0 && (
-                <Text style={styles.reactionButtonCount}>
-                  {reactionCounts[reaction]}
-                </Text>
+                <Text style={styles.reactionButtonCount}>{reactionCounts[reaction]}</Text>
               )}
             </TouchableOpacity>
           ))}

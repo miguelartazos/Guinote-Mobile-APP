@@ -123,8 +123,7 @@ export const completeTutorialSteps: TutorialStep[] = [
   {
     id: tutorialStepId('complete-preparation'),
     title: '2. Preparación (El Ritual Inicial)',
-    description:
-      'Un repaso visual y claro del reparto de 6 cartas y la revelación del triunfo.',
+    description: 'Un repaso visual y claro del reparto de 6 cartas y la revelación del triunfo.',
   },
   {
     id: tutorialStepId('complete-cards-reference'),
@@ -209,8 +208,7 @@ export function getTutorialSteps(type: TutorialType): TutorialStep[] {
 
 export function getContextualHelp(context: string): string {
   const contextualHelpMap: Record<string, string> = {
-    'play-card':
-      'Selecciona una carta de tu mano para jugarla. Recuerda seguir el palo si puedes.',
+    'play-card': 'Selecciona una carta de tu mano para jugarla. Recuerda seguir el palo si puedes.',
     'cante-available':
       'Tienes Rey y Caballo del mismo palo. Puedes cantar después de ganar esta baza.',
     'trump-change':
@@ -218,12 +216,10 @@ export function getContextualHelp(context: string): string {
     'last-cards':
       'Quedan pocas cartas. Ahora debes usar triunfo si el oponente lo usa y tú tienes.',
     'waiting-turn': 'Espera tu turno. Observa las cartas que juegan los demás.',
-    'partner-turn':
-      'Es el turno de tu compañero. Observa su jugada para planear tu estrategia.',
+    'partner-turn': 'Es el turno de tu compañero. Observa su jugada para planear tu estrategia.',
   };
 
   return (
-    contextualHelpMap[context] ||
-    'Pulsa el botón de ayuda para más información sobre el juego.'
+    contextualHelpMap[context] || 'Pulsa el botón de ayuda para más información sobre el juego.'
   );
 }

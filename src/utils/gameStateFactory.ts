@@ -1,10 +1,4 @@
-import type {
-  GameState,
-  Player,
-  GameId,
-  Team,
-  TeamId,
-} from '../types/game.types';
+import type { GameState, Player, GameId, Team, TeamId } from '../types/game.types';
 import { createDeck, shuffleDeck, dealInitialCards } from './gameLogic';
 
 interface PlayerInfo {
@@ -54,13 +48,9 @@ export function createInitialGameState(playerInfos: PlayerInfo[]): GameState {
   }));
 
   // Create teams
-  const team1Players = playerInfos
-    .filter(p => p.teamId === 'team1')
-    .map(p => p.id as any);
-  const team2Players = playerInfos
-    .filter(p => p.teamId === 'team2')
-    .map(p => p.id as any);
-    
+  const team1Players = playerInfos.filter(p => p.teamId === 'team1').map(p => p.id as any);
+  const team2Players = playerInfos.filter(p => p.teamId === 'team2').map(p => p.id as any);
+
   if (team1Players.length !== 2 || team2Players.length !== 2) {
     throw new Error('Each team must have exactly 2 players');
   }

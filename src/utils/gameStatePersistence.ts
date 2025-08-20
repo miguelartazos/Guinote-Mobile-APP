@@ -19,10 +19,7 @@ export async function saveGameState(gameState: GameState): Promise<void> {
         : undefined,
     };
 
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.CURRENT_GAME_STATE,
-      JSON.stringify(serializedState),
-    );
+    await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_GAME_STATE, JSON.stringify(serializedState));
     await AsyncStorage.setItem(STORAGE_KEYS.HAS_SAVED_GAME, 'true');
   } catch (error) {
     console.error('Failed to save game state:', error);
@@ -31,16 +28,12 @@ export async function saveGameState(gameState: GameState): Promise<void> {
 
 export async function loadGameState(): Promise<GameState | null> {
   try {
-    const hasSavedGame = await AsyncStorage.getItem(
-      STORAGE_KEYS.HAS_SAVED_GAME,
-    );
+    const hasSavedGame = await AsyncStorage.getItem(STORAGE_KEYS.HAS_SAVED_GAME);
     if (hasSavedGame !== 'true') {
       return null;
     }
 
-    const savedState = await AsyncStorage.getItem(
-      STORAGE_KEYS.CURRENT_GAME_STATE,
-    );
+    const savedState = await AsyncStorage.getItem(STORAGE_KEYS.CURRENT_GAME_STATE);
     if (!savedState) {
       return null;
     }
@@ -65,10 +58,7 @@ export async function loadGameState(): Promise<GameState | null> {
 
 export async function clearGameState(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([
-      STORAGE_KEYS.CURRENT_GAME_STATE,
-      STORAGE_KEYS.HAS_SAVED_GAME,
-    ]);
+    await AsyncStorage.multiRemove([STORAGE_KEYS.CURRENT_GAME_STATE, STORAGE_KEYS.HAS_SAVED_GAME]);
   } catch (error) {
     console.error('Failed to clear game state:', error);
   }

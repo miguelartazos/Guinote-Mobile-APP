@@ -1,21 +1,14 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { StatusBar, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootNavigator } from './navigation/RootNavigator';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthErrorBoundary } from './components/AuthErrorBoundary';
-// Removed automatic Convex/Clerk imports - they cause errors in offline mode
-// import { ClerkProvider } from './providers/ClerkProvider';
-// import { ConvexClientProvider } from './providers/ConvexClientProvider';
+import { SupabaseLifecycleProvider } from './providers/SupabaseLifecycleProvider';
 import { colors } from './constants/colors';
 
-// Initialize orientation locker
-let Orientation: any = null;
-try {
-  Orientation = require('react-native-orientation-locker').default;
-} catch (error) {
-  console.warn('react-native-orientation-locker not available');
-}
+// Temporarily removed orientation-locker to fix prototype error
+// Will re-add later with proper import instead of dynamic require
 
 const styles = StyleSheet.create({
   container: {
@@ -24,29 +17,19 @@ const styles = StyleSheet.create({
 });
 
 function App() {
-  useEffect(() => {
-    // Set initial orientation to portrait for menu screens
-    if (Orientation) {
-      try {
-        Orientation.lockToPortrait();
-      } catch (error) {
-        console.warn('Failed to set initial orientation:', error);
-      }
-    }
-  }, []);
+  // Removed orientation lock code temporarily to fix module loading issue
+  // Will be re-added later when the prototype error is resolved
 
-  // For now, run in offline mode only - no Convex/Clerk providers
-  // When online mode is ready, we'll conditionally load them based on user preference
+  // SupabaseLifecycleProvider only activates when Supabase features are enabled
   return (
     <ErrorBoundary>
       <AuthErrorBoundary>
-        <GestureHandlerRootView style={styles.container}>
-          <StatusBar
-            barStyle="light-content"
-            backgroundColor={colors.primary}
-          />
-          <RootNavigator />
-        </GestureHandlerRootView>
+        <SupabaseLifecycleProvider>
+          <GestureHandlerRootView style={styles.container}>
+            <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+            <RootNavigator />
+          </GestureHandlerRootView>
+        </SupabaseLifecycleProvider>
       </AuthErrorBoundary>
     </ErrorBoundary>
   );

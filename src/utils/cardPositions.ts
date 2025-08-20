@@ -3,16 +3,12 @@ import type { LayoutRectangle } from 'react-native';
 import { getCardDimensions } from './responsive';
 
 // Dynamic card dimensions - recalculated on each call
-export function getCardWidth(
-  size: 'small' | 'medium' | 'large' = 'large',
-): number {
+export function getCardWidth(size: 'small' | 'medium' | 'large' = 'large'): number {
   const cardDimensions = getCardDimensions();
   return cardDimensions[size].width;
 }
 
-export function getCardHeight(
-  size: 'small' | 'medium' | 'large' = 'large',
-): number {
+export function getCardHeight(size: 'small' | 'medium' | 'large' = 'large'): number {
   const cardDimensions = getCardDimensions();
   return cardDimensions[size].height;
 }
@@ -44,10 +40,7 @@ export type LayoutInfo = {
 };
 
 // Compute a centered board layout with stable aspect ratio
-export function computeBoardLayout(
-  parentWidth: number,
-  parentHeight: number,
-): LayoutRectangle {
+export function computeBoardLayout(parentWidth: number, parentHeight: number): LayoutRectangle {
   // Make the board occupy the full available space of the table container
   // so the green table has no margins
   const width = Math.floor(parentWidth);
@@ -73,8 +66,7 @@ export function getBottomPlayerCardPosition(
   const startX = (parentWidth - totalWidth) / 2;
 
   // Use parent layout if available, otherwise fall back to window
-  const parentHeight =
-    layoutInfo?.parentLayout?.height ?? Dimensions.get('window').height;
+  const parentHeight = layoutInfo?.parentLayout?.height ?? Dimensions.get('window').height;
 
   return {
     x: startX + index * visibleWidth,
@@ -227,30 +219,13 @@ export function getPlayerCardPosition(
 
   switch (playerIndex) {
     case 0:
-      return getBottomPlayerCardPosition(
-        cardIndex,
-        totalCards,
-        width,
-        layoutInfo,
-      );
+      return getBottomPlayerCardPosition(cardIndex, totalCards, width, layoutInfo);
     case 1:
-      return getSidePlayerCardPosition(
-        cardIndex,
-        totalCards,
-        height,
-        false,
-        layoutInfo,
-      );
+      return getSidePlayerCardPosition(cardIndex, totalCards, height, false, layoutInfo);
     case 2:
       return getTopPlayerCardPosition(cardIndex, totalCards, width, layoutInfo);
     case 3:
-      return getSidePlayerCardPosition(
-        cardIndex,
-        totalCards,
-        height,
-        true,
-        layoutInfo,
-      );
+      return getSidePlayerCardPosition(cardIndex, totalCards, height, true, layoutInfo);
     default:
       return { x: width / 2, y: height / 2, rotation: 0, zIndex: 0 };
   }

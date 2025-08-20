@@ -8,10 +8,7 @@ export type GameId = Brand<string, 'GameId'>;
 export type TeamId = Brand<string, 'TeamId'>;
 export type TutorialStepId = Brand<string, 'TutorialStepId'>;
 export type HelpSectionId = Brand<string, 'HelpSectionId'>;
-export type TutorialType = Brand<
-  'complete' | 'basic' | 'cantes' | 'special',
-  'TutorialType'
->;
+export type TutorialType = Brand<'complete' | 'basic' | 'cantes' | 'special', 'TutorialType'>;
 
 export type Card = {
   id: CardId;
@@ -47,10 +44,26 @@ export type GamePhase =
 
 export type GameSet = 'buenas' | 'malas' | 'bella';
 
+// Type for team array indices
+export type TeamIndex = 0 | 1;
+
 export type MatchScore = {
-  team1Sets: number;
-  team2Sets: number;
-  currentSet: GameSet;
+  // Partidas won in current coto
+  team1Partidas: number;
+  team2Partidas: number;
+
+  // Cotos won in the match
+  team1Cotos: number;
+  team2Cotos: number;
+
+  // Match configuration
+  partidasPerCoto: number; // Default: 3 (first to win 3 partidas wins the coto)
+  cotosPerMatch: number; // Default: 2 (first to win 2 cotos wins the match)
+
+  // Legacy compatibility - will be deprecated
+  team1Sets: number; // Maps to team1Partidas for backward compatibility
+  team2Sets: number; // Maps to team2Partidas for backward compatibility
+  currentSet: GameSet; // Keep for UI compatibility
 };
 
 export type TrickCard = {

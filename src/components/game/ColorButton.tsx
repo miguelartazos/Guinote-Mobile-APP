@@ -11,12 +11,7 @@ type ColorButtonProps = {
   style?: ViewStyle;
 };
 
-export function ColorButton({
-  color,
-  isSelected,
-  onPress,
-  style,
-}: ColorButtonProps) {
+export function ColorButton({ color, isSelected, onPress, style }: ColorButtonProps) {
   return (
     <TouchableOpacity
       style={[

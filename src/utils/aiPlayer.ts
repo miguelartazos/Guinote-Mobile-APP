@@ -68,16 +68,9 @@ function hasCante(hand: readonly Card[], suit: SpanishSuit): boolean {
   return hasRey && hasSota;
 }
 
-function shouldPreserveCante(
-  card: Card,
-  hand: readonly Card[],
-  gameState: GameState,
-): boolean {
+function shouldPreserveCante(card: Card, hand: readonly Card[], gameState: GameState): boolean {
   // Don't preserve cantes if game is almost over
-  if (
-    gameState.phase === 'arrastre' ||
-    gameState.deck.length < AI_THRESHOLDS.CANTE_FEW_CARDS
-  )
+  if (gameState.phase === 'arrastre' || gameState.deck.length < AI_THRESHOLDS.CANTE_FEW_CARDS)
     return false;
 
   // Check if this card is part of a cante
@@ -86,9 +79,7 @@ function shouldPreserveCante(
     if (!canCante) return false;
 
     // Check if we already canted this suit
-    const team = gameState.teams.find(t =>
-      t.playerIds.includes(gameState.currentPlayer),
-    );
+    const team = gameState.teams.find(t => t.playerIds.includes(gameState.currentPlayer));
     if (team?.cantes.some(c => c.suit === card.suit)) {
       return false; // Already canted, no need to preserve
     }
@@ -119,9 +110,7 @@ function playEasyAI(
     return validCards[randomIndex];
   } else {
     // 20% prefer lower cards to seem less threatening
-    const sortedCards = [...validCards].sort(
-      (a, b) => getCardPower(a) - getCardPower(b),
-    );
+    const sortedCards = [...validCards].sort((a, b) => getCardPower(a) - getCardPower(b));
     return sortedCards[0];
   }
 }
@@ -145,10 +134,7 @@ function playMediumAI(
   ) {
     // Try to find a non-trump alternative
     const nonTrumps = validCards.filter(c => c.suit !== trumpSuit);
-    if (
-      nonTrumps.length > 0 &&
-      Math.random() < AI_PROBABILITIES.SAVE_TRUMP_EARLY
-    ) {
+    if (nonTrumps.length > 0 && Math.random() < AI_PROBABILITIES.SAVE_TRUMP_EARLY) {
       // 70% chance to save trump in early game
       return nonTrumps[Math.floor(Math.random() * nonTrumps.length)];
     }
@@ -177,22 +163,15 @@ function playHardAI(
 
   suits.forEach(suit => {
     // Use memory if available and not too large, otherwise use heuristics
-    const remaining = useMemory
-      ? getRemainingHighCards(memory, suit)
-      : suit === trumpSuit
-      ? 3
-      : 2; // Estimate if no memory
+    const remaining = useMemory ? getRemainingHighCards(memory, suit) : suit === trumpSuit ? 3 : 2; // Estimate if no memory
     suitStrengths.set(suit, remaining);
   });
 
   // Starting a trick with card counting
   if (currentTrick.length === 0) {
     // Preserve cantes intelligently
-    const playableCards = validCards.filter(
-      card => !shouldPreserveCante(card, hand, gameState),
-    );
-    const cardsToConsider =
-      playableCards.length > 0 ? playableCards : validCards;
+    const playableCards = validCards.filter(card => !shouldPreserveCante(card, hand, gameState));
+    const cardsToConsider = playableCards.length > 0 ? playableCards : validCards;
 
     // Phase-aware leading
     if (phase === 'arrastre') {
@@ -208,9 +187,7 @@ function playHardAI(
 
       if (nonTrumps.length > 0) {
         // Lead with lowest non-trump
-        return [...nonTrumps].sort(
-          (a, b) => getCardPower(a) - getCardPower(b),
-        )[0];
+        return [...nonTrumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
       }
       // Only trumps left
       return [...trumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
@@ -219,9 +196,7 @@ function playHardAI(
       const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
       if (nonTrumps.length > 0) {
         // Find suits where we have low cards and opponents might have high cards
-        const lowCards = nonTrumps.filter(
-          c => getCardPower(c) < AI_THRESHOLDS.LOW_POWER_CARD,
-        );
+        const lowCards = nonTrumps.filter(c => getCardPower(c) < AI_THRESHOLDS.LOW_POWER_CARD);
         if (lowCards.length > 0) {
           // Lead with low card in suit with many remaining high cards
           return [...lowCards].sort((a, b) => {
@@ -258,34 +233,23 @@ function playHardAI(
         // Cargar in arrastre
         const nonTrumps = validCards.filter(c => c.suit !== trumpSuit);
         const cardsToGive = nonTrumps.length > 0 ? nonTrumps : validCards;
-        return [...cardsToGive].sort(
-          (a, b) => getCardPoints(b) - getCardPoints(a),
-        )[0];
+        return [...cardsToGive].sort((a, b) => getCardPoints(b) - getCardPoints(a))[0];
       }
       // Robada: avoid cargar; discard lowest points
       const nonTrumps = validCards.filter(c => c.suit !== trumpSuit);
       const safeDiscards = nonTrumps.length > 0 ? nonTrumps : validCards;
-      return [...safeDiscards].sort(
-        (a, b) => getCardPoints(a) - getCardPoints(b),
-      )[0];
+      return [...safeDiscards].sort((a, b) => getCardPoints(a) - getCardPoints(b))[0];
     }
 
     // Opponent winning - must we take it?
-    if (
-      trickValue >= AI_THRESHOLDS.HIGH_VALUE_TRICK &&
-      winningCards.length > 0
-    ) {
+    if (trickValue >= AI_THRESHOLDS.HIGH_VALUE_TRICK && winningCards.length > 0) {
       // Try to win without trumps first
       const nonTrumpWinners = winningCards.filter(c => c.suit !== trumpSuit);
       if (nonTrumpWinners.length > 0) {
-        return [...nonTrumpWinners].sort(
-          (a, b) => getCardPower(a) - getCardPower(b),
-        )[0];
+        return [...nonTrumpWinners].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
       }
       // Use trump only if necessary
-      return [...winningCards].sort(
-        (a, b) => getCardPower(a) - getCardPower(b),
-      )[0];
+      return [...winningCards].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
     }
 
     // Check if we can duck safely based on memory
@@ -298,11 +262,8 @@ function playHardAI(
       if (losingCards.length > 0) {
         // Discard low points, preferring non-trumps
         const nonTrumpLosers = losingCards.filter(c => c.suit !== trumpSuit);
-        const toDiscard =
-          nonTrumpLosers.length > 0 ? nonTrumpLosers : losingCards;
-        return [...toDiscard].sort(
-          (a, b) => getCardPoints(a) - getCardPoints(b),
-        )[0];
+        const toDiscard = nonTrumpLosers.length > 0 ? nonTrumpLosers : losingCards;
+        return [...toDiscard].sort((a, b) => getCardPoints(a) - getCardPoints(b))[0];
       }
     }
   }
@@ -323,13 +284,8 @@ function applyPersonality(
   switch (personality) {
     case 'prudent': {
       // Defensive: avoid playing high cards early
-      if (
-        currentTrick.length === 0 &&
-        gameState.deck.length > AI_THRESHOLDS.MANY_CARDS_LEFT
-      ) {
-        const lowCards = validCards.filter(
-          c => getCardPower(c) <= AI_THRESHOLDS.LOW_POWER_CARD,
-        );
+      if (currentTrick.length === 0 && gameState.deck.length > AI_THRESHOLDS.MANY_CARDS_LEFT) {
+        const lowCards = validCards.filter(c => getCardPower(c) <= AI_THRESHOLDS.LOW_POWER_CARD);
         if (lowCards.length > 0) {
           return lowCards[Math.floor(Math.random() * lowCards.length)];
         }
@@ -387,10 +343,11 @@ function selectLeadingCard(
 ): Card {
   const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
   const trumps = cardsToConsider.filter(c => c.suit === trumpSuit);
-  const opponentHasForty = gameState.teams.some(team =>
-    // Opponent team:
-    !team.playerIds.includes(gameState.players[gameState.currentPlayerIndex]?.id as PlayerId) &&
-    team.cantes?.some(c => c.suit === trumpSuit && c.points === 40),
+  const opponentHasForty = gameState.teams.some(
+    team =>
+      // Opponent team:
+      !team.playerIds.includes(gameState.players[gameState.currentPlayerIndex]?.id as PlayerId) &&
+      team.cantes?.some(c => c.suit === trumpSuit && c.points === 40),
   );
 
   // ARRASTRE PHASE - Prefer bleeding trumps when strong
@@ -417,13 +374,9 @@ function selectLeadingCard(
         suitCounts.set(c.suit, (suitCounts.get(c.suit) || 0) + 1);
       });
       const targetSuit = [...suitCounts.entries()].sort((a, b) => a[1] - b[1])[0]?.[0];
-      const targetSuitCards = targetSuit
-        ? nonTrumps.filter(c => c.suit === targetSuit)
-        : nonTrumps;
+      const targetSuitCards = targetSuit ? nonTrumps.filter(c => c.suit === targetSuit) : nonTrumps;
       // Play lowest power in that suit to avoid winning
-      return [...targetSuitCards].sort(
-        (a, b) => getCardPower(a) - getCardPower(b),
-      )[0];
+      return [...targetSuitCards].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
     }
     // Early game with many cards left
     if (gameState.deck.length > AI_THRESHOLDS.MANY_CARDS_LEFT) {
@@ -463,12 +416,8 @@ function selectFollowingCard(
   // Separate trumps and non-trumps
   const nonTrumpWinners = winningCards.filter(c => c.suit !== trumpSuit);
   const trumpWinners = winningCards.filter(c => c.suit === trumpSuit);
-  const nonTrumpLosers = validCards.filter(
-    c => c.suit !== trumpSuit && !winningCards.includes(c),
-  );
-  const trumpLosers = validCards.filter(
-    c => c.suit === trumpSuit && !winningCards.includes(c),
-  );
+  const nonTrumpLosers = validCards.filter(c => c.suit !== trumpSuit && !winningCards.includes(c));
+  const trumpLosers = validCards.filter(c => c.suit === trumpSuit && !winningCards.includes(c));
 
   // PHASE-AWARE STRATEGY
   if (phase === 'arrastre' || phase === 'vueltas') {
@@ -478,33 +427,22 @@ function selectFollowingCard(
       if (trickValue >= AI_THRESHOLDS.HIGH_VALUE_TRICK) {
         // Try to win without trumps first
         if (nonTrumpWinners.length > 0) {
-          return [...nonTrumpWinners].sort(
-            (a, b) => getCardPower(a) - getCardPower(b),
-          )[0];
+          return [...nonTrumpWinners].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
         }
         // Only use trump if necessary
-        return [...trumpWinners].sort(
-          (a, b) => getCardPower(a) - getCardPower(b),
-        )[0];
+        return [...trumpWinners].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
       }
 
       // Medium value - try to win without trumps
-      if (
-        trickValue >= AI_THRESHOLDS.VALUABLE_TRICK &&
-        nonTrumpWinners.length > 0
-      ) {
-        return [...nonTrumpWinners].sort(
-          (a, b) => getCardPower(a) - getCardPower(b),
-        )[0];
+      if (trickValue >= AI_THRESHOLDS.VALUABLE_TRICK && nonTrumpWinners.length > 0) {
+        return [...nonTrumpWinners].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
       }
     }
 
     // Can't win or low value - never waste trumps
     if (nonTrumpLosers.length > 0) {
       // Discard lowest point non-trump
-      return [...nonTrumpLosers].sort(
-        (a, b) => getCardPoints(a) - getCardPoints(b),
-      )[0];
+      return [...nonTrumpLosers].sort((a, b) => getCardPoints(a) - getCardPoints(b))[0];
     }
 
     // Only trumps left - play lowest
@@ -518,15 +456,11 @@ function selectFollowingCard(
       if (trickValue >= AI_THRESHOLDS.HIGH_VALUE_TRICK) {
         // Prefer non-trumps for winning
         if (nonTrumpWinners.length > 0) {
-          return [...nonTrumpWinners].sort(
-            (a, b) => getCardPower(a) - getCardPower(b),
-          )[0];
+          return [...nonTrumpWinners].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
         }
         // Use trump only if needed
         if (Math.random() > AI_PROBABILITIES.SAVE_TRUMP_DRAW) {
-          return [...trumpWinners].sort(
-            (a, b) => getCardPower(a) - getCardPower(b),
-          )[0];
+          return [...trumpWinners].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
         }
       }
 
@@ -538,27 +472,18 @@ function selectFollowingCard(
       ) {
         // Prefer discarding non-trumps
         if (nonTrumpLosers.length > 0) {
-          return [...nonTrumpLosers].sort(
-            (a, b) => getCardPoints(a) - getCardPoints(b),
-          )[0];
+          return [...nonTrumpLosers].sort((a, b) => getCardPoints(a) - getCardPoints(b))[0];
         }
       }
 
       // Default: win with non-trump if possible
       if (nonTrumpWinners.length > 0) {
-        return [...nonTrumpWinners].sort(
-          (a, b) => getCardPower(a) - getCardPower(b),
-        )[0];
+        return [...nonTrumpWinners].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
       }
 
       // Only use trump if really needed (15% chance in draw phase)
-      if (
-        trumpWinners.length > 0 &&
-        Math.random() < AI_PROBABILITIES.AGGRESSIVE_TRUMP
-      ) {
-        return [...trumpWinners].sort(
-          (a, b) => getCardPower(a) - getCardPower(b),
-        )[0];
+      if (trumpWinners.length > 0 && Math.random() < AI_PROBABILITIES.AGGRESSIVE_TRUMP) {
+        return [...trumpWinners].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
       }
     }
   }
@@ -566,9 +491,7 @@ function selectFollowingCard(
   // Can't win - discard wisely
   // Always prefer discarding non-trumps
   if (nonTrumpLosers.length > 0) {
-    return [...nonTrumpLosers].sort(
-      (a, b) => getCardPoints(a) - getCardPoints(b),
-    )[0];
+    return [...nonTrumpLosers].sort((a, b) => getCardPoints(a) - getCardPoints(b))[0];
   }
 
   // Only trumps available - play lowest
@@ -598,13 +521,10 @@ function playStrategicCard(
       return [...candidates].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
     }
     // Filter out cards that are part of cantes we want to preserve
-    const playableCards = validCards.filter(
-      card => !shouldPreserveCante(card, hand, gameState),
-    );
+    const playableCards = validCards.filter(card => !shouldPreserveCante(card, hand, gameState));
 
     // If all cards are part of cantes, use all valid cards
-    const cardsToConsider =
-      playableCards.length > 0 ? playableCards : validCards;
+    const cardsToConsider = playableCards.length > 0 ? playableCards : validCards;
 
     return selectLeadingCard(cardsToConsider, trumpSuit, phase, gameState);
   }
@@ -617,11 +537,7 @@ function playStrategicCard(
   if (currentTrick.length > 0) {
     const currentWinner = calculateTrickWinner(currentTrick, trumpSuit);
     const team = gameState.teams.find(t => t.playerIds.includes(playerId));
-    if (
-      team &&
-      team.playerIds.includes(currentWinner) &&
-      currentWinner !== playerId
-    ) {
+    if (team && team.playerIds.includes(currentWinner) && currentWinner !== playerId) {
       partnerIsWinning = true;
     }
   }
@@ -629,9 +545,7 @@ function playStrategicCard(
   // If partner is winning a valuable trick, give them points
   if (partnerIsWinning && trickValue >= AI_THRESHOLDS.VALUABLE_TRICK) {
     // Give high point cards to partner
-    const sortedByPoints = [...validCards].sort(
-      (a, b) => getCardPoints(b) - getCardPoints(a),
-    );
+    const sortedByPoints = [...validCards].sort((a, b) => getCardPoints(b) - getCardPoints(a));
     // But avoid giving trumps if possible
     const nonTrumps = sortedByPoints.filter(c => c.suit !== trumpSuit);
     if (nonTrumps.length > 0) {
@@ -674,12 +588,7 @@ export function playAICard(
 
   // If no valid cards in arrastre, something is wrong - return any card
   if (validCards.length === 0) {
-    console.error(
-      '❌ No valid cards found! Phase:',
-      phase,
-      'Hand size:',
-      hand.length,
-    );
+    console.error('❌ No valid cards found! Phase:', phase, 'Hand size:', hand.length);
     // In arrastre phase, if no valid moves found, return first card as fallback
     if (phase === 'arrastre' && hand.length > 0) {
       console.warn('🔧 ARRASTRE FALLBACK: Playing first card');
@@ -707,47 +616,23 @@ export function playAICard(
       const partnerId = team?.playerIds.find(id => id !== playerId);
 
       if (memory && partnerId) {
-        selectedCard = playHardAI(
-          validCards,
-          hand,
-          gameState,
-          memory,
-          partnerId,
-          playerId,
-        );
+        selectedCard = playHardAI(validCards, hand, gameState, memory, partnerId, playerId);
       } else {
         // Fallback to medium if no memory
-        selectedCard = playMediumAI(
-          validCards,
-          hand,
-          gameState,
-          playerId,
-          memory,
-        );
+        selectedCard = playMediumAI(validCards, hand, gameState, playerId, memory);
       }
       break;
     }
 
     case 'medium':
     default:
-      selectedCard = playMediumAI(
-        validCards,
-        hand,
-        gameState,
-        playerId,
-        memory,
-      );
+      selectedCard = playMediumAI(validCards, hand, gameState, playerId, memory);
       break;
   }
 
   // Apply personality modifier
   if (player?.personality) {
-    selectedCard = applyPersonality(
-      selectedCard,
-      validCards,
-      personality,
-      gameState,
-    );
+    selectedCard = applyPersonality(selectedCard, validCards, personality, gameState);
   }
 
   return selectedCard;
@@ -786,9 +671,7 @@ export function shouldAICante(
     if (scoreDiff > AI_THRESHOLDS.CANTE_AHEAD_THRESHOLD) return null;
 
     // Cante trump suit last for maximum benefit
-    const nonTrumpCantes = possibleCantes.filter(
-      suit => suit !== gameState.trumpSuit,
-    );
+    const nonTrumpCantes = possibleCantes.filter(suit => suit !== gameState.trumpSuit);
 
     if (nonTrumpCantes.length > 0) {
       return nonTrumpCantes[0];
@@ -807,10 +690,7 @@ export function shouldAICante(
 
   // Medium: Basic timing
   // Cante if behind or in arrastre phase
-  if (
-    scoreDiff < AI_THRESHOLDS.CANTE_BEHIND_THRESHOLD ||
-    gameState.phase === 'arrastre'
-  ) {
+  if (scoreDiff < AI_THRESHOLDS.CANTE_BEHIND_THRESHOLD || gameState.phase === 'arrastre') {
     return possibleCantes[0];
   }
 
@@ -818,24 +698,19 @@ export function shouldAICante(
   switch (personality) {
     case 'aggressive':
       // Aggressive: cante early
-      if (Math.random() < AI_PROBABILITIES.AGGRESSIVE_CANTE)
-        return possibleCantes[0];
+      if (Math.random() < AI_PROBABILITIES.AGGRESSIVE_CANTE) return possibleCantes[0];
       break;
 
     case 'prudent':
       // Defensive: save cantes
-      if (
-        gameState.phase === 'arrastre' ||
-        scoreDiff < AI_THRESHOLDS.CANTE_FAR_BEHIND_THRESHOLD
-      ) {
+      if (gameState.phase === 'arrastre' || scoreDiff < AI_THRESHOLDS.CANTE_FAR_BEHIND_THRESHOLD) {
         return possibleCantes[0];
       }
       break;
 
     case 'tricky':
       // Unpredictable timing
-      if (Math.random() < AI_PROBABILITIES.TRICKY_CANTE)
-        return possibleCantes[0];
+      if (Math.random() < AI_PROBABILITIES.TRICKY_CANTE) return possibleCantes[0];
       break;
   }
 
@@ -853,10 +728,7 @@ function gaussianRandom(): number {
   return Math.max(0, Math.min(1, num / 4 + 0.5));
 }
 
-export function getAIThinkingTime(
-  player: Player,
-  isComplexDecision: boolean = false,
-): number {
+export function getAIThinkingTime(player: Player, isComplexDecision: boolean = false): number {
   const difficulty = player.difficulty || 'medium';
 
   // Base times in milliseconds - more human-like ranges
@@ -917,8 +789,7 @@ export function getAIThinkingTime(
   const microHesitation = Math.random() < 0.3 ? 50 + Math.random() * 150 : 0;
 
   // Calculate final time with all modifiers
-  const finalTime =
-    (baseTime + microHesitation) * personalityMultiplier * complexityModifier;
+  const finalTime = (baseTime + microHesitation) * personalityMultiplier * complexityModifier;
 
   // Add very slight "thinking" variation to make it less predictable
   const jitter = -20 + Math.random() * 40; // ±20ms jitter

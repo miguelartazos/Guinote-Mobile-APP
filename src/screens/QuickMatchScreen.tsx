@@ -1,12 +1,5 @@
 import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Animated,
-  BackHandler,
-} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Animated, BackHandler } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Button } from '../components/Button';
 import { Card } from '../components/ui/Card';
@@ -14,16 +7,24 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { colors } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
-import { useConvexAuth } from '../hooks/useConvexAuth';
-import { useConvexMatchmaking } from '../hooks/useConvexMatchmaking';
+import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
+import { useFeatureFlag } from '../config/featureFlags';
+// Temporarily disabled - causes prototype error
+// import { useSupabaseMatchmaking } from '../hooks/useSupabaseMatchmaking';
 import type { JugarStackScreenProps } from '../types/navigation';
 
-export function QuickMatchScreen({
-  navigation,
-}: JugarStackScreenProps<'QuickMatch'>) {
-  const { user, isAuthenticated } = useConvexAuth();
-  const { status, error, startMatchmaking, cancelMatchmaking } =
-    useConvexMatchmaking();
+export function QuickMatchScreen({ navigation }: JugarStackScreenProps<'QuickMatch'>) {
+  const { user, isAuthenticated } = useUnifiedAuth();
+  const useSupabaseMatchmakingFlag = useFeatureFlag('useSupabaseMatchmaking');
+
+  // Matchmaking disabled
+  const supabaseMatchmaking = null; // useSupabaseMatchmakingFlag ? useSupabaseMatchmaking() : null;
+
+  // Unified status and methods
+  const status = { status: 'idle', searchTime: 0 } as any;
+
+  const error = useSupabaseMatchmakingFlag ? supabaseMatchmaking?.error : null;
+
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -34,19 +35,25 @@ export function QuickMatchScreen({
     }
 
     // Start matchmaking
-    startMatchmaking(user._id);
+    const startSearch = async () => {
+      try {
+        // matchmaking disabled
+      } catch (err) {
+        console.error('Error starting matchmaking:', err);
+      }
+    };
+
+    startSearch();
 
     // Handle back button
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      () => {
-        if (user) {
-          cancelMatchmaking(user._id);
-        }
-        navigation.goBack();
-        return true;
-      },
-    );
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      const cancelSearch = async () => {
+        // matchmaking disabled
+      };
+      cancelSearch();
+      navigation.goBack();
+      return true;
+    });
 
     // Start pulse animation
     Animated.loop(
@@ -66,12 +73,15 @@ export function QuickMatchScreen({
 
     // Cleanup
     return () => {
-      if (user) {
-        cancelMatchmaking(user._id);
-      }
+      const cancelSearch = async () => {
+        if (useSupabaseMatchmakingFlag && supabaseMatchmaking) {
+          await supabaseMatchmaking.cancelSearch();
+        }
+      };
+      cancelSearch();
       backHandler.remove();
     };
-  }, [isAuthenticated, user, startMatchmaking, cancelMatchmaking, navigation]);
+  }, [isAuthenticated, user, useSupabaseMatchmakingFlag, supabaseMatchmaking, navigation]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -115,24 +125,16 @@ export function QuickMatchScreen({
                   <Text style={styles.searchSubtext}>
                     ELO: {user?.elo || 1000} (±{status.eloRange})
                   </Text>
-                  <Text style={styles.waitTime}>
-                    Tiempo: {formatTime(status.waitTime)}
-                  </Text>
+                  <Text style={styles.waitTime}>Tiempo: {formatTime(status.waitTime)}</Text>
                 </View>
               </Card>
 
               <View style={styles.playersContainer}>
-                <Text style={styles.playersTitle}>
-                  Sala de juego (4 jugadores)
-                </Text>
+                <Text style={styles.playersTitle}>Sala de juego (4 jugadores)</Text>
                 <View style={styles.playersList}>
                   <View style={styles.playerSlot}>
-                    <Text style={styles.playerIcon}>
-                      {user?.avatar || '👤'}
-                    </Text>
-                    <Text style={styles.playerName}>
-                      {user?.username || 'Tú'}
-                    </Text>
+                    <Text style={styles.playerIcon}>{user?.avatar || '👤'}</Text>
+                    <Text style={styles.playerName}>{user?.username || 'Tú'}</Text>
                     <Text style={styles.playerStatus}>Listo</Text>
                   </View>
                   {[1, 2, 3].map(i => (
@@ -158,11 +160,7 @@ export function QuickMatchScreen({
               <Text style={styles.foundIcon}>✅</Text>
               <Text style={styles.foundText}>¡Partida encontrada!</Text>
               <Text style={styles.foundSubtext}>Preparando el juego...</Text>
-              <ActivityIndicator
-                size="large"
-                color={colors.accent}
-                style={styles.loader}
-              />
+              <ActivityIndicator size="large" color={colors.accent} style={styles.loader} />
             </View>
           )}
 
@@ -170,12 +168,10 @@ export function QuickMatchScreen({
             <EmptyState
               type="error"
               title="Error al buscar partida"
-              message={error || 'No se pudo conectar con el servidor'}
+              message={error || 'Modo en línea deshabilitado'}
               actionLabel="Reintentar"
-              onAction={() => {
-                if (user) {
-                  startMatchmaking(user._id);
-                }
+              onAction={async () => {
+                // matchmaking disabled
               }}
             />
           )}
@@ -184,14 +180,12 @@ export function QuickMatchScreen({
         <View style={styles.buttonContainer}>
           <Button
             variant="danger"
-            onPress={() => {
-              if (user) {
-                cancelMatchmaking(user._id);
-              }
+            onPress={async () => {
               navigation.goBack();
             }}
             style={styles.button}
             icon="❌"
+            testID="cancel-matchmaking-button"
           >
             Cancelar Búsqueda
           </Button>

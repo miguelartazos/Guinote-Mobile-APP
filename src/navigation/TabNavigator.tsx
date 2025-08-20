@@ -33,9 +33,7 @@ export function TabNavigator() {
         component={JugarStackNavigator}
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>
-              🎮
-            </Text>
+            <Text style={{ color: focused ? colors.accent : colors.text }}>🎮</Text>
           ),
           tabBarLabel: 'Jugar',
         }}
@@ -45,9 +43,7 @@ export function TabNavigator() {
         component={RankingScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>
-              📊
-            </Text>
+            <Text style={{ color: focused ? colors.accent : colors.text }}>📊</Text>
           ),
           tabBarLabel: 'Estadísticas',
         }}
@@ -57,9 +53,7 @@ export function TabNavigator() {
         component={SettingsScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text style={{ color: focused ? colors.accent : colors.text }}>
-              ⚙️
-            </Text>
+            <Text style={{ color: focused ? colors.accent : colors.text }}>⚙️</Text>
           ),
           tabBarLabel: 'Ajustes',
         }}

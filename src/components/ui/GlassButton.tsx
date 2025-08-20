@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  View,
-  Platform,
-} from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, View, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -28,15 +22,9 @@ type GlassButtonProps = {
   disabled?: boolean;
 };
 
-const AnimatedTouchableOpacity =
-  Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
-export function GlassButton({
-  text,
-  icon,
-  onPress,
-  disabled = false,
-}: GlassButtonProps) {
+export function GlassButton({ text, icon, onPress, disabled = false }: GlassButtonProps) {
   const scale = useSharedValue(1);
   const shine = useSharedValue(0);
 
@@ -70,12 +58,7 @@ export function GlassButton({
   });
 
   const shineStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      shine.value,
-      [0, 1],
-      [0, 0.3],
-      Extrapolate.CLAMP,
-    );
+    const opacity = interpolate(shine.value, [0, 1], [0, 0.3], Extrapolate.CLAMP);
     return {
       opacity,
     };

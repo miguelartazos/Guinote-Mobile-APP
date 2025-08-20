@@ -26,9 +26,7 @@ export function getVoiceSettings(): VoiceSettings {
   };
 }
 
-export function updateVoiceSettings(
-  updates: Partial<Omit<VoiceSettings, 'mutedPlayers'>>,
-): void {
+export function updateVoiceSettings(updates: Partial<Omit<VoiceSettings, 'mutedPlayers'>>): void {
   voiceSettings = {
     ...voiceSettings,
     ...updates,

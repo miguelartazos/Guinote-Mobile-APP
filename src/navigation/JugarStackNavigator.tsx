@@ -37,11 +37,7 @@ export function JugarStackNavigator() {
         },
       }}
     >
-      <Stack.Screen
-        name="JugarHome"
-        component={JugarHomeScreen}
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="JugarHome" component={JugarHomeScreen} options={{ headerShown: false }} />
       <Stack.Screen
         name="QuickMatch"
         component={QuickMatchScreen}
@@ -90,11 +86,7 @@ export function JugarStackNavigator() {
           headerShown: false,
         }}
       />
-      <Stack.Screen
-        name="Login"
-        component={LoginScreen}
-        options={{ title: 'Iniciar Sesión' }}
-      />
+      <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Iniciar Sesión' }} />
       <Stack.Screen
         name="Register"
         component={RegisterScreen}

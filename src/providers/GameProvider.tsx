@@ -30,21 +30,19 @@ export function GameProvider({ children, mode }: GameProviderProps) {
 
   // For offline mode, provide the context directly without Convex/Clerk
   if (mode === 'offline') {
-    return (
-      <GameContext.Provider value={value}>
-        {children}
-      </GameContext.Provider>
-    );
+    return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
   }
 
   // For online mode, lazy load Convex and Clerk providers
   // This prevents them from being loaded in offline mode
-  const [OnlineProvider, setOnlineProvider] = React.useState<React.ComponentType<{ children: ReactNode }> | null>(null);
+  const [OnlineProvider, setOnlineProvider] = React.useState<React.ComponentType<{
+    children: ReactNode;
+  }> | null>(null);
 
   React.useEffect(() => {
     if (mode === 'online') {
       // Dynamically import the online provider
-      import('./OnlineGameProvider').then((module) => {
+      import('./OnlineGameProvider').then(module => {
         setOnlineProvider(() => module.OnlineGameProvider);
       });
     }
@@ -63,9 +61,5 @@ export function GameProvider({ children, mode }: GameProviderProps) {
     );
   }
 
-  return (
-    <GameContext.Provider value={value}>
-      {children}
-    </GameContext.Provider>
-  );
+  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 }

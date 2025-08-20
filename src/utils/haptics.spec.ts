@@ -22,8 +22,7 @@ describe('haptics', () => {
     (global as any).__DEV__ = false;
 
     // Get the mocked trigger function
-    const ReactNativeHapticFeedback =
-      require('react-native-haptic-feedback').default;
+    const ReactNativeHapticFeedback = require('react-native-haptic-feedback').default;
     mockTrigger = ReactNativeHapticFeedback.trigger;
   });
 
@@ -43,42 +42,27 @@ describe('haptics', () => {
 
     test('light triggers impactLight on iOS', () => {
       haptics.light();
-      expect(mockTrigger).toHaveBeenCalledWith(
-        'impactLight',
-        expect.any(Object),
-      );
+      expect(mockTrigger).toHaveBeenCalledWith('impactLight', expect.any(Object));
     });
 
     test('medium triggers impactMedium on iOS', () => {
       haptics.medium();
-      expect(mockTrigger).toHaveBeenCalledWith(
-        'impactMedium',
-        expect.any(Object),
-      );
+      expect(mockTrigger).toHaveBeenCalledWith('impactMedium', expect.any(Object));
     });
 
     test('heavy triggers impactHeavy on iOS', () => {
       haptics.heavy();
-      expect(mockTrigger).toHaveBeenCalledWith(
-        'impactHeavy',
-        expect.any(Object),
-      );
+      expect(mockTrigger).toHaveBeenCalledWith('impactHeavy', expect.any(Object));
     });
 
     test('success triggers notificationSuccess on iOS', () => {
       haptics.success();
-      expect(mockTrigger).toHaveBeenCalledWith(
-        'notificationSuccess',
-        expect.any(Object),
-      );
+      expect(mockTrigger).toHaveBeenCalledWith('notificationSuccess', expect.any(Object));
     });
 
     test('warning triggers notificationWarning on iOS', () => {
       haptics.warning();
-      expect(mockTrigger).toHaveBeenCalledWith(
-        'notificationWarning',
-        expect.any(Object),
-      );
+      expect(mockTrigger).toHaveBeenCalledWith('notificationWarning', expect.any(Object));
     });
 
     test('selection triggers selection on iOS', () => {
@@ -99,10 +83,7 @@ describe('haptics', () => {
 
     test('medium triggers impactMedium on Android', () => {
       haptics.medium();
-      expect(mockTrigger).toHaveBeenCalledWith(
-        'impactMedium',
-        expect.any(Object),
-      );
+      expect(mockTrigger).toHaveBeenCalledWith('impactMedium', expect.any(Object));
     });
 
     test('selection triggers soft on Android', () => {

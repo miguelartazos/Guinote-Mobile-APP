@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  ViewStyle,
-  Animated,
-} from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ViewStyle, Animated } from 'react-native';
 import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 
@@ -54,14 +48,7 @@ export function Card({
   };
 
   const content = (
-    <View
-      style={[
-        styles.card,
-        getVariantStyles(),
-        elevated && styles.elevated,
-        style,
-      ]}
-    >
+    <View style={[styles.card, getVariantStyles(), elevated && styles.elevated, style]}>
       {children}
     </View>
   );
@@ -74,9 +61,7 @@ export function Card({
         onPressOut={handlePressOut}
         onPress={onPress}
       >
-        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-          {content}
-        </Animated.View>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>{content}</Animated.View>
       </TouchableOpacity>
     );
   }

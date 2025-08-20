@@ -1,7 +1,7 @@
 // Mock auth context and hooks
 export interface MockUser {
   id: string;
-  clerk_id: string;
+  auth_id: string;
   username: string;
   friend_code: string;
   phone_number?: string;
@@ -15,7 +15,7 @@ export interface MockUser {
 export const mockUsers: Record<string, MockUser> = {
   'test-user-1': {
     id: 'test-user-1',
-    clerk_id: 'clerk-test-1',
+    auth_id: 'auth-test-1',
     username: 'TestPlayer1',
     friend_code: 'TEST1#01',
     phone_number: '+34600000001',
@@ -25,7 +25,7 @@ export const mockUsers: Record<string, MockUser> = {
   },
   'test-user-2': {
     id: 'test-user-2',
-    clerk_id: 'clerk-test-2',
+    auth_id: 'auth-test-2',
     username: 'TestPlayer2',
     friend_code: 'TEST2#02',
     phone_number: '+34600000002',
@@ -35,7 +35,7 @@ export const mockUsers: Record<string, MockUser> = {
   },
   'test-user-3': {
     id: 'test-user-3',
-    clerk_id: 'clerk-test-3',
+    auth_id: 'auth-test-3',
     username: 'TestPlayer3',
     friend_code: 'TEST3#03',
     phone_number: '+34600000003',
@@ -78,10 +78,8 @@ export const useAuth = jest.fn(() => ({
 }));
 
 // Mock useUserProfile hook
-export const useUserProfile = jest.fn((clerkId: string | null) => {
-  const profile = clerkId
-    ? Object.values(mockUsers).find(u => u.clerk_id === clerkId)
-    : null;
+export const useUserProfile = jest.fn((authId: string | null) => {
+  const profile = authId ? Object.values(mockUsers).find(u => u.auth_id === authId) : null;
   return {
     profile,
     isLoading: false,
@@ -94,7 +92,7 @@ export const createMockUser = (overrides?: Partial<MockUser>): MockUser => {
   const id = `test-user-${Date.now()}`;
   return {
     id,
-    clerk_id: `clerk-${id}`,
+    auth_id: `auth-${id}`,
     username: 'TestUser',
     friend_code: 'TEST#99',
     elo_rating: 1200,

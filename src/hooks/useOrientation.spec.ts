@@ -35,9 +35,7 @@ describe('useOrientation', () => {
       return { remove: jest.fn() };
     });
 
-    jest
-      .spyOn(Dimensions, 'addEventListener')
-      .mockImplementation(mockAddEventListener);
+    jest.spyOn(Dimensions, 'addEventListener').mockImplementation(mockAddEventListener);
     jest.spyOn(Dimensions, 'get').mockReturnValue(mockDimensions.portrait);
 
     const { result } = renderHook(() => useOrientation());
@@ -56,9 +54,7 @@ describe('useOrientation', () => {
     const mockRemove = jest.fn();
     const mockAddEventListener = jest.fn(() => ({ remove: mockRemove }));
 
-    jest
-      .spyOn(Dimensions, 'addEventListener')
-      .mockImplementation(mockAddEventListener);
+    jest.spyOn(Dimensions, 'addEventListener').mockImplementation(mockAddEventListener);
 
     const { unmount } = renderHook(() => useOrientation());
 

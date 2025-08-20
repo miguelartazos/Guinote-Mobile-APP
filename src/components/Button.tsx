@@ -95,12 +95,7 @@ export function Button({
   };
 
   return (
-    <Animated.View
-      style={[
-        { transform: [{ scale: scaleAnim }], opacity: opacityAnim },
-        style,
-      ]}
-    >
+    <Animated.View style={[{ transform: [{ scale: scaleAnim }], opacity: opacityAnim }, style]}>
       <TouchableOpacity
         style={[
           styles.button,
@@ -123,14 +118,10 @@ export function Button({
         )}
         <View style={styles.buttonContent}>
           {loading ? (
-            <Text style={[styles.buttonText, getTextSizeStyles()]}>
-              ⏳ Cargando...
-            </Text>
+            <Text style={[styles.buttonText, getTextSizeStyles()]}>⏳ Cargando...</Text>
           ) : (
             <>
-              {icon && iconPosition === 'left' && (
-                <Text style={styles.buttonIcon}>{icon}</Text>
-              )}
+              {icon && iconPosition === 'left' && <Text style={styles.buttonIcon}>{icon}</Text>}
               <Text
                 style={[
                   styles.buttonText,
@@ -144,9 +135,7 @@ export function Button({
               >
                 {children}
               </Text>
-              {icon && iconPosition === 'right' && (
-                <Text style={styles.buttonIcon}>{icon}</Text>
-              )}
+              {icon && iconPosition === 'right' && <Text style={styles.buttonIcon}>{icon}</Text>}
             </>
           )}
         </View>

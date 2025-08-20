@@ -11,11 +11,7 @@ import {
   clearAllRecordings,
 } from '../utils/voiceStorage';
 import type { VoiceRecordingId, VoiceRecording } from '../utils/voiceStorage';
-import {
-  getVolumeMultiplier,
-  getFadeMultiplier,
-  PlaybackSpeed,
-} from '../utils/audioProcessing';
+import { getVolumeMultiplier, getFadeMultiplier, PlaybackSpeed } from '../utils/audioProcessing';
 
 const MAX_RECORDING_DURATION = 5000; // 5 seconds in milliseconds
 
@@ -35,11 +31,8 @@ export function useVoiceRecorder() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [playbackDuration, setPlaybackDuration] = useState(0);
-  const [currentRecordingId, setCurrentRecordingId] =
-    useState<VoiceRecordingId | null>(null);
-  const [playbackSpeed, setPlaybackSpeed] = useState<PlaybackSpeed>(
-    PlaybackSpeed.NORMAL,
-  );
+  const [currentRecordingId, setCurrentRecordingId] = useState<VoiceRecordingId | null>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState<PlaybackSpeed>(PlaybackSpeed.NORMAL);
   const [volume, setVolume] = useState(1.0); // 0 to 1
   const [error, setError] = useState<string | null>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -64,11 +57,7 @@ export function useVoiceRecorder() {
 
         // Start recording with predefined config
         // Don't pass a path - let the library use its default writable location
-        const result = await audioRecorderPlayer.startRecorder(
-          undefined,
-          AUDIO_CONFIG,
-          false,
-        );
+        const result = await audioRecorderPlayer.startRecorder(undefined, AUDIO_CONFIG, false);
         console.log('Recording started:', result);
 
         // Set recording state
@@ -198,9 +187,7 @@ export function useVoiceRecorder() {
         if (options?.speed) {
           setPlaybackSpeed(options.speed);
           // Note: react-native-audio-recorder-player doesn't support speed adjustment
-          console.warn(
-            'Playback speed adjustment is not supported by the audio library',
-          );
+          console.warn('Playback speed adjustment is not supported by the audio library');
         }
 
         // Set volume if provided
@@ -222,10 +209,7 @@ export function useVoiceRecorder() {
           setPlaybackDuration(e.currentPosition);
 
           // Apply fade in/out
-          const fadeMultiplier = getFadeMultiplier(
-            e.currentPosition,
-            e.duration,
-          );
+          const fadeMultiplier = getFadeMultiplier(e.currentPosition, e.duration);
           const volumeWithFade = volume * fadeMultiplier;
           audioRecorderPlayer.setVolume(volumeWithFade);
 
@@ -298,9 +282,7 @@ export function useVoiceRecorder() {
         setPlaybackSpeed(speed);
         if (isPlaying) {
           // Note: react-native-audio-recorder-player doesn't support speed adjustment
-          console.warn(
-            'Playback speed adjustment is not supported by the audio library',
-          );
+          console.warn('Playback speed adjustment is not supported by the audio library');
         }
         return true;
       } catch (err) {

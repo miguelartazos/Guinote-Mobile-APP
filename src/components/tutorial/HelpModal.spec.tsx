@@ -29,18 +29,14 @@ describe('HelpModal', () => {
   });
 
   test('does not render when not visible', () => {
-    const { queryByText } = render(
-      <HelpModal {...defaultProps} visible={false} />,
-    );
+    const { queryByText } = render(<HelpModal {...defaultProps} visible={false} />);
 
     expect(queryByText('Ayuda')).toBeNull();
   });
 
   test('renders contextual help when provided', () => {
     const contextualHelp = 'This is contextual help text';
-    const { getByText } = render(
-      <HelpModal {...defaultProps} contextualHelp={contextualHelp} />,
-    );
+    const { getByText } = render(<HelpModal {...defaultProps} contextualHelp={contextualHelp} />);
 
     expect(getByText(contextualHelp)).toBeTruthy();
     expect(getByText('💡')).toBeTruthy();
@@ -158,9 +154,7 @@ describe('HelpModal', () => {
   });
 
   test('animates on visibility change', async () => {
-    const { rerender } = render(
-      <HelpModal {...defaultProps} visible={false} />,
-    );
+    const { rerender } = render(<HelpModal {...defaultProps} visible={false} />);
 
     rerender(<HelpModal {...defaultProps} visible={true} />);
 

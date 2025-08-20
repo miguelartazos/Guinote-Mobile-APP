@@ -31,7 +31,14 @@ import {
   isGameOver,
   shouldStartVueltas,
   canDeclareVictory,
+  determineVueltasWinner,
   getValidCards,
+  createInitialMatchScore,
+  updateMatchScoreForPartida,
+  isMatchComplete,
+  updateMatchScoreAndDeterminePhase,
+  startNewPartida,
+  isValidTeamIndex,
 } from '../utils/gameLogic';
 import {
   createMemory,
@@ -42,11 +49,7 @@ import {
 } from '../utils/aiMemory';
 import type { CardMemory } from '../utils/aiMemory';
 import { useAITurn } from './useAITurn';
-import {
-  saveGameState,
-  loadGameState,
-  clearGameState,
-} from '../utils/gameStatePersistence';
+import { saveGameState, loadGameState, clearGameState } from '../utils/gameStatePersistence';
 // Game constants are available in '../constants/gameConstants' when needed
 
 type UseGameStateProps = {
@@ -69,7 +72,7 @@ type UseGameStateProps = {
       value: CardValue;
     };
     currentPlayer: number;
-};
+  };
 };
 
 export function useGameState({
@@ -91,6 +94,7 @@ export function useGameState({
   const isUpdatingRef = useRef(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const winnerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const doubleTapGuardRef = useRef<NodeJS.Timeout | null>(null);
 
   // Deadlock detector to prevent freezes - DISABLED for now
   // The 3-second timeout is too aggressive for human players who need time to think
@@ -116,15 +120,12 @@ export function useGameState({
 
             // Get valid cards
             const validCards = getValidCards(botHand, prev, currentPlayer.id);
-            const cardToPlay =
-              validCards.length > 0 ? validCards[0] : botHand[0];
+            const cardToPlay = validCards.length > 0 ? validCards[0] : botHand[0];
 
             // Force play the card directly in state
             const newHands = new Map(prev.hands);
             const currentHand = [...(newHands.get(currentPlayer.id) || [])];
-            const cardIndex = currentHand.findIndex(
-              c => c.id === cardToPlay.id,
-            );
+            const cardIndex = currentHand.findIndex(c => c.id === cardToPlay.id);
             if (cardIndex !== -1) {
               currentHand.splice(cardIndex, 1);
               newHands.set(currentPlayer.id, currentHand);
@@ -151,9 +152,7 @@ export function useGameState({
                   };
                 }
 
-                const winnerIndex = prev.players.findIndex(
-                  p => p.id === winnerId,
-                );
+                const winnerIndex = prev.players.findIndex(p => p.id === winnerId);
 
                 return {
                   ...prev,
@@ -167,10 +166,7 @@ export function useGameState({
                 };
               } else {
                 // Move to next player
-                const nextPlayerIndex = getNextPlayerIndex(
-                  prev.currentPlayerIndex,
-                  4,
-                );
+                const nextPlayerIndex = getNextPlayerIndex(prev.currentPlayerIndex, 4);
                 return {
                   ...prev,
                   hands: newHands,
@@ -255,14 +251,11 @@ export function useGameState({
 
         // Other players get dummy cards
         for (let i = 1; i < 4; i++) {
-          const botCards = Array.from(
-            { length: mockData.players[i].cards },
-            (_, j) => ({
-              id: `card_bot${i}_${j}` as CardId,
-              suit: 'oros' as SpanishSuit,
-              value: 1 as CardValue,
-            }),
-          );
+          const botCards = Array.from({ length: mockData.players[i].cards }, (_, j) => ({
+            id: `card_bot${i}_${j}` as CardId,
+            suit: 'oros' as SpanishSuit,
+            value: 1 as CardValue,
+          }));
           hands.set(`bot${i}` as PlayerId, botCards);
         }
 
@@ -291,7 +284,7 @@ export function useGameState({
           gameHistory: [],
           isVueltas: false,
           canDeclareVictory: false,
-          matchScore: { team1Sets: 0, team2Sets: 0, currentSet: 'buenas' },
+          matchScore: createInitialMatchScore(),
         };
 
         setGameState(newGameState);
@@ -315,16 +308,8 @@ export function useGameState({
 
         // Fill remaining slots with bots if less than 4 players
         if (players.length < 4) {
-          const aiPersonalities: AIPersonality[] = [
-            'prudent',
-            'aggressive',
-            'tricky',
-          ];
-          const botNames = [
-            'Ana la Prudente',
-            'Carlos el Valiente',
-            'María la Astuta',
-          ];
+          const aiPersonalities: AIPersonality[] = ['prudent', 'aggressive', 'tricky'];
+          const botNames = ['Ana la Prudente', 'Carlos el Valiente', 'María la Astuta'];
           const botAvatars = ['👩', '👨', '👩‍🦰'];
 
           for (let i = players.length; i < 4; i++) {
@@ -439,7 +424,7 @@ export function useGameState({
         gameHistory: [],
         isVueltas: false,
         canDeclareVictory: false,
-        matchScore: { team1Sets: 0, team2Sets: 0, currentSet: 'buenas' },
+        matchScore: createInitialMatchScore(),
       };
 
       setGameState(newGameState);
@@ -452,11 +437,7 @@ export function useGameState({
   // Play a card
   const playCard = useCallback(
     (cardId: CardId | string) => {
-      if (
-        !gameState ||
-        (gameState.phase !== 'playing' && gameState.phase !== 'arrastre')
-      )
-        return;
+      if (!gameState || (gameState.phase !== 'playing' && gameState.phase !== 'arrastre')) return;
 
       // Prevent concurrent updates with simple flag
       if (isUpdatingRef.current) {
@@ -508,10 +489,7 @@ export function useGameState({
           newHands.set(currentPlayer.id, currentHand);
 
           // Add card to current trick
-          const newTrick = [
-            ...prevState.currentTrick,
-            { playerId: currentPlayer.id, card },
-          ];
+          const newTrick = [...prevState.currentTrick, { playerId: currentPlayer.id, card }];
 
           console.log('🃏 CARD PLAYED:', {
             player: currentPlayer.name,
@@ -534,10 +512,7 @@ export function useGameState({
           // Check if trick is complete
           if (newTrick.length === 4) {
             // Calculate winner and points
-            const winnerId = calculateTrickWinner(
-              newTrick,
-              prevState.trumpSuit,
-            );
+            const winnerId = calculateTrickWinner(newTrick, prevState.trumpSuit);
             const points = calculateTrickPoints(newTrick);
             const winnerTeam = findPlayerTeam(winnerId, prevState);
 
@@ -584,9 +559,7 @@ export function useGameState({
               }
 
               console.log('📦 DRAWING ORDER (counter-clockwise from winner):', {
-                drawOrder: drawOrder.map(
-                  id => prevState.players.find(p => p.id === id)?.name,
-                ),
+                drawOrder: drawOrder.map(id => prevState.players.find(p => p.id === id)?.name),
                 deckSize: newDeck.length,
               });
 
@@ -611,9 +584,7 @@ export function useGameState({
             }
 
             // Winner starts next trick
-            const winnerIndex = prevState.players.findIndex(
-              p => p.id === winnerId,
-            );
+            const winnerIndex = prevState.players.findIndex(p => p.id === winnerId);
 
             console.log('🎯 NEXT PLAYER:', {
               winnerIndex: winnerIndex,
@@ -645,12 +616,9 @@ export function useGameState({
             });
 
             // Check for phase transition to arrastre
-            const isEnteringArrastre =
-              newDeck.length === 0 && !prevState.isVueltas;
+            const isEnteringArrastre = newDeck.length === 0 && !prevState.isVueltas;
             if (isEnteringArrastre) {
-              console.log(
-                '🎴 PHASE TRANSITION: Deck empty, entering ARRASTRE phase',
-              );
+              console.log('🎴 PHASE TRANSITION: Deck empty, entering ARRASTRE phase');
             }
 
             // Don't clear the trick immediately - show animation first
@@ -671,6 +639,9 @@ export function useGameState({
                   phase = 'gameOver';
                 } else if (isLastTrick && !prevState.isVueltas) {
                   // Show scores before deciding on vueltas
+                  phase = 'scoring';
+                } else if (isLastTrick && prevState.isVueltas) {
+                  // Vueltas complete - go to scoring to determine winner
                   phase = 'scoring';
                 } else if (isEnteringArrastre) {
                   // Transition to arrastre when deck is empty
@@ -703,10 +674,7 @@ export function useGameState({
           }
 
           // Next player's turn
-          const nextPlayerIndex = getNextPlayerIndex(
-            prevState.currentPlayerIndex,
-            4,
-          );
+          const nextPlayerIndex = getNextPlayerIndex(prevState.currentPlayerIndex, 4);
           console.log('Advancing turn:', {
             from: prevState.currentPlayerIndex,
             to: nextPlayerIndex,
@@ -748,9 +716,7 @@ export function useGameState({
 
         // Can only cantar after your pair won the previous trick and before next trick starts
         const lastWinner = gameState.lastTrickWinner;
-        const lastWinnerTeamId = lastWinner
-          ? findPlayerTeam(lastWinner, gameState)
-          : undefined;
+        const lastWinnerTeamId = lastWinner ? findPlayerTeam(lastWinner, gameState) : undefined;
 
         if (
           gameState.currentTrick.length !== 0 ||
@@ -769,11 +735,7 @@ export function useGameState({
         const team = gameState.teams.find(t => t.id === playerTeam);
         if (!team) return;
 
-        const cantableSuits = canCantar(
-          playerHand,
-          gameState.trumpSuit,
-          team.cantes,
-        );
+        const cantableSuits = canCantar(playerHand, gameState.trumpSuit, team.cantes);
         if (!cantableSuits.includes(suit)) return;
 
         const points = calculateCantePoints(suit, gameState.trumpSuit);
@@ -803,9 +765,7 @@ export function useGameState({
             ...prevState,
             teams: newTeams,
             lastActionTimestamp: Date.now(), // Trigger AI re-run after cante
-            phase: isGameOver({ ...prevState, teams: newTeams })
-              ? 'gameOver'
-              : 'playing',
+            phase: isGameOver({ ...prevState, teams: newTeams }) ? 'gameOver' : 'playing',
           };
         });
       } finally {
@@ -846,17 +806,14 @@ export function useGameState({
 
   // Cambiar 7
   const cambiar7 = useCallback(() => {
-    if (!gameState || gameState.phase !== 'playing' || !gameState.canCambiar7)
-      return;
+    if (!gameState || gameState.phase !== 'playing' || !gameState.canCambiar7) return;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const currentPlayerTeamId = findPlayerTeam(currentPlayer.id, gameState);
 
     // Can only cambiar 7 after your pair won the previous trick and before next trick starts
     const lastWinner = gameState.lastTrickWinner;
-    const lastWinnerTeamId = lastWinner
-      ? findPlayerTeam(lastWinner, gameState)
-      : undefined;
+    const lastWinnerTeamId = lastWinner ? findPlayerTeam(lastWinner, gameState) : undefined;
 
     if (
       gameState.currentTrick.length !== 0 ||
@@ -871,8 +828,7 @@ export function useGameState({
     const playerHand = gameState.hands.get(currentPlayer.id);
     if (!playerHand) return;
 
-    if (!canCambiar7(playerHand, gameState.trumpCard, gameState.deck.length))
-      return;
+    if (!canCambiar7(playerHand, gameState.trumpCard, gameState.deck.length)) return;
 
     setGameState(prevState => {
       if (!prevState) return null;
@@ -920,21 +876,17 @@ export function useGameState({
   // Check if it's player's turn
   const isPlayerTurn = useCallback((): boolean => {
     if (!gameState) return false;
-    return (
-      gameState.players[gameState.currentPlayerIndex].id ===
-      ('player' as PlayerId)
-    );
+    return gameState.players[gameState.currentPlayerIndex].id === ('player' as PlayerId);
   }, [gameState]);
 
   // Create a unique key for the current turn to prevent re-triggers
   // Include phase, hand size, and timestamp to ensure uniqueness
   const currentTurnKey = gameState
-    ? `${gameState.currentPlayerIndex}-${gameState.trickCount}-${
-        gameState.currentTrick.length
-      }-${gameState.phase}-${
-        gameState.hands.get(gameState.players[gameState.currentPlayerIndex].id)
-          ?.length || 0
-      }-${gameState.lastActionTimestamp || 0}`
+    ? `${gameState.currentPlayerIndex}-${gameState.trickCount}-${gameState.currentTrick.length}-${
+        gameState.phase
+      }-${gameState.hands.get(gameState.players[gameState.currentPlayerIndex].id)?.length || 0}-${
+        gameState.lastActionTimestamp || 0
+      }`
     : '';
 
   // Use the custom AI turn hook
@@ -1021,11 +973,7 @@ export function useGameState({
 
   // Handle vueltas dealing
   useEffect(() => {
-    if (
-      gameState?.phase === 'dealing' &&
-      gameState.isVueltas &&
-      gameState.hands.size === 0
-    ) {
+    if (gameState?.phase === 'dealing' && gameState.isVueltas && gameState.hands.size === 0) {
       // Need to deal cards for vueltas
       const deck = shuffleDeck(createDeck());
       const { hands, remainingDeck } = dealInitialCards(
@@ -1043,12 +991,7 @@ export function useGameState({
         trumpSuit: trumpCard.suit,
       }));
     }
-  }, [
-    gameState?.phase,
-    gameState?.isVueltas,
-    gameState?.hands.size,
-    gameState?.players,
-  ]);
+  }, [gameState?.phase, gameState?.isVueltas, gameState?.hands.size, gameState?.players]);
 
   // Complete dealing animation
   const completeDealingAnimation = useCallback(() => {
@@ -1118,10 +1061,56 @@ export function useGameState({
     }
     setIsProcessingScoring(true);
 
+    // Check if we're completing vueltas
+    if (gameState.isVueltas) {
+      // Vueltas complete - determine winner and update match score
+      const winningTeamId = determineVueltasWinner(gameState);
+
+      if (winningTeamId) {
+        // Clear any existing timeout to prevent race condition
+        if (winnerTimeoutRef.current) {
+          clearTimeout(winnerTimeoutRef.current);
+        }
+
+        // Add delay before announcing vueltas winner
+        winnerTimeoutRef.current = setTimeout(() => {
+          setGameState(prev => {
+            if (!prev) return null;
+
+            const currentMatchScore = prev.matchScore || createInitialMatchScore();
+            const winningTeamIndex = prev.teams.findIndex(t => t.id === winningTeamId);
+
+            // Validate team index
+            if (!isValidTeamIndex(winningTeamIndex)) {
+              console.error('⚠️ Invalid winning team index:', winningTeamIndex);
+              return prev;
+            }
+
+            // Update match score and determine next phase
+            const { matchScore: updatedMatchScore, phase } = updateMatchScoreAndDeterminePhase(
+              winningTeamIndex,
+              currentMatchScore,
+            );
+
+            return {
+              ...prev,
+              phase,
+              matchScore: updatedMatchScore,
+            };
+          });
+          winnerTimeoutRef.current = null;
+          setIsProcessingScoring(false);
+        }, 3000); // 3-second delay before announcing winner
+      } else {
+        console.error('⚠️ Vueltas complete but no winner determined');
+        setIsProcessingScoring(false);
+      }
+      return;
+    }
+
     // Check if any team has won (101+ points AND 30+ card points)
     const winningTeam = gameState.teams.find(
-      team =>
-        team.score >= WINNING_SCORE && team.cardPoints >= MINIMUM_CARD_POINTS,
+      team => team.score >= WINNING_SCORE && team.cardPoints >= MINIMUM_CARD_POINTS,
     );
 
     if (winningTeam) {
@@ -1151,47 +1140,26 @@ export function useGameState({
             return prev;
           }
 
-          const currentMatchScore = prev.matchScore || {
-            team1Sets: 0,
-            team2Sets: 0,
-            currentSet: 'buenas',
-          };
-          const winningTeamIndex = prev.teams.findIndex(
-            t => t.id === winningTeamId,
+          const currentMatchScore = prev.matchScore || createInitialMatchScore();
+          const winningTeamIndex = prev.teams.findIndex(t => t.id === winningTeamId);
+
+          // Validate team index
+          if (!isValidTeamIndex(winningTeamIndex)) {
+            console.error('⚠️ Invalid winning team index:', winningTeamIndex);
+            return prev;
+          }
+
+          // Update match score and determine next phase
+          const { matchScore: updatedMatchScore, phase } = updateMatchScoreAndDeterminePhase(
+            winningTeamIndex,
+            currentMatchScore,
           );
-          const updatedMatchScore = { ...currentMatchScore };
 
-          if (winningTeamIndex === 0) {
-            updatedMatchScore.team1Sets += 1;
-          } else {
-            updatedMatchScore.team2Sets += 1;
-          }
-
-          // Check if match is over (best of 3)
-          const team1Won = updatedMatchScore.team1Sets >= 2;
-          const team2Won = updatedMatchScore.team2Sets >= 2;
-
-          if (team1Won || team2Won) {
-            // Match over
-            return {
-              ...prev,
-              phase: 'gameOver' as GamePhase,
-              matchScore: updatedMatchScore,
-            };
-          } else {
-            // Continue to next set
-            updatedMatchScore.currentSet =
-              updatedMatchScore.team1Sets === 1 &&
-              updatedMatchScore.team2Sets === 1
-                ? 'bella'
-                : 'malas';
-            // Reset for next game
-            return {
-              ...prev,
-              phase: 'gameOver' as GamePhase, // Will be reset for new game
-              matchScore: updatedMatchScore,
-            };
-          }
+          return {
+            ...prev,
+            phase,
+            matchScore: updatedMatchScore,
+          };
         });
         winnerTimeoutRef.current = null;
         setIsProcessingScoring(false);
@@ -1218,6 +1186,7 @@ export function useGameState({
           initialScores,
           lastTrickWinnerTeam: lastWinnerTeam,
           canDeclareVictory: !!lastWinnerTeam,
+          matchScore: prev.matchScore, // Preserve match score through vueltas
           deck: [], // Empty deck - will be created and shuffled in useEffect
           hands: new Map(), // Empty hands - will be filled by useEffect at line 988
           trumpCard: {
@@ -1245,34 +1214,72 @@ export function useGameState({
   }, [gameState, isProcessingScoring]);
 
   const declareVictory = useCallback(() => {
-    if (!gameState?.isVueltas || gameState.currentTrick.length > 0)
-      return false;
+    if (!gameState?.isVueltas || gameState.currentTrick.length > 0) return false;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const team = gameState.teams.find(t =>
-      t.playerIds.includes(currentPlayer.id),
-    );
+    const team = gameState.teams.find(t => t.playerIds.includes(currentPlayer.id));
 
     if (!team) return false;
 
     if (canDeclareVictory(team.id, gameState)) {
-      // Correct declaration - team wins
-      setGameState(prev => ({
-        ...prev!,
-        phase: 'gameOver' as GamePhase,
-      }));
+      // Correct declaration - team wins the partida
+      setGameState(prev => {
+        if (!prev) return null;
+
+        const currentMatchScore = prev.matchScore || createInitialMatchScore();
+        const winningTeamIndex = prev.teams.findIndex(t => t.id === team.id);
+
+        // Validate team index
+        if (!isValidTeamIndex(winningTeamIndex)) {
+          console.error('⚠️ Invalid winning team index:', winningTeamIndex);
+          return prev;
+        }
+
+        // Update match score and determine next phase
+        const { matchScore: updatedMatchScore, phase } = updateMatchScoreAndDeterminePhase(
+          winningTeamIndex,
+          currentMatchScore,
+        );
+
+        return {
+          ...prev,
+          phase,
+          matchScore: updatedMatchScore,
+        };
+      });
       return true;
     } else {
-      // Incorrect declaration - other team wins
+      // Incorrect declaration - other team wins the partida
       const otherTeam = gameState.teams.find(t => t.id !== team.id);
       if (otherTeam) {
-        setGameState(prev => ({
-          ...prev!,
-          teams: prev!.teams.map(t =>
-            t.id === otherTeam.id ? { ...t, score: 101 } : t,
-          ) as [Team, Team],
-          phase: 'gameOver' as GamePhase,
-        }));
+        setGameState(prev => {
+          if (!prev) return null;
+
+          const currentMatchScore = prev.matchScore || createInitialMatchScore();
+          const winningTeamIndex = prev.teams.findIndex(t => t.id === otherTeam.id);
+
+          // Validate team index
+          if (!isValidTeamIndex(winningTeamIndex)) {
+            console.error('⚠️ Invalid winning team index:', winningTeamIndex);
+            return prev;
+          }
+
+          // Update match score and determine next phase
+          const { matchScore: updatedMatchScore, phase } = updateMatchScoreAndDeterminePhase(
+            winningTeamIndex,
+            currentMatchScore,
+          );
+
+          return {
+            ...prev,
+            teams: prev.teams.map(t => (t.id === otherTeam.id ? { ...t, score: 101 } : t)) as [
+              Team,
+              Team,
+            ],
+            phase,
+            matchScore: updatedMatchScore,
+          };
+        });
       }
       return false;
     }
@@ -1284,24 +1291,80 @@ export function useGameState({
       if (!gameState) return;
 
       // The declaring team (player's team) loses, opponent wins
-      const playerTeam = gameState.teams.find(t =>
-        t.playerIds.includes(gameState.players[0].id),
-      );
+      const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
       const otherTeam = gameState.teams.find(t => t.id !== playerTeam?.id);
 
       if (otherTeam) {
         console.log('Renuncio declared:', reason);
-        setGameState(prev => ({
-          ...prev!,
-          teams: prev!.teams.map(t =>
-            t.id === otherTeam.id ? { ...t, score: 101 } : t,
-          ) as [Team, Team],
-          phase: 'gameOver' as GamePhase,
-        }));
+        setGameState(prev => {
+          if (!prev) return null;
+
+          const currentMatchScore = prev.matchScore || createInitialMatchScore();
+          const winningTeamIndex = prev.teams.findIndex(t => t.id === otherTeam.id);
+
+          // Validate team index
+          if (!isValidTeamIndex(winningTeamIndex)) {
+            console.error('⚠️ Invalid winning team index:', winningTeamIndex);
+            return prev;
+          }
+
+          // Update match score and determine next phase
+          const { matchScore: updatedMatchScore, phase } = updateMatchScoreAndDeterminePhase(
+            winningTeamIndex,
+            currentMatchScore,
+          );
+
+          return {
+            ...prev,
+            teams: prev.teams.map(t => (t.id === otherTeam.id ? { ...t, score: 101 } : t)) as [
+              Team,
+              Team,
+            ],
+            phase,
+            matchScore: updatedMatchScore,
+          };
+        });
       }
     },
     [gameState],
   );
+
+  // Continue to next partida after one team wins a partida/coto
+  const continueToNextPartida = useCallback(() => {
+    if (!gameState || gameState.phase !== 'scoring') return;
+
+    // Prevent double-tap using the same pattern as VoiceButton
+    if (doubleTapGuardRef.current) {
+      console.log('⚠️ Preventing double-tap on continue to next partida');
+      return;
+    }
+
+    doubleTapGuardRef.current = setTimeout(() => {
+      doubleTapGuardRef.current = null;
+    }, 500);
+
+    // Start a new partida
+    setGameState(prev => {
+      if (!prev || !prev.matchScore) return null;
+
+      // The match score in prev is already updated by continueFromScoring
+      const currentMatchScore = prev.matchScore;
+
+      // Don't allow continuing if match is complete (safety check)
+      if (isMatchComplete(currentMatchScore)) {
+        console.log('⚠️ Match is complete, cannot continue to next partida');
+        return prev;
+      }
+
+      console.log('🎴 Starting new partida with match score:', currentMatchScore);
+
+      // Start new partida with the updated match score
+      return startNewPartida(prev, currentMatchScore);
+    });
+
+    // Clear AI memory for new partida
+    setAIMemory(createMemory());
+  }, []);
 
   // Cleanup effect - only run on unmount
   useEffect(() => {
@@ -1320,6 +1383,7 @@ export function useGameState({
     cambiar7,
     reorderPlayerHand,
     continueFromScoring,
+    continueToNextPartida,
     declareVictory,
     declareRenuncio,
     selectedCard,

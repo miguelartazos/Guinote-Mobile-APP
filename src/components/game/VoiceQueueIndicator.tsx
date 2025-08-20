@@ -1,11 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Animated,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
@@ -87,19 +81,11 @@ export function VoiceQueueIndicator({
       </View>
 
       <View style={styles.controls}>
-        <TouchableOpacity
-          style={styles.controlButton}
-          onPress={onPauseToggle}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.controlButton} onPress={onPauseToggle} activeOpacity={0.7}>
           <Text style={styles.controlButtonText}>{isPaused ? '▶️' : '⏸'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.controlButton}
-          onPress={onSkip}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.controlButton} onPress={onSkip} activeOpacity={0.7}>
           <Text style={styles.controlButtonText}>⏭️</Text>
         </TouchableOpacity>
 
@@ -117,14 +103,10 @@ export function VoiceQueueIndicator({
         {queue.slice(0, 3).map((msg, index) => (
           <View key={msg.id} style={styles.previewItem}>
             <Text style={styles.previewAvatar}>{msg.playerAvatar}</Text>
-            {index < queue.length - 1 && (
-              <Text style={styles.previewSeparator}>›</Text>
-            )}
+            {index < queue.length - 1 && <Text style={styles.previewSeparator}>›</Text>}
           </View>
         ))}
-        {queue.length > 3 && (
-          <Text style={styles.moreIndicator}>+{queue.length - 3}</Text>
-        )}
+        {queue.length > 3 && <Text style={styles.moreIndicator}>+{queue.length - 3}</Text>}
       </View>
     </Animated.View>
   );

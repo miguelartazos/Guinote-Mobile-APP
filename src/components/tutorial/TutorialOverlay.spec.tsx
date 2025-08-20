@@ -48,17 +48,13 @@ describe('TutorialOverlay', () => {
   });
 
   test('does not render when not visible', () => {
-    const { queryByText } = render(
-      <TutorialOverlay {...defaultProps} visible={false} />,
-    );
+    const { queryByText } = render(<TutorialOverlay {...defaultProps} visible={false} />);
 
     expect(queryByText('Test Step')).toBeNull();
   });
 
   test('shows correct action hints', () => {
-    const { getByText, rerender } = render(
-      <TutorialOverlay {...defaultProps} />,
-    );
+    const { getByText, rerender } = render(<TutorialOverlay {...defaultProps} />);
 
     expect(getByText('👆')).toBeTruthy();
     expect(getByText('Toca para continuar')).toBeTruthy();
@@ -78,9 +74,7 @@ describe('TutorialOverlay', () => {
   });
 
   test('calls onPrevious when previous button is pressed', () => {
-    const { getByText } = render(
-      <TutorialOverlay {...defaultProps} currentStepIndex={2} />,
-    );
+    const { getByText } = render(<TutorialOverlay {...defaultProps} currentStepIndex={2} />);
 
     fireEvent.press(getByText('Anterior'));
 
@@ -95,17 +89,13 @@ describe('TutorialOverlay', () => {
   });
 
   test('shows Finalizar button on last step', () => {
-    const { getByText } = render(
-      <TutorialOverlay {...defaultProps} currentStepIndex={4} />,
-    );
+    const { getByText } = render(<TutorialOverlay {...defaultProps} currentStepIndex={4} />);
 
     expect(getByText('Finalizar')).toBeTruthy();
   });
 
   test('calls onComplete when Finalizar is pressed', () => {
-    const { getByText } = render(
-      <TutorialOverlay {...defaultProps} currentStepIndex={4} />,
-    );
+    const { getByText } = render(<TutorialOverlay {...defaultProps} currentStepIndex={4} />);
 
     fireEvent.press(getByText('Finalizar'));
 
@@ -132,9 +122,7 @@ describe('TutorialOverlay', () => {
   });
 
   test('shows correct progress dots', () => {
-    const { getByText } = render(
-      <TutorialOverlay {...defaultProps} />,
-    );
+    const { getByText } = render(<TutorialOverlay {...defaultProps} />);
 
     // Verify we can see the step indicator text
     expect(getByText('Test Step')).toBeTruthy();
@@ -150,9 +138,7 @@ describe('TutorialOverlay', () => {
   });
 
   test('animates on visibility change', async () => {
-    const { rerender } = render(
-      <TutorialOverlay {...defaultProps} visible={false} />,
-    );
+    const { rerender } = render(<TutorialOverlay {...defaultProps} visible={false} />);
 
     rerender(<TutorialOverlay {...defaultProps} visible={true} />);
 

@@ -10,7 +10,6 @@ import {
   ScrollView,
   SafeAreaView,
 } from 'react-native';
-import { useSignUp, useSignIn } from '@clerk/clerk-expo';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
@@ -18,15 +17,19 @@ import { dimensions } from '../constants/dimensions';
 import { Button } from '../components/Button';
 import { InputField } from '../components/ui/InputField';
 import { LoadingOverlay } from '../components/ui/LoadingOverlay';
-import * as WebBrowser from 'expo-web-browser';
-
-WebBrowser.maybeCompleteAuthSession();
+import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
+import { useFeatureFlag } from '../config/featureFlags';
+// Clerk removed
 
 export function RegisterScreen() {
-  const { signUp, setActive, isLoaded } = useSignUp();
-  const { signIn } = useSignIn();
   const navigation = useNavigation();
   const route = useRoute();
+  const useSupabaseAuth = useFeatureFlag('useSupabaseAuth');
+
+  // Unified auth for Supabase
+  const unifiedAuth = useSupabaseAuth ? useUnifiedAuth() : null;
+
+  const isLoaded = true;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,8 +40,6 @@ export function RegisterScreen() {
   const [pendingVerification, setPendingVerification] = useState(false);
 
   const handleSignUp = async () => {
-    if (!isLoaded) return;
-
     // Validate inputs
     if (!email || !password || !username) {
       Alert.alert('Error', 'Por favor completa todos los campos');
@@ -58,27 +59,40 @@ export function RegisterScreen() {
     setIsLoading(true);
 
     try {
-      // Create the user
-      await signUp.create({
-        emailAddress: email,
-        password,
-        username,
-      });
+      if (useSupabaseAuth && unifiedAuth) {
+        // Use Supabase auth
+        await unifiedAuth.signUp(email, password, username);
 
-      // Send email verification
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-
-      setPendingVerification(true);
+        // Supabase sends verification email automatically
+        Alert.alert(
+          'Verifica tu email',
+          'Te hemos enviado un correo de verificación. Por favor verifica tu email antes de iniciar sesión.',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('Login' as never),
+            },
+          ],
+        );
+      } else {
+        throw new Error('Registro en línea deshabilitado');
+      }
     } catch (error: any) {
       console.error('Sign up error:', error);
       let errorMessage = 'Verifica tus datos e intenta de nuevo';
 
-      // Check for specific Clerk test mode errors
-      if (error.errors?.[0]?.message?.includes('clerk_test')) {
-        errorMessage =
-          'Para registrarte en modo de prueba, usa un email con formato: tu_email+clerk_test@example.com';
-      } else if (error.errors?.[0]?.message) {
-        errorMessage = error.errors[0].message;
+      if (useSupabaseAuth) {
+        // Supabase error handling
+        if (error.message?.includes('already registered')) {
+          errorMessage = 'Este email ya está registrado';
+        } else if (error.message?.includes('weak password')) {
+          errorMessage =
+            'La contraseña es muy débil. Usa al menos 8 caracteres con números y letras';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      } else {
+        errorMessage = 'Registro en línea deshabilitado';
       }
 
       Alert.alert('Error al registrarse', errorMessage);
@@ -88,85 +102,12 @@ export function RegisterScreen() {
   };
 
   const handleVerification = async () => {
-    if (!isLoaded) return;
-
-    if (!verificationCode) {
-      Alert.alert('Error', 'Por favor ingresa el código de verificación');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const result = await signUp.attemptEmailAddressVerification({
-        code: verificationCode,
-      });
-
-      if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId });
-
-        // Auto-login after successful registration
-        if (signIn && email && password) {
-          try {
-            const signInResult = await signIn.create({
-              identifier: email,
-              password,
-            });
-
-            if (signInResult.status === 'complete') {
-              await setActive({ session: signInResult.createdSessionId });
-            }
-          } catch (signInError) {
-            console.error('Auto sign-in error:', signInError);
-          }
-        }
-
-        // Navigate back to previous screen or home
-        if (route.params?.returnTo) {
-          navigation.navigate(route.params.returnTo as never);
-        } else {
-          navigation.goBack();
-        }
-      } else {
-        console.log('Verification status:', result.status);
-      }
-    } catch (error: any) {
-      console.error('Verification error:', error);
-      Alert.alert(
-        'Error de verificación',
-        error.errors?.[0]?.message || 'Código inválido. Intenta de nuevo',
-      );
-    } finally {
-      setIsLoading(false);
-    }
+    // No verification flow when online auth is disabled
+    Alert.alert('No disponible', 'La verificación está deshabilitada.');
   };
 
-  const handleOAuthSignUp = async (
-    strategy: 'oauth_google' | 'oauth_apple',
-  ) => {
-    if (!isLoaded) return;
-
-    try {
-      const { createdSessionId, setActive: setActiveSession } =
-        await signUp.create({ strategy });
-
-      if (createdSessionId) {
-        await setActiveSession({ session: createdSessionId });
-
-        // Navigate back
-        if (route.params?.returnTo) {
-          navigation.navigate(route.params.returnTo as never);
-        } else {
-          navigation.goBack();
-        }
-      }
-    } catch (error: any) {
-      console.error('OAuth sign up error:', error);
-      Alert.alert(
-        'Error de registro',
-        'No se pudo registrar con este proveedor',
-      );
-    }
+  const handleOAuthSignUp = async () => {
+    Alert.alert('No disponible', 'Registro con proveedores deshabilitado.');
   };
 
   const handleSignIn = () => {
@@ -220,9 +161,7 @@ export function RegisterScreen() {
                 onPress={() => setPendingVerification(false)}
                 disabled={isLoading}
               >
-                <Text style={styles.resendButtonText}>
-                  ¿No recibiste el código? Volver atrás
-                </Text>
+                <Text style={styles.resendButtonText}>¿No recibiste el código? Volver atrás</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -257,6 +196,7 @@ export function RegisterScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               editable={!isLoading}
+              testID="username-input"
               validation={{
                 isValid: username.length >= 3,
                 message: username.length > 0 ? `${username.length}/3 caracteres mínimo` : undefined,
@@ -273,6 +213,7 @@ export function RegisterScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               editable={!isLoading}
+              testID="register-email-input"
               validation={{
                 isValid: email.includes('@') && email.includes('.'),
                 message: email.length > 0 ? 'Formato de email válido' : undefined,
@@ -288,6 +229,7 @@ export function RegisterScreen() {
               secureTextEntry
               showPasswordToggle
               editable={!isLoading}
+              testID="register-password-input"
               validation={{
                 isValid: password.length >= 8,
                 message: password.length > 0 ? `${password.length}/8 caracteres mínimo` : undefined,
@@ -303,7 +245,12 @@ export function RegisterScreen() {
               secureTextEntry
               showPasswordToggle
               editable={!isLoading}
-              error={confirmPassword.length > 0 && password !== confirmPassword ? 'Las contraseñas no coinciden' : undefined}
+              testID="confirm-password-input"
+              error={
+                confirmPassword.length > 0 && password !== confirmPassword
+                  ? 'Las contraseñas no coinciden'
+                  : undefined
+              }
             />
 
             <Button
@@ -311,13 +258,12 @@ export function RegisterScreen() {
               onPress={handleSignUp}
               disabled={isLoading || !isLoaded}
               style={styles.signUpButton}
+              testID="register-button"
             >
               {isLoading ? 'Creando cuenta...' : 'Registrarse'}
             </Button>
 
-            {isLoading && (
-              <ActivityIndicator style={styles.loader} color={colors.accent} />
-            )}
+            {isLoading && <ActivityIndicator style={styles.loader} color={colors.accent} />}
 
             <View style={styles.orContainer}>
               <View style={styles.orLine} />
@@ -350,16 +296,12 @@ export function RegisterScreen() {
               onPress={handleSignIn}
               disabled={isLoading}
             >
-              <Text style={styles.signInButtonText}>
-                ¿Ya tienes cuenta? Inicia Sesión
-              </Text>
+              <Text style={styles.signInButtonText}>¿Ya tienes cuenta? Inicia Sesión</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.footerContainer}>
-            <Text style={styles.footerText}>
-              Al registrarte, aceptas nuestros{' '}
-            </Text>
+            <Text style={styles.footerText}>Al registrarte, aceptas nuestros </Text>
             <View style={styles.footerLinks}>
               <TouchableOpacity>
                 <Text style={styles.footerLink}>Términos de Servicio</Text>

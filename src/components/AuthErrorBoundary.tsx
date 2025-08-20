@@ -38,7 +38,7 @@ export class AuthErrorBoundary extends React.Component<
     if (this.state.hasError) {
       const isAuthError =
         this.state.error?.message?.toLowerCase().includes('auth') ||
-        this.state.error?.message?.toLowerCase().includes('clerk');
+        this.state.error?.message?.toLowerCase().includes('auth');
 
       return (
         <View style={styles.container}>
@@ -54,9 +54,7 @@ export class AuthErrorBoundary extends React.Component<
           <TouchableOpacity style={styles.button} onPress={this.handleReset}>
             <Text style={styles.buttonText}>Intentar de nuevo</Text>
           </TouchableOpacity>
-          {__DEV__ && (
-            <Text style={styles.errorDetail}>{this.state.error?.message}</Text>
-          )}
+          {__DEV__ && <Text style={styles.errorDetail}>{this.state.error?.message}</Text>}
         </View>
       );
     }

@@ -14,11 +14,7 @@ interface AuthGuardProps {
  * AuthGuard component that protects routes requiring authentication
  * Redirects to login if user is not authenticated
  */
-export function AuthGuard({
-  children,
-  fallback,
-  requireAuth = true,
-}: AuthGuardProps) {
+export function AuthGuard({ children, fallback, requireAuth = true }: AuthGuardProps) {
   const { isAuthenticated, isLoading, isLoaded } = useAuth();
   const navigation = useNavigation();
 

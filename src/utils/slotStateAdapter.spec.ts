@@ -187,9 +187,7 @@ describe('slotStateAdapter', () => {
     });
 
     test('areAllSlotsFull checks all slots', () => {
-      const fullSlots = arrayToSlots(
-        Array.from({ length: 6 }, (_, i) => mockCard(`${i}`)),
-      );
+      const fullSlots = arrayToSlots(Array.from({ length: 6 }, (_, i) => mockCard(`${i}`)));
       expect(areAllSlotsFull(fullSlots)).toBe(true);
       expect(areAllSlotsFull(createEmptySlots())).toBe(false);
     });

@@ -169,10 +169,7 @@ describe('applyGameMove', () => {
 
     it('rejects play of card not in hand', () => {
       const gameState = createTestGameState();
-      const move = createMove.playCard(
-        'player1' as PlayerId,
-        'wrong-card' as CardId,
-      );
+      const move = createMove.playCard('player1' as PlayerId, 'wrong-card' as CardId);
 
       const newState = applyGameMove(gameState, move);
 
@@ -284,9 +281,7 @@ describe('applyGameMove', () => {
 
       // Check player now has the 3
       const player1Hand = newState!.hands.get('player1' as PlayerId);
-      expect(
-        player1Hand?.find(c => c.value === 3 && c.suit === 'oros'),
-      ).toBeDefined();
+      expect(player1Hand?.find(c => c.value === 3 && c.suit === 'oros')).toBeDefined();
     });
 
     it('rejects cambiar 7 when deck is empty', () => {
@@ -347,10 +342,7 @@ describe('applyGameMove', () => {
     it('applies renuncio giving victory to other team', () => {
       const gameState = createTestGameState();
 
-      const move = createMove.declareRenuncio(
-        'player1' as PlayerId,
-        'No puedo ganar',
-      );
+      const move = createMove.declareRenuncio('player1' as PlayerId, 'No puedo ganar');
       const newState = applyGameMove(gameState, move);
 
       expect(newState).not.toBeNull();

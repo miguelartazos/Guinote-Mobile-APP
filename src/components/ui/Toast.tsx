@@ -1,12 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  TouchableOpacity,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, Animated, TouchableOpacity, Platform } from 'react-native';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { dimensions } from '../../constants/dimensions';
@@ -126,10 +119,7 @@ export function Toast({
           {message}
         </Text>
         {action && (
-          <TouchableOpacity
-            onPress={action.onPress}
-            style={styles.actionButton}
-          >
+          <TouchableOpacity onPress={action.onPress} style={styles.actionButton}>
             <Text style={styles.actionText}>{action.label}</Text>
           </TouchableOpacity>
         )}

@@ -4,36 +4,37 @@
  * Can be extended for real auth when online is implemented
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_CONFIG } from '../config/appConfig';
+import { useFeatureFlag } from '../config/featureFlags';
 
 export interface AuthUser {
   _id: string;
   username: string;
   email?: string;
-  clerkId?: string;
+  authId?: string;
   isOffline?: boolean;
 }
 
 export interface AuthState {
   // User data
   user: AuthUser | null;
-  
-  // Loading states  
+
+  // Loading states
   isLoading: boolean;
   isLoaded: boolean;
-  
+
   // Auth states
   isAuthenticated: boolean;
   isSignedIn: boolean;
-  
+
   // Actions
   signIn: () => void;
   signUp: () => void;
   signOut: () => Promise<void>;
   updateUsername: (username: string) => Promise<void>;
-  
+
   // Error handling
   error: string | null;
   clearError: () => void;
@@ -48,16 +49,12 @@ const OFFLINE_USER_KEY = '@guinote/offline_user';
 export function useAuth(): AuthState {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const useSupabaseAuth = useFeatureFlag('useSupabaseAuth');
 
-  useEffect(() => {
-    loadUser();
-  }, []);
-
-  const loadUser = async () => {
+  const loadUser = useCallback(async () => {
     try {
-      // Check if we're in offline mode (no Convex/Clerk available)
-      const isOfflineMode = !process.env.EXPO_PUBLIC_CONVEX_URL || 
-                           !process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+      // True dual-mode: Use offline mode unless Supabase auth is explicitly enabled
+      const isOfflineMode = !useSupabaseAuth;
 
       if (isOfflineMode) {
         // Load or create offline user
@@ -94,21 +91,25 @@ export function useAuth(): AuthState {
     } finally {
       setIsLoaded(true);
     }
-  };
+  }, [useSupabaseAuth]);
+
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
 
   const updateUsername = async (username: string) => {
     if (!user) return;
-    
+
     const updatedUser = { ...user, username };
     setUser(updatedUser);
-    
+
     try {
       await AsyncStorage.setItem(OFFLINE_USER_KEY, JSON.stringify(updatedUser));
     } catch (error) {
       console.error('Error saving username:', error);
     }
   };
-  
+
   return {
     user,
     isLoading: !isLoaded,

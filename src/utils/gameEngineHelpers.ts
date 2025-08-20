@@ -1,11 +1,4 @@
-import type {
-  GameState,
-  Card,
-  PlayerId,
-  TeamId,
-  TrickCard,
-  Team,
-} from '../types/game.types';
+import type { GameState, Card, PlayerId, TeamId, TrickCard, Team } from '../types/game.types';
 import type { SpanishSuit } from '../types/cardTypes';
 import {
   calculateTrickWinner,
@@ -50,10 +43,7 @@ export function calculateTrickResult(
 /**
  * Apply scoring from a completed trick
  */
-export function applyTrickScoring(
-  gameState: GameState,
-  trickResult: TrickResult,
-): GameState {
+export function applyTrickScoring(gameState: GameState, trickResult: TrickResult): GameState {
   const newTeams = [...gameState.teams] as [Team, Team];
   const teamIndex = newTeams.findIndex(t => t.id === trickResult.winnerTeam);
 
@@ -68,10 +58,7 @@ export function applyTrickScoring(
   // Update collected tricks
   const newCollectedTricks = new Map(gameState.collectedTricks);
   const winnerTricks = newCollectedTricks.get(trickResult.winnerId) || [];
-  newCollectedTricks.set(trickResult.winnerId, [
-    ...winnerTricks,
-    trickResult.cards,
-  ]);
+  newCollectedTricks.set(trickResult.winnerId, [...winnerTricks, trickResult.cards]);
 
   return {
     ...gameState,
@@ -137,10 +124,7 @@ export function dealCardsAfterTrick(
 /**
  * Handle the last trick bonus
  */
-export function applyLastTrickBonus(
-  gameState: GameState,
-  winnerTeam: TeamId,
-): GameState {
+export function applyLastTrickBonus(gameState: GameState, winnerTeam: TeamId): GameState {
   const newTeams = [...gameState.teams] as [Team, Team];
   const teamIdx = newTeams.findIndex(t => t.id === winnerTeam);
 
@@ -160,10 +144,7 @@ export function applyLastTrickBonus(
 /**
  * Determine the next game phase
  */
-export function determineNextPhase(
-  gameState: GameState,
-  isLastTrick: boolean,
-): GameState {
+export function determineNextPhase(gameState: GameState, isLastTrick: boolean): GameState {
   // Check if game is over
   if (isGameOver(gameState)) {
     return {
@@ -200,8 +181,5 @@ export function isLastTrick(
   deck: ReadonlyArray<Card>,
   hands: Map<PlayerId, ReadonlyArray<Card>>,
 ): boolean {
-  return (
-    deck.length === 0 &&
-    Array.from(hands.values()).every(hand => hand.length === 0)
-  );
+  return deck.length === 0 && Array.from(hands.values()).every(hand => hand.length === 0);
 }

@@ -100,8 +100,7 @@ describe('useGameState', () => {
 
       // Verify useAITurn was called with expected structure
       expect(mockUseAITurn).toHaveBeenCalled();
-      const lastCall =
-        mockUseAITurn.mock.calls[mockUseAITurn.mock.calls.length - 1][0];
+      const lastCall = mockUseAITurn.mock.calls[mockUseAITurn.mock.calls.length - 1][0];
       expect(lastCall).toHaveProperty('gameState');
       expect(lastCall).toHaveProperty('currentTurnKey');
       expect(lastCall).toHaveProperty('playCard');
@@ -579,9 +578,7 @@ describe('useGameState', () => {
 
   describe('reorderPlayerHand', () => {
     test('reorders cards within player hand correctly', () => {
-      const { result } = renderHook(() =>
-        useGameState({ playerName: 'Test Player' }),
-      );
+      const { result } = renderHook(() => useGameState({ playerName: 'Test Player' }));
 
       // Wait for initialization
       act(() => {
@@ -614,9 +611,7 @@ describe('useGameState', () => {
       });
 
       // Check new order
-      const reorderedHand = result.current.gameState!.hands.get(
-        'player' as any,
-      );
+      const reorderedHand = result.current.gameState!.hands.get('player' as any);
       expect(reorderedHand![0].id).toBe('card2');
       expect(reorderedHand![1].id).toBe('card3');
       expect(reorderedHand![2].id).toBe('card1');
@@ -624,9 +619,7 @@ describe('useGameState', () => {
     });
 
     test('handles edge cases for reordering', () => {
-      const { result } = renderHook(() =>
-        useGameState({ playerName: 'Test Player' }),
-      );
+      const { result } = renderHook(() => useGameState({ playerName: 'Test Player' }));
 
       // Set up test state
       const testCards = [
@@ -662,9 +655,7 @@ describe('useGameState', () => {
     });
 
     test('does not affect other players hands', () => {
-      const { result } = renderHook(() =>
-        useGameState({ playerName: 'Test Player' }),
-      );
+      const { result } = renderHook(() => useGameState({ playerName: 'Test Player' }));
 
       // Set up test state with multiple players
       const playerCards = [{ id: 'p1', suit: 'oros', value: 1 }] as any;
@@ -688,18 +679,12 @@ describe('useGameState', () => {
       });
 
       // Check other players' hands remain unchanged
-      expect(result.current.gameState!.hands.get('bot1' as any)).toEqual(
-        bot1Cards,
-      );
-      expect(result.current.gameState!.hands.get('bot2' as any)).toEqual(
-        bot2Cards,
-      );
+      expect(result.current.gameState!.hands.get('bot1' as any)).toEqual(bot1Cards);
+      expect(result.current.gameState!.hands.get('bot2' as any)).toEqual(bot2Cards);
     });
 
     test('handles invalid player ID gracefully', () => {
-      const { result } = renderHook(() =>
-        useGameState({ playerName: 'Test Player' }),
-      );
+      const { result } = renderHook(() => useGameState({ playerName: 'Test Player' }));
 
       const initialState = result.current.gameState;
 
@@ -713,9 +698,7 @@ describe('useGameState', () => {
     });
 
     test('maintains hand size after reordering', () => {
-      const { result } = renderHook(() =>
-        useGameState({ playerName: 'Test Player' }),
-      );
+      const { result } = renderHook(() => useGameState({ playerName: 'Test Player' }));
 
       // Set up test state
       const testCards = [
@@ -743,15 +726,11 @@ describe('useGameState', () => {
       });
 
       // Check hand size remains the same
-      expect(result.current.gameState!.hands.get('player' as any)!.length).toBe(
-        initialSize,
-      );
+      expect(result.current.gameState!.hands.get('player' as any)!.length).toBe(initialSize);
     });
 
     test('handles reordering with empty game state', () => {
-      const { result } = renderHook(() =>
-        useGameState({ playerName: 'Test Player' }),
-      );
+      const { result } = renderHook(() => useGameState({ playerName: 'Test Player' }));
 
       // Force game state to be null
       act(() => {

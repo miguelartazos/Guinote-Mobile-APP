@@ -1,11 +1,7 @@
 import type { CardId, PlayerId } from './game.types';
 import type { SpanishSuit } from './cardTypes';
 
-export type GameMoveType =
-  | 'play_card'
-  | 'cambiar_7'
-  | 'declare_cante'
-  | 'declare_victory';
+export type GameMoveType = 'play_card' | 'cambiar_7' | 'declare_cante' | 'declare_victory';
 
 export interface BaseGameMove {
   type: GameMoveType;
@@ -37,11 +33,7 @@ export interface DeclareVictoryMove extends BaseGameMove {
   data: {};
 }
 
-export type GameMove =
-  | PlayCardMove
-  | Cambiar7Move
-  | DeclareCanteMove
-  | DeclareVictoryMove;
+export type GameMove = PlayCardMove | Cambiar7Move | DeclareCanteMove | DeclareVictoryMove;
 
 // Move result types
 export interface MoveResult {

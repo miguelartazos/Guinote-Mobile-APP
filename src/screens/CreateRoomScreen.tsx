@@ -7,26 +7,19 @@ import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
 import type { JugarStackScreenProps } from '../types/navigation';
 
-export function CreateRoomScreen({
-  navigation,
-}: JugarStackScreenProps<'CreateRoom'>) {
+export function CreateRoomScreen({ navigation }: JugarStackScreenProps<'CreateRoom'>) {
   const [roomCode] = useState('A7X9M2'); // Mock room code
   const [playersJoined] = useState(1); // Mock player count
 
   const copyRoomCode = () => {
     Clipboard.setString(roomCode);
-    Alert.alert(
-      'Código copiado',
-      'El código de la sala se ha copiado al portapapeles',
-    );
+    Alert.alert('Código copiado', 'El código de la sala se ha copiado al portapapeles');
   };
 
   const shareWhatsApp = () => {
     const message = `¡Únete a mi partida de Guiñote+!\n\nCódigo de sala: ${roomCode}\n\n¡Te espero para jugar!`;
     // In real app, would use Linking.openURL with WhatsApp deep link
-    Alert.alert('Compartir por WhatsApp', `Mensaje a enviar:\n\n${message}`, [
-      { text: 'OK' },
-    ]);
+    Alert.alert('Compartir por WhatsApp', `Mensaje a enviar:\n\n${message}`, [{ text: 'OK' }]);
   };
 
   return (
@@ -44,9 +37,7 @@ export function CreateRoomScreen({
             <View style={styles.roomCodeDisplay}>
               <Text style={styles.roomCode}>{roomCode}</Text>
             </View>
-            <Text style={styles.roomCodeHint}>
-              Comparte este código con tus amigos
-            </Text>
+            <Text style={styles.roomCodeHint}>Comparte este código con tus amigos</Text>
           </View>
 
           {/* Share Buttons */}
@@ -54,20 +45,14 @@ export function CreateRoomScreen({
             <Button onPress={copyRoomCode} style={styles.shareButton}>
               📋 Copiar Código
             </Button>
-            <Button
-              variant="secondary"
-              onPress={shareWhatsApp}
-              style={styles.shareButton}
-            >
+            <Button variant="secondary" onPress={shareWhatsApp} style={styles.shareButton}>
               📱 Compartir WhatsApp
             </Button>
           </View>
 
           {/* Players List */}
           <View style={styles.playersContainer}>
-            <Text style={styles.playersTitle}>
-              Jugadores ({playersJoined}/4)
-            </Text>
+            <Text style={styles.playersTitle}>Jugadores ({playersJoined}/4)</Text>
             <View style={styles.playersList}>
               <View style={styles.playerItem}>
                 <Text style={styles.playerIcon}>👑</Text>
@@ -127,16 +112,10 @@ export function CreateRoomScreen({
             disabled={playersJoined < 4}
             style={styles.startButton}
           >
-            {playersJoined >= 4
-              ? 'Comenzar Partida'
-              : `Faltan ${4 - playersJoined} jugadores`}
+            {playersJoined >= 4 ? 'Comenzar Partida' : `Faltan ${4 - playersJoined} jugadores`}
           </Button>
 
-          <Button
-            variant="secondary"
-            onPress={() => navigation.goBack()}
-            style={styles.button}
-          >
+          <Button variant="secondary" onPress={() => navigation.goBack()} style={styles.button}>
             Cerrar Sala
           </Button>
         </View>

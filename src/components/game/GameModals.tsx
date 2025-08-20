@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-} from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { SpanishCard } from './SpanishCard';
 import { AnimatedButton } from '../ui/AnimatedButton';
 import type { Card } from '../../types/game.types';
@@ -57,11 +50,7 @@ export const GameModals = React.memo(function GameModals({
         animationType="fade"
         onRequestClose={onCloseLastTrick}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={onCloseLastTrick}
-        >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onCloseLastTrick}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Última baza</Text>
             <View style={styles.trickContainer}>
@@ -77,10 +66,7 @@ export const GameModals = React.memo(function GameModals({
                 </View>
               ))}
             </View>
-            <AnimatedButton
-              onPress={onCloseLastTrick}
-              style={styles.primaryButton}
-            >
+            <AnimatedButton onPress={onCloseLastTrick} style={styles.primaryButton}>
               <Text style={styles.buttonText}>Cerrar</Text>
             </AnimatedButton>
           </View>
@@ -107,16 +93,10 @@ export const GameModals = React.memo(function GameModals({
               Si no los tenéis, el equipo contrario ganará automáticamente.
             </Text>
             <View style={styles.modalButtons}>
-              <AnimatedButton
-                onPress={onCloseDeclareVictory}
-                style={styles.secondaryButton}
-              >
+              <AnimatedButton onPress={onCloseDeclareVictory} style={styles.secondaryButton}>
                 <Text style={styles.buttonText}>Cancelar</Text>
               </AnimatedButton>
-              <AnimatedButton
-                onPress={onConfirmVictory}
-                style={styles.primaryButton}
-              >
+              <AnimatedButton onPress={onConfirmVictory} style={styles.primaryButton}>
                 <Text style={styles.buttonText}>¡Declarar!</Text>
               </AnimatedButton>
             </View>
@@ -131,47 +111,32 @@ export const GameModals = React.memo(function GameModals({
         animationType="fade"
         onRequestClose={onCloseRenuncio}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={onCloseRenuncio}
-        >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onCloseRenuncio}>
           <View style={[styles.modalContent, styles.renuncioModal]}>
             <Text style={styles.modalTitle}>Declarar Renuncio</Text>
-            <Text style={styles.modalText}>
-              Selecciona el motivo del renuncio:
-            </Text>
+            <Text style={styles.modalText}>Selecciona el motivo del renuncio:</Text>
             <ScrollView style={styles.reasonsList}>
               {renuncioReasons.map(reason => (
                 <TouchableOpacity
                   key={reason.id}
                   style={[
                     styles.reasonItem,
-                    selectedRenuncioReason === reason.id &&
-                      styles.reasonItemSelected,
+                    selectedRenuncioReason === reason.id && styles.reasonItemSelected,
                   ]}
                   onPress={() => onSelectRenuncioReason(reason.id)}
                 >
                   <Text style={styles.reasonText}>{reason.text}</Text>
-                  <Text style={styles.reasonDescription}>
-                    {reason.description}
-                  </Text>
+                  <Text style={styles.reasonDescription}>{reason.description}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
             <View style={styles.modalButtons}>
-              <AnimatedButton
-                onPress={onCloseRenuncio}
-                style={styles.secondaryButton}
-              >
+              <AnimatedButton onPress={onCloseRenuncio} style={styles.secondaryButton}>
                 <Text style={styles.buttonText}>Cancelar</Text>
               </AnimatedButton>
               <AnimatedButton
                 onPress={onConfirmRenuncio}
-                style={[
-                  styles.dangerButton,
-                  !selectedRenuncioReason && styles.disabledButton,
-                ]}
+                style={[styles.dangerButton, !selectedRenuncioReason && styles.disabledButton]}
                 disabled={!selectedRenuncioReason}
               >
                 <Text style={styles.buttonText}>Confirmar</Text>

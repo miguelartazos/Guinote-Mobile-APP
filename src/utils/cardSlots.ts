@@ -57,11 +57,7 @@ export function playCardFromSlot(
 }
 
 // Helper to add card to specific slot
-export function addCardToSlot(
-  slots: CardSlot[],
-  card: Card,
-  slotIndex: number,
-): CardSlot[] {
+export function addCardToSlot(slots: CardSlot[], card: Card, slotIndex: number): CardSlot[] {
   const newSlots = [...slots];
   if (slotIndex >= 0 && slotIndex < 6) {
     newSlots[slotIndex] = { card, slotIndex };
@@ -71,9 +67,7 @@ export function addCardToSlot(
 
 // Helper to get cards from slots (excluding empty ones)
 export function getCardsFromSlots(slots: CardSlot[]): Card[] {
-  return slots
-    .filter(slot => slot.card !== null)
-    .map(slot => slot.card as Card);
+  return slots.filter(slot => slot.card !== null).map(slot => slot.card as Card);
 }
 
 // Helper to count cards in slots

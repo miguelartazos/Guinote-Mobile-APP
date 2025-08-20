@@ -30,9 +30,7 @@ describe('PassDeviceOverlay', () => {
   });
 
   it('does not render when not visible', () => {
-    const { queryByText } = render(
-      <PassDeviceOverlay {...defaultProps} visible={false} />,
-    );
+    const { queryByText } = render(<PassDeviceOverlay {...defaultProps} visible={false} />);
 
     expect(queryByText('Pasa el dispositivo a')).toBeNull();
   });
@@ -97,9 +95,7 @@ describe('PassDeviceOverlay', () => {
   });
 
   it('resets countdown when becoming visible again', () => {
-    const { rerender, getByText } = render(
-      <PassDeviceOverlay {...defaultProps} visible={false} />,
-    );
+    const { rerender, getByText } = render(<PassDeviceOverlay {...defaultProps} visible={false} />);
 
     rerender(<PassDeviceOverlay {...defaultProps} visible={true} />);
 

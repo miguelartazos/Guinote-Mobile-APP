@@ -171,10 +171,7 @@ describe('isValidMove', () => {
 
     it('rejects playing cards not in hand', () => {
       const gameState = createTestGameState();
-      const move = createMove.playCard(
-        'player1' as PlayerId,
-        'wrong-card' as CardId,
-      );
+      const move = createMove.playCard('player1' as PlayerId, 'wrong-card' as CardId);
 
       const isValid = isValidMove(gameState, move);
 
@@ -203,14 +200,8 @@ describe('isValidMove', () => {
       gameState.currentPlayerIndex = 3; // player4's turn
 
       // Player4 has oros (p4c1, p4c2) so must follow suit
-      const invalidMove = createMove.playCard(
-        'player4' as PlayerId,
-        'p4c3' as CardId,
-      ); // copas 7
-      const validMove = createMove.playCard(
-        'player4' as PlayerId,
-        'p4c1' as CardId,
-      ); // oros 3
+      const invalidMove = createMove.playCard('player4' as PlayerId, 'p4c3' as CardId); // copas 7
+      const validMove = createMove.playCard('player4' as PlayerId, 'p4c1' as CardId); // oros 3
 
       expect(isValidMove(gameState, invalidMove)).toBe(false);
       expect(isValidMove(gameState, validMove)).toBe(true);
@@ -501,10 +492,7 @@ describe('isValidMove', () => {
   describe('DECLARE_RENUNCIO validation', () => {
     it('always accepts renuncio declarations', () => {
       const gameState = createTestGameState();
-      const move = createMove.declareRenuncio(
-        'player1' as PlayerId,
-        'Test reason',
-      );
+      const move = createMove.declareRenuncio('player1' as PlayerId, 'Test reason');
 
       const isValid = isValidMove(gameState, move);
 
@@ -514,10 +502,7 @@ describe('isValidMove', () => {
     it('requires renuncio to be declared on player turn', () => {
       const gameState = createTestGameState();
       gameState.currentPlayerIndex = 2; // Not player1's turn
-      const move = createMove.declareRenuncio(
-        'player1' as PlayerId,
-        'Test reason',
-      );
+      const move = createMove.declareRenuncio('player1' as PlayerId, 'Test reason');
 
       const isValid = isValidMove(gameState, move);
 
@@ -533,10 +518,7 @@ describe('isValidMove', () => {
           card: createCard('p1c1', 'oros', 1),
         },
       ];
-      const move = createMove.declareRenuncio(
-        'player1' as PlayerId,
-        'Test reason',
-      );
+      const move = createMove.declareRenuncio('player1' as PlayerId, 'Test reason');
 
       const isValid = isValidMove(gameState, move);
 

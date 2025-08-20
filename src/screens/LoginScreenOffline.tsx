@@ -8,29 +8,19 @@ import type { JugarStackScreenProps } from '../types/navigation';
 
 /**
  * Placeholder login screen for offline mode
- * The real LoginScreen imports Clerk which causes errors
+ * The real LoginScreen has authentication which causes errors
  * This will be replaced when online mode is properly implemented
  */
-export function LoginScreen({
-  navigation,
-}: JugarStackScreenProps<'Login'>) {
+export function LoginScreen({ navigation }: JugarStackScreenProps<'Login'>) {
   return (
     <ScreenContainer>
       <View style={styles.container}>
         <Text style={styles.title}>Modo Online No Disponible</Text>
-        <Text style={styles.subtitle}>
-          El modo online está en desarrollo.
-        </Text>
-        <Text style={styles.subtitle}>
-          Por ahora, puedes jugar offline.
-        </Text>
-        
+        <Text style={styles.subtitle}>El modo online está en desarrollo.</Text>
+        <Text style={styles.subtitle}>Por ahora, puedes jugar offline.</Text>
+
         <View style={styles.buttonContainer}>
-          <Button
-            variant="primary"
-            onPress={() => navigation.navigate('JugarHome')}
-            icon="🎮"
-          >
+          <Button variant="primary" onPress={() => navigation.navigate('JugarHome')} icon="🎮">
             Volver al Menú
           </Button>
         </View>

@@ -9,11 +9,8 @@ import type { JugarStackScreenProps } from '../types/navigation';
 
 type TutorialType = 'complete' | 'basic' | 'cantes' | 'special' | 'practice';
 
-export function TutorialSetupScreen({
-  navigation,
-}: JugarStackScreenProps<'TutorialSetup'>) {
-  const [selectedTutorial, setSelectedTutorial] =
-    useState<TutorialType>('complete');
+export function TutorialSetupScreen({ navigation }: JugarStackScreenProps<'TutorialSetup'>) {
+  const [selectedTutorial, setSelectedTutorial] = useState<TutorialType>('complete');
 
   const tutorials = [
     {
@@ -28,24 +25,21 @@ export function TutorialSetupScreen({
     {
       type: 'basic' as const,
       title: 'Lo Básico 👶',
-      description:
-        '¡Hola, futuro campeón/a! Aprende lo esencial para jugar en menos de 5 minutos',
+      description: '¡Hola, futuro campeón/a! Aprende lo esencial para jugar en menos de 5 minutos',
       duration: '5 min',
       icon: '👶',
     },
     {
       type: 'cantes' as const,
       title: 'Cantes y Puntuación 🚀',
-      description:
-        '¡Hora de subir de nivel! Desbloquea los superpoderes del Guiñote',
+      description: '¡Hora de subir de nivel! Desbloquea los superpoderes del Guiñote',
       duration: '8 min',
       icon: '🚀',
     },
     {
       type: 'special' as const,
       title: 'Reglas Especiales ⭐',
-      description:
-        'Situaciones avanzadas y reglas especiales. ¡Domínalas y serás imparable!',
+      description: 'Situaciones avanzadas y reglas especiales. ¡Domínalas y serás imparable!',
       duration: '4 min',
       icon: '⭐',
     },
@@ -92,9 +86,7 @@ export function TutorialSetupScreen({
             <Button
               key={tutorial.type}
               onPress={() => setSelectedTutorial(tutorial.type)}
-              variant={
-                selectedTutorial === tutorial.type ? 'primary' : 'secondary'
-              }
+              variant={selectedTutorial === tutorial.type ? 'primary' : 'secondary'}
               style={[
                 styles.tutorialCard,
                 selectedTutorial === tutorial.type && styles.selectedCard,
@@ -107,8 +99,7 @@ export function TutorialSetupScreen({
                     <Text
                       style={[
                         styles.tutorialTitle,
-                        selectedTutorial === tutorial.type &&
-                          styles.selectedTitle,
+                        selectedTutorial === tutorial.type && styles.selectedTitle,
                       ]}
                     >
                       {tutorial.title}
@@ -121,8 +112,7 @@ export function TutorialSetupScreen({
                 <Text
                   style={[
                     styles.tutorialDescription,
-                    selectedTutorial === tutorial.type &&
-                      styles.selectedDescription,
+                    selectedTutorial === tutorial.type && styles.selectedDescription,
                   ]}
                 >
                   {tutorial.description}
@@ -130,8 +120,7 @@ export function TutorialSetupScreen({
                 <Text
                   style={[
                     styles.tutorialDuration,
-                    selectedTutorial === tutorial.type &&
-                      styles.selectedDuration,
+                    selectedTutorial === tutorial.type && styles.selectedDuration,
                   ]}
                 >
                   ⏱ {tutorial.duration}
@@ -153,23 +142,16 @@ export function TutorialSetupScreen({
         <View style={styles.infoCard}>
           <Text style={styles.infoIcon}>💡</Text>
           <Text style={styles.infoText}>
-            ¡Relájate y aprende a tu ritmo! Estos tutoriales son solo de
-            lectura. Navega paso a paso y cuando termines, ¡estarás listo/a para
-            conquistar el Guiñote!
+            ¡Relájate y aprende a tu ritmo! Estos tutoriales son solo de lectura. Navega paso a paso
+            y cuando termines, ¡estarás listo/a para conquistar el Guiñote!
           </Text>
         </View>
 
         <View style={styles.buttonContainer}>
           <Button onPress={startTutorial}>
-            {selectedTutorial === 'practice'
-              ? 'Comenzar Práctica'
-              : 'Comenzar Tutorial'}
+            {selectedTutorial === 'practice' ? 'Comenzar Práctica' : 'Comenzar Tutorial'}
           </Button>
-          <Button
-            variant="secondary"
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
+          <Button variant="secondary" onPress={() => navigation.goBack()} style={styles.backButton}>
             Volver
           </Button>
         </View>

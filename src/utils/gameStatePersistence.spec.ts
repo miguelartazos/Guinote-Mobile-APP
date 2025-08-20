@@ -2,12 +2,7 @@ import { describe, it, expect, beforeEach } from '@jest/globals';
 import { jest } from '@jest/globals';
 const vi = jest;
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  saveGameState,
-  loadGameState,
-  clearGameState,
-  hasSavedGame,
-} from './gameStatePersistence';
+import { saveGameState, loadGameState, clearGameState, hasSavedGame } from './gameStatePersistence';
 import type { GameState, PlayerId, TeamId, CardId } from '../types/game.types';
 
 // Mock AsyncStorage
@@ -96,10 +91,7 @@ describe('gameStatePersistence', () => {
         '@guinote/current_game_state',
         expect.any(String),
       );
-      expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-        '@guinote/has_saved_game',
-        'true',
-      );
+      expect(AsyncStorage.setItem).toHaveBeenCalledWith('@guinote/has_saved_game', 'true');
 
       // Verify the serialized state
       const serializedCall = (AsyncStorage.setItem as any).mock.calls[0][1];
@@ -109,19 +101,12 @@ describe('gameStatePersistence', () => {
     });
 
     it('should handle save errors gracefully', async () => {
-      (AsyncStorage.setItem as any).mockRejectedValueOnce(
-        new Error('Storage error'),
-      );
-      const consoleSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+      (AsyncStorage.setItem as any).mockRejectedValueOnce(new Error('Storage error'));
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       await saveGameState(mockGameState);
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Failed to save game state:',
-        expect.any(Error),
-      );
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to save game state:', expect.any(Error));
       consoleSpy.mockRestore();
     });
   });
@@ -156,20 +141,13 @@ describe('gameStatePersistence', () => {
     });
 
     it('should handle load errors gracefully', async () => {
-      (AsyncStorage.getItem as any).mockRejectedValueOnce(
-        new Error('Storage error'),
-      );
-      const consoleSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+      (AsyncStorage.getItem as any).mockRejectedValueOnce(new Error('Storage error'));
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const result = await loadGameState();
 
       expect(result).toBeNull();
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Failed to load game state:',
-        expect.any(Error),
-      );
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to load game state:', expect.any(Error));
       consoleSpy.mockRestore();
     });
   });
@@ -185,19 +163,12 @@ describe('gameStatePersistence', () => {
     });
 
     it('should handle clear errors gracefully', async () => {
-      (AsyncStorage.multiRemove as any).mockRejectedValueOnce(
-        new Error('Storage error'),
-      );
-      const consoleSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+      (AsyncStorage.multiRemove as any).mockRejectedValueOnce(new Error('Storage error'));
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       await clearGameState();
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Failed to clear game state:',
-        expect.any(Error),
-      );
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to clear game state:', expect.any(Error));
       consoleSpy.mockRestore();
     });
   });
@@ -220,20 +191,13 @@ describe('gameStatePersistence', () => {
     });
 
     it('should handle check errors gracefully', async () => {
-      (AsyncStorage.getItem as any).mockRejectedValueOnce(
-        new Error('Storage error'),
-      );
-      const consoleSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+      (AsyncStorage.getItem as any).mockRejectedValueOnce(new Error('Storage error'));
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const result = await hasSavedGame();
 
       expect(result).toBe(false);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Failed to check saved game:',
-        expect.any(Error),
-      );
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to check saved game:', expect.any(Error));
       consoleSpy.mockRestore();
     });
   });

@@ -8,21 +8,21 @@ import { COMPONENTS_TO_DELETE, canSafelyDelete, getDeletionOrder } from './depen
 // Test that we can safely delete files
 export function validateDeletionPlan(): void {
   console.log('🔍 Validating Deletion Plan...\n');
-  
+
   const deletionOrder = getDeletionOrder();
-  
+
   console.log('📋 Recommended Deletion Order:');
   deletionOrder.forEach((file, index) => {
     const canDelete = canSafelyDelete(file);
     const emoji = canDelete ? '✅' : '⚠️';
     console.log(`${index + 1}. ${emoji} ${file}`);
   });
-  
+
   console.log('\n📊 Deletion Safety Analysis:');
-  
+
   let safeCount = 0;
   let unsafeCount = 0;
-  
+
   COMPONENTS_TO_DELETE.forEach(item => {
     if (typeof item === 'object') {
       const safe = canSafelyDelete(item.file);
@@ -42,12 +42,12 @@ export function validateDeletionPlan(): void {
       }
     }
   });
-  
+
   console.log('\n📈 Summary:');
   console.log(`Safe to delete: ${safeCount} files`);
   console.log(`Need attention: ${unsafeCount} files`);
   console.log(`Total to delete: ${COMPONENTS_TO_DELETE.length} files`);
-  
+
   // Check for test files that need deletion
   console.log('\n🧪 Test Files to Delete:');
   const testFiles = [
@@ -55,7 +55,7 @@ export function validateDeletionPlan(): void {
     'src/components/game/PostTrickDealAnimation.spec.tsx',
     'src/components/game/GuinotePROGameTable.spec.tsx',
   ];
-  
+
   testFiles.forEach(test => {
     console.log(`   - ${test}`);
   });

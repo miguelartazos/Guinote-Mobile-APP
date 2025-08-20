@@ -14,17 +14,13 @@ describe('Button', () => {
   });
 
   test('renders button with text', () => {
-    const { getByText } = render(
-      <Button onPress={mockOnPress}>{buttonText}</Button>,
-    );
+    const { getByText } = render(<Button onPress={mockOnPress}>{buttonText}</Button>);
 
     expect(getByText(buttonText)).toBeTruthy();
   });
 
   test('calls onPress when pressed', () => {
-    const { getByText } = render(
-      <Button onPress={mockOnPress}>{buttonText}</Button>,
-    );
+    const { getByText } = render(<Button onPress={mockOnPress}>{buttonText}</Button>);
 
     fireEvent.press(getByText(buttonText));
     expect(mockOnPress).toHaveBeenCalledTimes(1);

@@ -40,19 +40,14 @@ export async function loadTutorialProgress(): Promise<AllTutorialProgress> {
   return DEFAULT_PROGRESS;
 }
 
-export async function saveTutorialProgress(
-  progress: TutorialProgress,
-): Promise<void> {
+export async function saveTutorialProgress(progress: TutorialProgress): Promise<void> {
   try {
     const allProgress = await loadTutorialProgress();
     allProgress.currentProgress = {
       ...progress,
       lastUpdated: new Date().toISOString(),
     };
-    await AsyncStorage.setItem(
-      TUTORIAL_PROGRESS_KEY,
-      JSON.stringify(allProgress),
-    );
+    await AsyncStorage.setItem(TUTORIAL_PROGRESS_KEY, JSON.stringify(allProgress));
   } catch (error) {
     console.error('Error saving tutorial progress:', error);
   }
@@ -80,10 +75,7 @@ export async function completeTutorial(
       allProgress.currentProgress = undefined;
     }
 
-    await AsyncStorage.setItem(
-      TUTORIAL_PROGRESS_KEY,
-      JSON.stringify(allProgress),
-    );
+    await AsyncStorage.setItem(TUTORIAL_PROGRESS_KEY, JSON.stringify(allProgress));
   } catch (error) {
     console.error('Error completing tutorial:', error);
   }
@@ -93,10 +85,7 @@ export async function clearCurrentProgress(): Promise<void> {
   try {
     const allProgress = await loadTutorialProgress();
     allProgress.currentProgress = undefined;
-    await AsyncStorage.setItem(
-      TUTORIAL_PROGRESS_KEY,
-      JSON.stringify(allProgress),
-    );
+    await AsyncStorage.setItem(TUTORIAL_PROGRESS_KEY, JSON.stringify(allProgress));
   } catch (error) {
     console.error('Error clearing tutorial progress:', error);
   }
@@ -104,23 +93,16 @@ export async function clearCurrentProgress(): Promise<void> {
 
 export async function resetAllTutorialProgress(): Promise<void> {
   try {
-    await AsyncStorage.setItem(
-      TUTORIAL_PROGRESS_KEY,
-      JSON.stringify(DEFAULT_PROGRESS),
-    );
+    await AsyncStorage.setItem(TUTORIAL_PROGRESS_KEY, JSON.stringify(DEFAULT_PROGRESS));
   } catch (error) {
     console.error('Error resetting all tutorial progress:', error);
   }
 }
 
-export async function hasCompletedTutorial(
-  tutorialType: TutorialType,
-): Promise<boolean> {
+export async function hasCompletedTutorial(tutorialType: TutorialType): Promise<boolean> {
   try {
     const allProgress = await loadTutorialProgress();
-    return allProgress.completedTutorials.some(
-      record => record.tutorialType === tutorialType,
-    );
+    return allProgress.completedTutorials.some(record => record.tutorialType === tutorialType);
   } catch (error) {
     console.error('Error checking tutorial completion:', error);
     return false;
@@ -146,10 +128,7 @@ export async function getTutorialCompletionStats(): Promise<{
       };
     }
 
-    const totalDuration = completed.reduce(
-      (sum, record) => sum + record.duration,
-      0,
-    );
+    const totalDuration = completed.reduce((sum, record) => sum + record.duration, 0);
     const completionDates = completed.reduce((acc, record) => {
       acc[record.tutorialType] = record.completedAt;
       return acc;

@@ -13,7 +13,7 @@ type ScreenContainerProps = ViewProps & {
 export function ScreenContainer({
   children,
   style,
-  orientation = 'portrait',
+  orientation = null,
   ...props
 }: ScreenContainerProps) {
   useOrientationLock(orientation);

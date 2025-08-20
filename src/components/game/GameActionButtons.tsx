@@ -43,15 +43,9 @@ export const GameActionButtons = React.memo(function GameActionButtons({
   const currentPlayerHand = gameState.hands.get(currentPlayer.id) || [];
 
   // Find the current player's team to get their cantes
-  const playerTeam = gameState.teams.find(team =>
-    team.playerIds.includes(currentPlayer.id),
-  );
+  const playerTeam = gameState.teams.find(team => team.playerIds.includes(currentPlayer.id));
 
-  const cantableSuits = canCantar(
-    currentPlayerHand,
-    gameState.trumpSuit,
-    playerTeam?.cantes || [],
-  );
+  const cantableSuits = canCantar(currentPlayerHand, gameState.trumpSuit, playerTeam?.cantes || []);
 
   const canPlayerCantar = cantableSuits.length > 0;
 
@@ -99,10 +93,7 @@ export const GameActionButtons = React.memo(function GameActionButtons({
             <Text style={styles.declareButtonText}>¡Las 101!</Text>
           </AnimatedButton>
         )}
-        <AnimatedButton
-          onPress={onRenuncio}
-          style={[styles.actionButton, styles.salirButton]}
-        >
+        <AnimatedButton onPress={onRenuncio} style={[styles.actionButton, styles.salirButton]}>
           <Text style={styles.buttonText}>Renuncio</Text>
         </AnimatedButton>
       </View>

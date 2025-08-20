@@ -11,11 +11,7 @@ type DeckPileProps = {
   showTrump?: boolean;
 };
 
-export function DeckPile({
-  cardsRemaining,
-  trumpCard,
-  showTrump = true,
-}: DeckPileProps) {
+export function DeckPile({ cardsRemaining, trumpCard, showTrump = true }: DeckPileProps) {
   if (cardsRemaining === 0 && !showTrump) {
     return null;
   }

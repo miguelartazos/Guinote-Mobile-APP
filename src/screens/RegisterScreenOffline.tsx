@@ -8,29 +8,19 @@ import type { JugarStackScreenProps } from '../types/navigation';
 
 /**
  * Placeholder register screen for offline mode
- * The real RegisterScreen imports Clerk which causes errors
+ * The real RegisterScreen has authentication which causes errors
  * This will be replaced when online mode is properly implemented
  */
-export function RegisterScreen({
-  navigation,
-}: JugarStackScreenProps<'Register'>) {
+export function RegisterScreen({ navigation }: JugarStackScreenProps<'Register'>) {
   return (
     <ScreenContainer>
       <View style={styles.container}>
         <Text style={styles.title}>Registro No Disponible</Text>
-        <Text style={styles.subtitle}>
-          El registro online está en desarrollo.
-        </Text>
-        <Text style={styles.subtitle}>
-          Por ahora, puedes jugar offline sin cuenta.
-        </Text>
-        
+        <Text style={styles.subtitle}>El registro online está en desarrollo.</Text>
+        <Text style={styles.subtitle}>Por ahora, puedes jugar offline sin cuenta.</Text>
+
         <View style={styles.buttonContainer}>
-          <Button
-            variant="primary"
-            onPress={() => navigation.navigate('JugarHome')}
-            icon="🎮"
-          >
+          <Button variant="primary" onPress={() => navigation.navigate('JugarHome')} icon="🎮">
             Volver al Menú
           </Button>
         </View>

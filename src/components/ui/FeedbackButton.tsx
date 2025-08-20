@@ -58,10 +58,7 @@ export const FeedbackButton = React.memo(function FeedbackButton() {
       const existingFeedback = await AsyncStorage.getItem(FEEDBACK_STORAGE_KEY);
       const feedbackList = existingFeedback ? JSON.parse(existingFeedback) : [];
       feedbackList.push(feedback);
-      await AsyncStorage.setItem(
-        FEEDBACK_STORAGE_KEY,
-        JSON.stringify(feedbackList),
-      );
+      await AsyncStorage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(feedbackList));
 
       Alert.alert(
         '¡Gracias!',
@@ -124,27 +121,19 @@ export const FeedbackButton = React.memo(function FeedbackButton() {
           <View style={styles.modalContent}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>📝 Enviar Feedback</Text>
-              <Text style={styles.modalSubtitle}>
-                Tu opinión nos ayuda a mejorar el juego
-              </Text>
+              <Text style={styles.modalSubtitle}>Tu opinión nos ayuda a mejorar el juego</Text>
 
               {/* Feedback type selection */}
               <View style={styles.typeContainer}>
                 {feedbackTypes.map(({ type, label, emoji }) => (
                   <TouchableOpacity
                     key={type}
-                    style={[
-                      styles.typeButton,
-                      feedbackType === type && styles.typeButtonActive,
-                    ]}
+                    style={[styles.typeButton, feedbackType === type && styles.typeButtonActive]}
                     onPress={() => setFeedbackType(type)}
                   >
                     <Text style={styles.typeEmoji}>{emoji}</Text>
                     <Text
-                      style={[
-                        styles.typeLabel,
-                        feedbackType === type && styles.typeLabelActive,
-                      ]}
+                      style={[styles.typeLabel, feedbackType === type && styles.typeLabelActive]}
                     >
                       {label}
                     </Text>
@@ -154,9 +143,7 @@ export const FeedbackButton = React.memo(function FeedbackButton() {
 
               {/* Rating */}
               <View style={styles.ratingContainer}>
-                <Text style={styles.ratingTitle}>
-                  ¿Cómo calificas el juego?
-                </Text>
+                <Text style={styles.ratingTitle}>¿Cómo calificas el juego?</Text>
                 <View style={styles.ratingStars}>
                   {[1, 2, 3, 4, 5].map(star => (
                     <TouchableOpacity
@@ -165,10 +152,7 @@ export const FeedbackButton = React.memo(function FeedbackButton() {
                       style={styles.starButton}
                     >
                       <Text
-                        style={[
-                          styles.star,
-                          rating && rating >= star ? styles.starActive : null,
-                        ]}
+                        style={[styles.star, rating && rating >= star ? styles.starActive : null]}
                       >
                         ⭐
                       </Text>
