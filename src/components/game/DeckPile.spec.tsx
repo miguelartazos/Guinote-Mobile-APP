@@ -9,10 +9,10 @@ describe('DeckPile', () => {
     value: 7,
   };
 
-  test('renders deck pile with remaining cards', () => {
-    const { getByText } = render(<DeckPile cardsRemaining={15} trumpCard={mockTrumpCard} />);
+  test('renders deck pile with remaining cards (no count badge)', () => {
+    const { queryByText } = render(<DeckPile cardsRemaining={15} trumpCard={mockTrumpCard} />);
 
-    expect(getByText('15')).toBeTruthy();
+    expect(queryByText('15')).toBeNull();
   });
 
   test('shows trump card when showTrump is true', () => {
@@ -24,12 +24,12 @@ describe('DeckPile', () => {
     expect(queryByTestId).toBeTruthy();
   });
 
-  test('hides trump card when showTrump is false', () => {
-    const { queryByText } = render(
+  test('hides trump card when showTrump is false (still renders deck)', () => {
+    const component = render(
       <DeckPile cardsRemaining={10} trumpCard={mockTrumpCard} showTrump={false} />,
     );
 
-    expect(queryByText('10')).toBeTruthy();
+    expect(component.toJSON()).not.toBeNull();
   });
 
   test('returns null when no cards remaining and showTrump is false', () => {
@@ -48,9 +48,9 @@ describe('DeckPile', () => {
     expect(component.toJSON()).not.toBeNull();
   });
 
-  test('shows multiple stacked cards for larger deck sizes', () => {
+  test('renders deck visually for larger deck sizes (no count badge)', () => {
     const { queryByText } = render(<DeckPile cardsRemaining={20} trumpCard={mockTrumpCard} />);
 
-    expect(queryByText('20')).toBeTruthy();
+    expect(queryByText('20')).toBeNull();
   });
 });

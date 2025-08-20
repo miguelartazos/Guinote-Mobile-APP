@@ -118,42 +118,36 @@ export function MinimalPlayerPanel({
 const styles = StyleSheet.create({
   panel: {
     position: 'absolute',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: dimensions.borderRadius.sm,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    minWidth: 100,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 64,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
+  // Move titles to corners to avoid overlaps
   topPanel: {
-    top: 5,
-    left: '50%',
-    transform: [{ translateX: -50 }],
+    top: 8,
+    left: 56, // leave space for the hamburger/menu button
   },
   leftPanel: {
-    left: 5,
-    top: 20,
-    transform: [{ translateY: 0 }],
+    bottom: 8,
+    left: 8,
   },
   rightPanel: {
-    right: 5,
-    top: 20,
-    transform: [{ translateY: 0 }],
+    top: 8,
+    right: 8,
   },
   bottomPanel: {
-    bottom: 5,
-    left: '50%',
-    transform: [{ translateX: -50 }],
+    bottom: 8,
+    right: 8,
   },
   playerName: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
     color: colors.white,
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
   },
   teamIndicator: {
     width: 8,

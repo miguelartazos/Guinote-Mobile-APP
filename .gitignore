@@ -80,18 +80,30 @@ yarn-error.log
 !.yarn/sdks
 !.yarn/versions
 
-# Environment variables
+# Environment variables - NEVER COMMIT THESE
 .env
+.env.*
+!.env.example
+!.env.*.example
 .env.local
 .env.*.local
 .env.production
 .env.development
-.env.mcp.local
+.env.staging
+.env.test
 .env.mcp
+.env.mcp.local
 
 # Sentry
 sentry.properties
 .sentryclirc
+
+# Other sensitive files
+*credentials*
+*secrets*
+*.pem
+*.key
+private/
 
 # Convex
 convex/_generated/

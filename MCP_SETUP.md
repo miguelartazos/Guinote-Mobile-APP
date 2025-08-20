@@ -1,198 +1,128 @@
 # MCP Server Setup Guide for Guinote2
 
+## ⚠️ Important Note
+
+Most MCP servers have been disabled to avoid conflicts with Claude Code's built-in tools. Only non-conflicting MCPs are retained.
+
 ## Overview
-This guide covers the setup and configuration of Model Context Protocol (MCP) servers for the Guinote2 project, enabling Claude to interact with your development environment effectively.
 
-## MCP Servers Configured
+This guide covers the minimal MCP configuration for Guinote2, using only servers that complement (not duplicate) Claude Code's capabilities.
 
-### 1. Filesystem MCP ✅
-**Purpose:** Read/write access to project files for refactoring, adding features, and tests.
-**Status:** Ready to use
-**Commands available:**
-- `"Open src/screens/HomeScreen.tsx and refactor the header"`
-- `"Create src/stores/useGameStore.ts with Zustand"`
+## Current MCP Configuration (Minimal)
 
-### 2. Terminal/Process MCP ✅
-**Purpose:** Execute development commands (npm, jest, eslint, prettier, pod install)
-**Status:** Ready to use
-**Commands available:**
-- `"Run npm test and show failures"`
-- `"Run npm run lint && npm run typecheck"`
+### Active MCP Servers
 
-### 3. Git + GitHub MCP ✅
-**Purpose:** Version control operations and PR management
-**Status:** Requires GitHub token configuration
-**Setup:**
-1. Create GitHub Personal Access Token at https://github.com/settings/tokens
-2. Add token to `.env.mcp` file
-**Commands available:**
-- `"Create branch feat/tournaments, commit changes, open PR"`
-- `"Show git status and recent commits"`
+#### 1. Jest MCP ✅
 
-### 4. Jest MCP ✅
-**Purpose:** Run and manage tests
-**Status:** Ready to use
-**Commands available:**
-- `"Run tests for gameLogic and fix failures"`
-- `"Add tests for arrastre logic with partner exception"`
+**Purpose:** Specialized test runner integration
+**Status:** Active
+**Use Case:** Advanced test filtering and reporting
 
-### 5. ESLint/Prettier MCP ✅
-**Purpose:** Code quality and formatting
-**Status:** Ready to use with enhanced configuration
-**Commands available:**
-- `"Auto-fix lint issues in all changed files"`
-- `"Format all TypeScript files"`
+#### 2. ESLint MCP ✅
 
-### 6. Convex MCP ✅
-**Purpose:** Backend operations, function calls, data seeding
-**Status:** Requires Convex credentials
-**Setup:**
-1. Get Convex URL from https://dashboard.convex.dev
-2. Get Deploy Key from deployment settings
-3. Add to `.env.mcp` file
-**Commands available:**
-- `"Seed a test room with 4 bots and simulate 10 tricks"`
-- `"Query active games and show statistics"`
+**Purpose:** Advanced linting with auto-fix
+**Status:** Active
+**Use Case:** Code quality checks beyond basic linting
 
-### 7. Sentry MCP (Optional) ⏳
-**Purpose:** Error tracking and monitoring
-**Status:** Optional, configure when ready
-**Setup:**
-1. Create Sentry project
-2. Get DSN and auth token
-3. Add to `.env.mcp` file
+#### 3. Prettier MCP ✅
 
-### 8. Expo/EAS MCP (Optional) ⏳
-**Purpose:** Build and deploy preview builds
-**Status:** Optional, configure when ready
-**Setup:**
-1. Create Expo account
-2. Configure EAS project
-3. Add credentials to `.env.mcp` file
-**Commands available:**
-- `"Build iOS preview and share install link"`
-- `"Deploy Android internal test build"`
+**Purpose:** Code formatting with config awareness
+**Status:** Active
+**Use Case:** Consistent code formatting
+
+#### 4. Supabase MCP ✅
+
+**Purpose:** Database management API
+**Status:** Requires token configuration
+**Setup:** Add token to `.env.mcp.local`
+
+### Disabled MCP Servers (Use Claude Code Instead)
+
+#### ❌ Filesystem MCP
+
+**Replaced by:** Claude Code's Read/Write/Edit tools
+**How to use:** Just ask Claude to read or edit files directly
+
+#### ❌ Terminal MCP
+
+**Replaced by:** Claude Code's Bash tool
+**How to use:** Ask Claude to run any command
+
+#### ❌ Git/GitHub MCP
+
+**Replaced by:** Git commands via Bash tool
+**How to use:** `git status`, `gh pr create`, etc.
+
+### Removed Non-Existent MCPs
+
+- ❌ **Sentry MCP** - No official MCP exists
+- ❌ **Expo MCP** - No official MCP exists
+- ❌ **Convex MCP** - No official MCP exists
 
 ## Setup Instructions
 
-### Step 1: Configure Environment Variables
-1. Copy the template: `cp .env.mcp .env.mcp.local`
-2. Edit `.env.mcp.local` and add your credentials:
-   ```bash
-   # Required
-   GITHUB_TOKEN=ghp_your_token_here
-   CONVEX_URL=https://your-project.convex.cloud
-   CONVEX_DEPLOY_KEY=your_deploy_key
+### Step 1: Use the Minimal Configuration
 
-   # Optional (add when ready)
-   SENTRY_DSN=your_sentry_dsn
-   EXPO_TOKEN=your_expo_token
-   ```
+The `.mcp.json` file is already configured with only non-conflicting MCPs.
 
-### Step 2: Install Required Dependencies
+### Step 2: Add Supabase Token (Optional)
+
+If using Supabase MCP:
+
 ```bash
-# Install additional ESLint/Prettier plugins
-npm install --save-dev \
-  eslint-plugin-jest \
-  eslint-plugin-react-hooks \
-  @typescript-eslint/eslint-plugin \
-  @typescript-eslint/parser \
-  eslint-config-prettier
-
-# Install testing utilities
-npm install --save-dev \
-  @testing-library/react-native \
-  @testing-library/jest-native
+cp .env.mcp.example .env.mcp.local
+# Edit .env.mcp.local and add your Supabase token
 ```
 
-### Step 3: Enable MCP in Claude Desktop
-1. Open Claude Desktop settings
-2. Navigate to Developer > MCP Servers
-3. Click "Add Configuration"
-4. Select the `.mcp.json` file from this project
-5. Restart Claude Desktop
+### Step 3: Restart Claude Desktop
+
+After any MCP configuration change, restart Claude Desktop to load the new settings.
 
 ### Step 4: Verify Setup
-Ask Claude to run these commands to verify everything works:
-```
-"Run npm run lint"
-"Run npm test"
-"Show git status"
-"Check Convex connection"
-```
 
-## Usage Examples
+Test the remaining MCPs:
 
-### Development Workflow
-```
-User: "I need to add a tournament mode feature"
-Claude will:
-1. Create feature branch via Git MCP
-2. Use Filesystem MCP to create components
-3. Run tests via Jest MCP
-4. Format code via Prettier MCP
-5. Commit and create PR via GitHub MCP
+- Jest: Ask Claude to run specific tests
+- ESLint: Ask Claude to lint files
+- Prettier: Ask Claude to format code
+- Supabase: Query database (if configured)
+
+## Usage with Claude Code
+
+### File Operations
+
+```bash
+# Instead of filesystem MCP:
+"Read src/components/Game.tsx"     # Uses Claude Code's Read tool
+"Edit the handlePlay function"     # Uses Claude Code's Edit tool
+"Search for useEffect hooks"       # Uses Claude Code's Grep tool
 ```
 
-### Testing Workflow
-```
-User: "Test the arrastre logic with all edge cases"
-Claude will:
-1. Create comprehensive test file
-2. Run tests via Jest MCP
-3. Fix any failures
-4. Verify via Terminal MCP
-```
+### Terminal Commands
 
-### Backend Integration
-```
-User: "Set up a test game with specific hands"
-Claude will:
-1. Use Convex MCP to seed data
-2. Call game functions
-3. Verify state changes
-4. Generate test scenarios
+```bash
+# Instead of terminal MCP:
+"Run npm test"                     # Uses Claude Code's Bash tool
+"Install new dependency"           # Uses Claude Code's Bash tool
+"Check git status"                 # Uses Claude Code's Bash tool
 ```
 
-## Best Practices
+### Testing & Formatting
 
-1. **Always verify changes**: After Claude makes changes, ask to run tests
-2. **Use branches**: Create feature branches for new work
-3. **Test incrementally**: Run tests after each significant change
-4. **Format consistently**: Run prettier after code changes
-5. **Commit frequently**: Make small, focused commits
+```bash
+# Using retained MCPs:
+"Run Jest tests for gameLogic"     # Uses Jest MCP
+"Fix all ESLint issues"           # Uses ESLint MCP
+"Format all TypeScript files"      # Uses Prettier MCP
+```
 
-## Troubleshooting
+## Why This Configuration?
 
-### MCP Server Not Responding
-- Restart Claude Desktop
-- Check `.mcp.json` configuration
-- Verify environment variables in `.env.mcp.local`
-
-### Permission Errors
-- Ensure project directory has proper permissions
-- Check that npm/npx are accessible
-- Verify Git configuration
-
-### Convex Connection Issues
-- Verify Convex URL and deploy key
-- Check network connectivity
-- Ensure Convex dev server is running
-
-## Security Notes
-
-- **NEVER** commit `.env.mcp.local` to version control
-- Use minimal permissions for GitHub tokens
-- Rotate credentials regularly
-- Keep deploy keys secure
-
-## Next Steps
-
-1. Configure GitHub token for full Git integration
-2. Set up Convex credentials for backend operations
-3. Consider adding Sentry for production error tracking
-4. Set up EAS for automated builds when ready
+1. **No Conflicts**: Each tool has unique functionality
+2. **Better Performance**: Fewer MCP processes running
+3. **Clearer Separation**: MCPs for specialized tasks, Claude Code for general ops
+4. **Simpler Debugging**: Less complexity to troubleshoot
 
 ---
 
-*Last updated: January 2025*
+_Last updated: August 2025_

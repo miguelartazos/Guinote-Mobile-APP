@@ -1,6 +1,6 @@
 import type { GameState, Card, PlayerId } from '../types/game.types';
 import type { GameMove } from '../types/gameMove.types';
-import { isValidPlay } from './gameLogic';
+import { isValidPlay, findPlayerTeam } from './gameLogic';
 
 /**
  * Validate a game move before applying it
@@ -54,6 +54,15 @@ export function isValidMove(gameState: GameState, move: GameMove): boolean {
       case 'declare_cante': {
         // Check if it's playing phase
         if (gameState.phase !== 'playing') return false;
+
+        // Must have won last trick
+        if (!gameState.lastTrickWinner) return false;
+        const lastWinnerTeam = findPlayerTeam(gameState.lastTrickWinner, gameState);
+        const playerTeam = findPlayerTeam(move.playerId, gameState);
+        if (lastWinnerTeam !== playerTeam) return false;
+
+        // Current trick must be empty (not started)
+        if (gameState.currentTrick.length > 0) return false;
 
         // Check if player has the cards
         const playerHand = gameState.hands.get(move.playerId);

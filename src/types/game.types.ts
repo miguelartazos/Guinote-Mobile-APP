@@ -38,7 +38,6 @@ export type GamePhase =
   | 'playing'
   | 'arrastre'
   | 'scoring'
-  | 'vueltas'
   | 'gameOver'
   | 'finished'; // Legacy phase - same as gameOver
 

@@ -25,7 +25,8 @@ const SIDE_VISIBLE = 0.6; // Sides: compact fan that looked good before
 const EDGE_MARGIN_VERTICAL = 8; // Match side player container margin for symmetry
 const TOP_PLAYER_Y_OFFSET = EDGE_MARGIN_VERTICAL; // Move closer to top
 const SIDE_PLAYER_MARGIN = 60; // Keep current side spacing
-const BOTTOM_PLAYER_OFFSET = EDGE_MARGIN_VERTICAL; // Move closer to bottom
+// Move the bottom hand closer to the bottom edge to free vertical space for the board
+const BOTTOM_PLAYER_OFFSET = 0;
 
 type Position = {
   x: number;
@@ -174,10 +175,10 @@ export function getTrumpPosition(
 ): Position {
   // Trump card positioned slightly offset from deck
   const deckPos = getDeckPosition(screenWidth, screenHeight, layoutInfo);
-  const cardOffset = 12; // Fixed pixel offset for trump card
+  const cardOffset = 14; // Slightly larger offset so deck+trump read as a stack
   return {
-    x: deckPos.x + cardOffset, // Slightly to the right
-    y: deckPos.y + cardOffset, // Slightly below
+    x: deckPos.x + cardOffset,
+    y: deckPos.y + cardOffset,
     rotation: 90, // Rotate trump 90deg like reference
     zIndex: 99,
   };

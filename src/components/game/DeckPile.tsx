@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { SpanishCard } from './SpanishCard';
 import type { SpanishCardData } from './SpanishCard';
 import { colors } from '../../constants/colors';
@@ -41,10 +41,6 @@ export function DeckPile({ cardsRemaining, trumpCard, showTrump = true }: DeckPi
               )}
             </>
           )}
-          {/* Card count badge overlay */}
-          <View style={styles.cardCountBadge}>
-            <Text style={styles.cardCountText}>{cardsRemaining}</Text>
-          </View>
         </View>
       )}
     </View>
@@ -59,9 +55,9 @@ const styles = StyleSheet.create({
   },
   trumpCardContainer: {
     position: 'absolute',
-    transform: [{ rotate: '90deg' }],
+    transform: [{ rotate: '-90deg' }],
     top: 30,
-    left: -10,
+    right: -10,
     zIndex: 1,
   },
   deckContainer: {
@@ -81,28 +77,5 @@ const styles = StyleSheet.create({
   stackedCard2: {
     transform: [{ translateX: 4 }, { translateY: 4 }],
   },
-  cardCountBadge: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: colors.error,
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.white,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 5,
-  },
-  cardCountText: {
-    color: colors.white,
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
-    textAlign: 'center',
-  },
+  // Removed card count badge styles
 });

@@ -9,6 +9,7 @@ import {
   shouldStartVueltas,
 } from './gameLogic';
 import { WINNING_SCORE, MINIMUM_CARD_POINTS } from '../types/game.types';
+import { validateGameState } from './gameStateValidator';
 
 /**
  * Result of calculating a trick
@@ -60,7 +61,7 @@ export function applyTrickScoring(gameState: GameState, trickResult: TrickResult
   const winnerTricks = newCollectedTricks.get(trickResult.winnerId) || [];
   newCollectedTricks.set(trickResult.winnerId, [...winnerTricks, trickResult.cards]);
 
-  return {
+  const newState = {
     ...gameState,
     teams: newTeams,
     collectedTricks: newCollectedTricks,
@@ -68,6 +69,16 @@ export function applyTrickScoring(gameState: GameState, trickResult: TrickResult
     lastTrickWinner: trickResult.winnerId,
     lastTrick: trickResult.cards,
   };
+
+  // Validate in development
+  if (process.env.NODE_ENV === 'development') {
+    const validation = validateGameState(newState);
+    if (!validation.isValid) {
+      console.error('Invalid state after trick scoring:', validation.errors);
+    }
+  }
+
+  return newState;
 }
 
 /**

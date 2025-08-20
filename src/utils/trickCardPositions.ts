@@ -1,39 +1,46 @@
 import type { ViewStyle, LayoutRectangle } from 'react-native';
+import { getCardDimensions } from './responsive';
 
 export function getTrickCardPositionWithinBoard(
   playerIndex: number,
   boardLayout?: LayoutRectangle,
 ): ViewStyle {
-  // If we have board layout, position relative to board center
+  // If we have board layout, place cards around the board center with
+  // symmetric offsets toward each player's side (classic cross layout).
   if (boardLayout) {
-    const centerX = boardLayout.width / 2;
-    const centerY = boardLayout.height / 2;
-    const spread = 45; // Consistent spread for cross pattern
+    const { width, height } = boardLayout;
+    const dims = getCardDimensions().medium;
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // Spread distances based on card size and board size for balance
+    const spreadX = Math.max(dims.width * 0.9, Math.min(width * 0.12, dims.width * 1.6));
+    const spreadY = Math.max(dims.height * 1.0, Math.min(height * 0.12, dims.height * 1.8));
 
     const positions: ViewStyle[] = [
-      // Bottom player - card closer to bottom edge
+      // Bottom player
       {
         position: 'absolute',
-        bottom: centerY - spread,
-        left: centerX - 35,
+        left: centerX - dims.width / 2,
+        top: centerY + spreadY - dims.height / 2,
       },
-      // Left player - card closer to left edge
+      // Left player
       {
         position: 'absolute',
-        left: centerX - spread - 35,
-        top: centerY - 45,
+        left: centerX - spreadX - dims.width / 2,
+        top: centerY - dims.height / 2,
       },
-      // Top player - card closer to top edge
+      // Top player
       {
         position: 'absolute',
-        top: centerY - spread - 45,
-        left: centerX - 35,
+        left: centerX - dims.width / 2,
+        top: centerY - spreadY - dims.height / 2,
       },
-      // Right player - card closer to right edge
+      // Right player
       {
         position: 'absolute',
-        right: centerX - spread - 35,
-        top: centerY - 45,
+        left: centerX + spreadX - dims.width / 2,
+        top: centerY - dims.height / 2,
       },
     ];
 
@@ -41,31 +48,13 @@ export function getTrickCardPositionWithinBoard(
   }
 
   // Fallback to percentage-based positioning
+  const dims = getCardDimensions().medium;
+  const margin = 24;
   const positions: ViewStyle[] = [
-    {
-      position: 'absolute',
-      bottom: 60,
-      left: '50%',
-      transform: [{ translateX: -35 }],
-    },
-    {
-      position: 'absolute',
-      left: 60,
-      top: '50%',
-      transform: [{ translateY: -45 }],
-    },
-    {
-      position: 'absolute',
-      top: 60,
-      left: '50%',
-      transform: [{ translateX: -35 }],
-    },
-    {
-      position: 'absolute',
-      right: 60,
-      top: '50%',
-      transform: [{ translateY: -45 }],
-    },
+    { position: 'absolute', bottom: margin, left: '50%', transform: [{ translateX: -dims.width / 2 }] },
+    { position: 'absolute', left: margin, top: '50%', transform: [{ translateY: -dims.height / 2 }] },
+    { position: 'absolute', top: margin, left: '50%', transform: [{ translateX: -dims.width / 2 }] },
+    { position: 'absolute', right: margin, top: '50%', transform: [{ translateY: -dims.height / 2 }] },
   ];
 
   return positions[playerIndex] || positions[0];

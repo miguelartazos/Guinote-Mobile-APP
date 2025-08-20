@@ -5,7 +5,7 @@ import { DraggableCard } from './DraggableCard';
 import { MinimalPlayerPanel } from './MinimalPlayerPanel';
 import { DeckPile } from './DeckPile';
 import { TrickCollectionAnimation } from './TrickCollectionAnimation';
-import { CardCountBadge } from './CardCountBadge';
+// import { CardCountBadge } from './CardCountBadge';
 import { CollapsibleGameMenu } from './CollapsibleGameMenu';
 import { colors, TABLE_COLORS } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
@@ -136,7 +136,7 @@ export function GameTable({
         isThinking={thinkingPlayerId === bottomPlayer.id}
       />
 
-      {/* Top Player Cards (Teammate) with Icon */}
+      {/* Top Player Cards (Teammate) */}
       {!isDealing && layout.isReady && (
         <View style={styles.topPlayerCardsContainer}>
           {topPlayer.cards.map((_, index) => {
@@ -165,7 +165,6 @@ export function GameTable({
               />
             );
           })}
-          <CardCountBadge count={topPlayer.cards.length} position="top" />
         </View>
       )}
 
@@ -202,7 +201,6 @@ export function GameTable({
               />
             );
           })}
-          <CardCountBadge count={leftPlayer.cards.length} position="left" />
         </View>
       )}
 
@@ -239,7 +237,6 @@ export function GameTable({
               />
             );
           })}
-          <CardCountBadge count={rightPlayer.cards.length} position="right" />
         </View>
       )}
 
@@ -320,46 +317,27 @@ export function GameTable({
         </View>
       )}
 
-      {/* Trick Piles in Corners */}
-      {/* Bottom Player Trick Pile */}
-      {(collectedTricks.get(bottomPlayer.id)?.length || 0) > 0 && (
-        <View style={[styles.trickPile, styles.bottomTrickPile]}>
-          <SpanishCard faceDown size="small" />
-          <Text style={styles.trickPileCount}>
-            {collectedTricks.get(bottomPlayer.id)?.length || 0}
-          </Text>
-        </View>
-      )}
+      {/* Team Trick Piles (two stacks) */}
+      {(() => {
+        const getCount = (id: string) => collectedTricks.get(id)?.length || 0;
+        const team1Count = getCount(bottomPlayer.id) + getCount(topPlayer.id);
+        const team2Count = getCount(leftPlayer.id) + getCount(rightPlayer.id);
 
-      {/* Left Player Trick Pile */}
-      {(collectedTricks.get(leftPlayer.id)?.length || 0) > 0 && (
-        <View style={[styles.trickPile, styles.leftTrickPile]}>
-          <SpanishCard faceDown size="small" />
-          <Text style={styles.trickPileCount}>
-            {collectedTricks.get(leftPlayer.id)?.length || 0}
-          </Text>
-        </View>
-      )}
-
-      {/* Top Player Trick Pile */}
-      {(collectedTricks.get(topPlayer.id)?.length || 0) > 0 && (
-        <View style={[styles.trickPile, styles.topTrickPile]}>
-          <SpanishCard faceDown size="small" />
-          <Text style={styles.trickPileCount}>
-            {collectedTricks.get(topPlayer.id)?.length || 0}
-          </Text>
-        </View>
-      )}
-
-      {/* Right Player Trick Pile */}
-      {(collectedTricks.get(rightPlayer.id)?.length || 0) > 0 && (
-        <View style={[styles.trickPile, styles.rightTrickPile]}>
-          <SpanishCard faceDown size="small" />
-          <Text style={styles.trickPileCount}>
-            {collectedTricks.get(rightPlayer.id)?.length || 0}
-          </Text>
-        </View>
-      )}
+        return (
+          <>
+            {team1Count > 0 && (
+              <View style={[styles.trickPile, styles.bottomTrickPile]}>
+                <SpanishCard faceDown size="small" />
+              </View>
+            )}
+            {team2Count > 0 && (
+              <View style={[styles.trickPile, styles.topTrickPile]}>
+                <SpanishCard faceDown size="small" />
+              </View>
+            )}
+          </>
+        );
+      })()}
 
       {/* Bottom Player Hand - Only render when not dealing */}
       {!isDealing && layout.isReady && (
@@ -632,35 +610,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Use bottom-left for Team 1 (bottom+top) and top-right for Team 2 (left+right)
   bottomTrickPile: {
-    bottom: 20,
-    right: 20,
-  },
-  leftTrickPile: {
-    left: 20,
-    bottom: 20,
+    bottom: 12,
+    left: 12,
   },
   topTrickPile: {
-    top: 20,
-    left: 20,
+    top: 12,
+    right: 12,
   },
-  rightTrickPile: {
-    right: 20,
-    top: 20,
-  },
-  trickPileCount: {
-    position: 'absolute',
-    bottom: 5,
-    right: 5,
-    backgroundColor: colors.primary,
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: 'bold',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
+  // removed trickPileCount styles (no counters)
 });
 
 // Helper function to get player position for animation

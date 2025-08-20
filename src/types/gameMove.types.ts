@@ -41,3 +41,42 @@ export interface MoveResult {
   gameState?: any; // Updated game state if successful
   error?: string;
 }
+
+// Helper functions to create moves
+export const createMove = {
+  playCard: (playerId: PlayerId, cardId: CardId): PlayCardMove => ({
+    type: 'play_card',
+    playerId,
+    data: { cardId },
+    timestamp: Date.now(),
+  }),
+
+  cambiar7: (playerId: PlayerId): Cambiar7Move => ({
+    type: 'cambiar_7',
+    playerId,
+    data: {},
+    timestamp: Date.now(),
+  }),
+
+  declareCante: (playerId: PlayerId, suit: SpanishSuit): DeclareCanteMove => ({
+    type: 'declare_cante',
+    playerId,
+    data: { suit },
+    timestamp: Date.now(),
+  }),
+
+  // Alias for backward compatibility
+  cantar: (playerId: PlayerId, suit: SpanishSuit): DeclareCanteMove => ({
+    type: 'declare_cante',
+    playerId,
+    data: { suit },
+    timestamp: Date.now(),
+  }),
+
+  declareVictory: (playerId: PlayerId): DeclareVictoryMove => ({
+    type: 'declare_victory',
+    playerId,
+    data: {},
+    timestamp: Date.now(),
+  }),
+};
