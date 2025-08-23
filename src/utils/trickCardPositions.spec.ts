@@ -15,32 +15,42 @@ describe('trickCardPositions', () => {
       // Test all 4 positions
       const positions = [0, 1, 2, 3].map(i => getTrickCardPositionWithinBoard(i, mockBoardLayout));
 
-      // Bottom player card
+      // With new fixed positioning:
+      // small card dimensions (from getCardDimensions) are { width: 32, height: 48 }
+      // spreadX = 32 * 0.45 = 14.4
+      // spreadY = 48 * 0.5 = 24
+      // centerX = 150, centerY = 200
+
+      // Bottom player card - moved much higher to avoid overlap
       expect(positions[0]).toMatchObject({
         position: 'absolute',
-        bottom: 155, // centerY (200) - spread (45)
-        left: 115, // centerX (150) - 35
+        left: 134, // centerX (150) - cardWidth/2 (16)
+        top: 197.6, // centerY (200) - spreadY * 0.1 (24 * 0.1 = 2.4)
+        zIndex: 1,
       });
 
-      // Left player card
+      // Left player card - moved up more
       expect(positions[1]).toMatchObject({
         position: 'absolute',
-        left: 70, // centerX (150) - spread (45) - 35
-        top: 155, // centerY (200) - 45
+        left: expect.closeTo(119.6, 1), // centerX - spreadX - cardWidth/2 = 150 - 14.4 - 16
+        top: expect.closeTo(166.4, 1), // centerY - cardHeight/2 - spreadY * 0.4 = 200 - 24 - 9.6
+        zIndex: 2,
       });
 
       // Top player card
       expect(positions[2]).toMatchObject({
         position: 'absolute',
-        top: 110, // centerY (200) - spread (45) - 45
-        left: 115, // centerX (150) - 35
+        left: 134, // centerX (150) - cardWidth/2 (16)
+        top: expect.closeTo(125.6, 1), // centerY - spreadY * 1.1 - cardHeight = 200 - 26.4 - 48
+        zIndex: 3,
       });
 
-      // Right player card
+      // Right player card - moved up more
       expect(positions[3]).toMatchObject({
         position: 'absolute',
-        right: 70, // centerX (150) - spread (45) - 35
-        top: 155, // centerY (200) - 45
+        left: expect.closeTo(148.4, 1), // centerX + spreadX - cardWidth/2 = 150 + 14.4 - 16
+        top: expect.closeTo(166.4, 1), // centerY - cardHeight/2 - spreadY * 0.4 = 200 - 24 - 9.6
+        zIndex: 4,
       });
     });
 
@@ -49,29 +59,26 @@ describe('trickCardPositions', () => {
 
       expect(position).toMatchObject({
         position: 'absolute',
-        bottom: 60,
+        bottom: 24,
         left: '50%',
-        transform: [{ translateX: -35 }],
+        transform: [{ translateX: -16 }], // small card width/2 (32/2)
       });
     });
 
     test('uses consistent spread distance for all positions', () => {
-      const spread = 45;
-      const cardHalfWidth = 35;
-      const cardHalfHeight = 45;
+      // With new logic, cards use fixed multipliers for spreads
+      const centerX = mockBoardLayout.width / 2; // 150
+      const centerY = mockBoardLayout.height / 2; // 200
 
-      const centerX = mockBoardLayout.width / 2;
-      const centerY = mockBoardLayout.height / 2;
-
-      // Bottom position
+      // Bottom position - now slightly above center for better clearance
       const bottomPos = getTrickCardPositionWithinBoard(0, mockBoardLayout);
-      expect(bottomPos.bottom).toBe(centerY - spread);
-      expect(bottomPos.left).toBe(centerX - cardHalfWidth);
+      expect(bottomPos.top).toBeLessThan(centerY); // Now above center to avoid overlap
+      expect(bottomPos.left).toBe(134); // Centered horizontally (150 - 16)
 
       // Top position
       const topPos = getTrickCardPositionWithinBoard(2, mockBoardLayout);
-      expect(topPos.top).toBe(centerY - spread - cardHalfHeight);
-      expect(topPos.left).toBe(centerX - cardHalfWidth);
+      expect(topPos.top).toBeLessThan(centerY); // Above center
+      expect(topPos.left).toBe(134); // Centered horizontally (150 - 16)
     });
 
     test('defaults to position 0 for invalid player index', () => {

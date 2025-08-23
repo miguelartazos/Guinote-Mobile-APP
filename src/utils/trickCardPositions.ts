@@ -9,38 +9,43 @@ export function getTrickCardPositionWithinBoard(
   // symmetric offsets toward each player's side (classic cross layout).
   if (boardLayout) {
     const { width, height } = boardLayout;
-    const dims = getCardDimensions().medium;
+    const dims = getCardDimensions().small; // Use small dimensions for played cards
     const centerX = width / 2;
     const centerY = height / 2;
 
-    // Spread distances based on card size and board size for balance
-    const spreadX = Math.max(dims.width * 0.9, Math.min(width * 0.12, dims.width * 1.6));
-    const spreadY = Math.max(dims.height * 1.0, Math.min(height * 0.12, dims.height * 1.8));
+    // Adjusted offsets for smaller cards - can be tighter since cards are smaller
+    // Cards should be clearly separated in the center
+    const spreadX = dims.width * 0.45; // 45% of card width offset horizontally
+    const spreadY = dims.height * 0.5; // 50% of card height offset vertically
 
     const positions: ViewStyle[] = [
-      // Bottom player
+      // Bottom player - moved much higher to avoid overlap with hand cards
       {
         position: 'absolute',
         left: centerX - dims.width / 2,
-        top: centerY + spreadY - dims.height / 2,
+        top: centerY - spreadY * 0.1, // Moved significantly higher - almost at center
+        zIndex: 1,
       },
-      // Left player
+      // Left player - slightly left of center, moved up more
       {
         position: 'absolute',
         left: centerX - spreadX - dims.width / 2,
-        top: centerY - dims.height / 2,
+        top: centerY - dims.height / 2 - spreadY * 0.4, // More upward adjustment
+        zIndex: 2,
       },
-      // Top player
+      // Top player - moved lower but still clearly separated
       {
         position: 'absolute',
         left: centerX - dims.width / 2,
-        top: centerY - spreadY - dims.height / 2,
+        top: centerY - spreadY * 1.1 - dims.height, // Adjusted for new balance
+        zIndex: 3,
       },
-      // Right player
+      // Right player - slightly right of center, moved up more
       {
         position: 'absolute',
         left: centerX + spreadX - dims.width / 2,
-        top: centerY - dims.height / 2,
+        top: centerY - dims.height / 2 - spreadY * 0.4, // More upward adjustment
+        zIndex: 4,
       },
     ];
 
@@ -48,13 +53,33 @@ export function getTrickCardPositionWithinBoard(
   }
 
   // Fallback to percentage-based positioning
-  const dims = getCardDimensions().medium;
+  const dims = getCardDimensions().small;
   const margin = 24;
   const positions: ViewStyle[] = [
-    { position: 'absolute', bottom: margin, left: '50%', transform: [{ translateX: -dims.width / 2 }] },
-    { position: 'absolute', left: margin, top: '50%', transform: [{ translateY: -dims.height / 2 }] },
-    { position: 'absolute', top: margin, left: '50%', transform: [{ translateX: -dims.width / 2 }] },
-    { position: 'absolute', right: margin, top: '50%', transform: [{ translateY: -dims.height / 2 }] },
+    {
+      position: 'absolute',
+      bottom: margin,
+      left: '50%',
+      transform: [{ translateX: -dims.width / 2 }],
+    },
+    {
+      position: 'absolute',
+      left: margin,
+      top: '50%',
+      transform: [{ translateY: -dims.height / 2 }],
+    },
+    {
+      position: 'absolute',
+      top: margin,
+      left: '50%',
+      transform: [{ translateX: -dims.width / 2 }],
+    },
+    {
+      position: 'absolute',
+      right: margin,
+      top: '50%',
+      transform: [{ translateY: -dims.height / 2 }],
+    },
   ];
 
   return positions[playerIndex] || positions[0];
