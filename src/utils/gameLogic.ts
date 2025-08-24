@@ -695,7 +695,7 @@ function processTrickCompletion(gameState: GameState): GameState {
     // Auto-stop Vueltas as soon as any team reaches 101 combined points
     newState.isVueltas &&
     newState.initialScores &&
-    (newState.teams.some(team => (newState.initialScores!.get(team.id) || 0) + team.score >= 101))
+    newState.teams.some(team => (newState.initialScores!.get(team.id) || 0) + team.score >= 101)
   ) {
     newPhase = 'scoring';
   } else if (lastTrick) {
@@ -759,16 +759,11 @@ export function cambiar7(gameState: GameState, playerId: PlayerId): GameState | 
     return null;
   }
 
-  // Check if it's after winning a trick
-  const lastWinner = gameState.lastTrickWinner;
-  if (!lastWinner) {
-    return null;
-  }
-
-  const lastWinnerTeam = findPlayerTeam(lastWinner, gameState);
-  const playerTeam = findPlayerTeam(playerId, gameState);
-  if (lastWinnerTeam !== playerTeam || gameState.currentTrick.length !== 0) {
-    return null;
+  // CAMBIAR7: Can be used anytime it's your turn (not necessarily after winning a trick)
+  // Just check that it's the player's turn
+  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  if (currentPlayer.id !== playerId) {
+    return null; // Not this player's turn
   }
 
   // Get player's hand

@@ -69,11 +69,12 @@ export function CardDealingAnimation({
 
   // Initialize animations for 24 cards (6 per player)
   useEffect(() => {
+    const deckPos = getDeckPosition(parentWidth, parentHeight, layoutInfo);
     for (let i = 0; i < 24; i++) {
       cardAnimations.current[i] = {
         position: new Animated.ValueXY({
-          x: parentWidth / 2 - 35,
-          y: parentHeight / 2 - 50,
+          x: deckPos.x,
+          y: deckPos.y,
         }),
         opacity: new Animated.Value(0),
         scale: new Animated.Value(0.8),

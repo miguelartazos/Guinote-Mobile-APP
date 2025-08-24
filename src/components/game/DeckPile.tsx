@@ -53,9 +53,9 @@ const styles = StyleSheet.create({
   },
   trumpCardContainer: {
     position: 'absolute',
-    transform: [{ rotate: '-90deg' }],
-    top: 45,
-    left: -15,
+    transform: [{ rotate: '90deg' }], // Rotated opposite direction to show on right
+    top: 20, // Centered vertically with deck middle
+    left: 55, // Moved to right side of deck
     zIndex: 1,
   },
   deckContainer: {

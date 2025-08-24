@@ -119,6 +119,15 @@ export type GameState = Readonly<{
     // Bonus points applied to this trick (e.g., +10 de últimas)
     bonus?: number;
   }; // Data for trick animation
+  // Post-trick dealing overlay state
+  postTrickDealingAnimating?: boolean;
+  // True during the pause after trick collection and before overlay starts
+  postTrickDealingPending?: boolean;
+  pendingPostTrickDraws?: ReadonlyArray<{
+    playerId: PlayerId;
+    card: Card;
+    source: 'deck' | 'trump';
+  }>;
   matchScore?: MatchScore; // Track buenas/malas sets
 }>;
 

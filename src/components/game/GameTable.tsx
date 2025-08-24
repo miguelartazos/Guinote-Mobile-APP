@@ -1,10 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
+import type { Card, PlayerId as CorePlayerId } from '../../types/game.types';
 import { DraggableCard } from './DraggableCard';
 import { MinimalPlayerPanel } from './MinimalPlayerPanel';
 import { DeckPile } from './DeckPile';
 import { TrickCollectionAnimation } from './TrickCollectionAnimation';
+import { PostTrickDealingAnimation } from './PostTrickDealingAnimation';
 // import { CardCountBadge } from './CardCountBadge';
 import { CollapsibleGameMenu } from './CollapsibleGameMenu';
 import { colors, TABLE_COLORS } from '../../constants/colors';
@@ -51,6 +53,23 @@ type GameTableProps = {
     bonus?: number;
   };
   onCompleteTrickAnimation?: () => void;
+  // Post-trick dealing overlay
+  postTrickDealingAnimating?: boolean;
+  postTrickDealingPending?: boolean;
+  pendingPostTrickDraws?: ReadonlyArray<{
+    playerId: string | CorePlayerId;
+    card: Card;
+    source: 'deck' | 'trump';
+  }>;
+  onCompletePostTrickDealing?: () => void;
+  onPostTrickCardLanded?: (draw: {
+    playerId: string;
+    card: SpanishCardData;
+    source: 'deck' | 'trump';
+  }) => void;
+  // Hide cards during animations
+  hideTrumpCard?: boolean;
+  hideCardFromHand?: { playerId: string; suit: string; value: number };
 };
 
 export function GameTable({
@@ -73,6 +92,13 @@ export function GameTable({
   trickAnimating = false,
   pendingTrickWinner,
   onCompleteTrickAnimation,
+  postTrickDealingAnimating,
+  postTrickDealingPending,
+  pendingPostTrickDraws,
+  onCompletePostTrickDealing,
+  onPostTrickCardLanded,
+  hideTrumpCard,
+  hideCardFromHand,
 }: GameTableProps) {
   const [bottomPlayer, leftPlayer, topPlayer, rightPlayer] = players;
   const orientation = useOrientation();
@@ -93,12 +119,24 @@ export function GameTable({
   };
 
   // Create mapping of player IDs to their positions
+  // NOTE: This mapping is used for trick positions (0 bottom, 1 left, 2 top, 3 right)
   const playerIdToPosition = {
     [bottomPlayer.id]: 0, // bottom
     [leftPlayer.id]: 1, // left
     [topPlayer.id]: 2, // top
     [rightPlayer.id]: 3, // right
   } as const;
+
+  // For hand card positions and dealing overlay, indices differ: (0 bottom, 1 right, 2 top, 3 left)
+  const playerIdToHandPosition = {
+    [bottomPlayer.id]: 0, // bottom
+    [rightPlayer.id]: 1, // right
+    [topPlayer.id]: 2, // top
+    [leftPlayer.id]: 3, // left
+  } as const;
+
+  const isDealingBlocked =
+    !!postTrickDealingAnimating || !!postTrickDealingPending || !!trickAnimating || !!isDealing;
 
   return (
     <View
@@ -287,12 +325,44 @@ export function GameTable({
           winnerPosition={getPlayerPosition(playerIdToPosition[pendingTrickWinner.playerId] ?? 0)}
           points={pendingTrickWinner.points}
           bonus={pendingTrickWinner.bonus}
-          showLastTrickBonus={!!pendingTrickWinner.isLastTrick && (pendingTrickWinner.bonus || 0) > 0}
+          showLastTrickBonus={
+            !!pendingTrickWinner.isLastTrick && (pendingTrickWinner.bonus || 0) > 0
+          }
           onComplete={() => {
             onCompleteTrickAnimation?.();
           }}
           playSound={() => {
             // Add sound effect here if needed
+          }}
+        />
+      )}
+
+      {/* Post-Trick Dealing Animation */}
+      {postTrickDealingAnimating && layout.isReady && (
+        <PostTrickDealingAnimation
+          draws={(pendingPostTrickDraws as any) || []}
+          playerPositions={playerIdToHandPosition as unknown as Record<string, 0 | 1 | 2 | 3>}
+          currentHandSizes={{
+            [bottomPlayer.id]: bottomPlayer.cards.length,
+            [leftPlayer.id]: leftPlayer.cards.length,
+            [topPlayer.id]: topPlayer.cards.length,
+            [rightPlayer.id]: rightPlayer.cards.length,
+          }}
+          layoutInfo={{ parentLayout: layout.table, boardLayout: layout.board }}
+          onComplete={() => onCompletePostTrickDealing?.()}
+          onCardLanded={d => {
+            const pos = playerIdToHandPosition[d.playerId] ?? 0;
+            const target = [bottomPlayer, leftPlayer, topPlayer, rightPlayer].find(
+              p => p.id === d.playerId,
+            );
+            console.log('📥 PostTrick card landed', {
+              playerId: d.playerId,
+              playerName: target?.name,
+              position: pos,
+              source: d.source,
+              card: `${d.card.value} de ${d.card.suit}`,
+            });
+            onPostTrickCardLanded?.(d as any);
           }}
         />
       )}
@@ -308,7 +378,11 @@ export function GameTable({
             },
           ]}
         >
-          <DeckPile cardsRemaining={deckCount} trumpCard={trumpCard} showTrump={true} />
+          <DeckPile
+            cardsRemaining={deckCount}
+            trumpCard={hideTrumpCard ? undefined : trumpCard}
+            showTrump={!hideTrumpCard}
+          />
         </View>
       )}
 
@@ -348,6 +422,14 @@ export function GameTable({
       {!isDealing && layout.isReady && (
         <View style={[styles.bottomPlayerHand, landscape && styles.bottomPlayerHandLandscape]}>
           {bottomPlayer.cards.map((card, index) => {
+            // Hide card if it matches the hideCardFromHand criteria
+            const shouldHide =
+              hideCardFromHand &&
+              hideCardFromHand.playerId === bottomPlayer.id &&
+              card.suit === hideCardFromHand.suit &&
+              card.value === hideCardFromHand.value;
+
+            if (shouldHide) return null;
             const isValidCard = !validCardIndices || validCardIndices.includes(index);
             const isPlayerTurn = currentPlayerIndex === 0;
             const position = getPlayerCardPosition(
@@ -368,11 +450,12 @@ export function GameTable({
                 onCardPlay={onCardPlay}
                 onReorder={
                   onCardReorder
-                    ? (fromIndex, toIndex) => onCardReorder((bottomPlayer.id as unknown) as PlayerId, fromIndex, toIndex)
+                    ? (fromIndex, toIndex) =>
+                        onCardReorder(bottomPlayer.id as unknown as PlayerId, fromIndex, toIndex)
                     : undefined
                 }
                 dropZoneBounds={dropZoneBounds || undefined}
-                isEnabled={!isDealing && !!dropZoneBounds && isPlayerTurn && isValidCard}
+                isEnabled={!isDealingBlocked && !!dropZoneBounds && isPlayerTurn && isValidCard}
                 isPlayerTurn={isPlayerTurn}
                 cardSize="medium" // match dealing size for consistency
                 totalCards={bottomPlayer.cards.length}

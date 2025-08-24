@@ -92,6 +92,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     isDealingComplete,
     completeDealingAnimation,
     completeTrickAnimation,
+    completePostTrickDealing,
+    onPostTrickCardLanded,
   } = gameStateHook;
 
   const [showLastTrick, setShowLastTrick] = useState(false);
@@ -124,6 +126,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     playerCard: { id: string; suit: SpanishSuit; value: number };
     trumpCard: { id: string; suit: SpanishSuit; value: number };
     playerName: string;
+    playerIndex: number;
   } | null>(null);
 
   // Track if we've already recorded this game to prevent infinite loop
@@ -436,6 +439,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
   const handleCardPlay = (cardIndex: number) => {
     if (!isDealingComplete) return;
+    if (
+      gameState?.trickAnimating ||
+      gameState?.postTrickDealingAnimating ||
+      gameState?.postTrickDealingPending
+    )
+      return;
 
     // Prevent rapid double-clicks
     if (isProcessingCardPlay.current) {
@@ -511,22 +520,28 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   const handleCantar = () => {
     if (!isDealingComplete) return;
 
-    // Check turn based on game mode
-    if (isLocalMultiplayer) {
-      const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
-      if (!currentPlayer || currentPlayer.isBot) return;
-    } else {
-      if (!isPlayerTurn()) return;
-    }
-
+    // CANTAR: Any player from winning team can cantar after their team wins a trick
     const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
     if (!currentPlayer) return;
 
-    const playerHand = gameState?.hands.get(currentPlayer.id) || [];
+    // In local multiplayer, only human players can perform actions
+    if (isLocalMultiplayer && currentPlayer.isBot) return;
+
+    // Check if player's team won the last trick
+    const lastWinner = gameState?.lastTrickWinner;
+    if (!lastWinner) return; // No tricks won yet
+
+    const lastWinnerTeam = gameState.teams.find(t => t.playerIds.includes(lastWinner));
     const playerTeam = gameState.teams.find(t => t.playerIds.includes(currentPlayer.id));
 
-    if (!playerTeam) return;
+    if (!playerTeam || !lastWinnerTeam || playerTeam.id !== lastWinnerTeam.id) {
+      return; // Player's team didn't win the last trick
+    }
 
+    // Check if trick hasn't started yet
+    if (gameState.currentTrick.length !== 0) return;
+
+    const playerHand = gameState?.hands.get(currentPlayer.id) || [];
     const cantableSuits = canCantar(playerHand, gameState.trumpSuit, playerTeam.cantes);
 
     // For now, cantar the first available suit
@@ -541,6 +556,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   const handleCambiar7 = () => {
     if (!isDealingComplete) return;
 
+    // CAMBIAR7: Can be used anytime it's your turn and you have the 7 of trumps
     // Check turn based on game mode
     if (isLocalMultiplayer) {
       const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
@@ -551,6 +567,9 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
     const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
     if (!currentPlayer) return;
+
+    // Check if we can cambiar7 (have 7 of trumps, deck not empty, etc.)
+    if (!gameState.canCambiar7) return;
 
     const playerHand = gameState?.hands.get(currentPlayer.id) || [];
     const seven = playerHand.find(c => c.suit === gameState.trumpSuit && c.value === 7);
@@ -563,6 +582,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       playerCard: seven,
       trumpCard: gameState.trumpCard,
       playerName: currentPlayer.name,
+      playerIndex: gameState.currentPlayerIndex,
     });
 
     // Play sound
@@ -880,6 +900,16 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           validCardIndices={getValidCardIndices()}
           isVueltas={gameState.isVueltas}
           canDeclareVictory={gameState.canDeclareVictory}
+          hideTrumpCard={cambiar7Animation?.active}
+          hideCardFromHand={
+            cambiar7Animation?.active
+              ? {
+                  playerId: players[cambiar7Animation.playerIndex].id,
+                  suit: cambiar7Animation.playerCard.suit,
+                  value: cambiar7Animation.playerCard.value,
+                }
+              : undefined
+          }
           collectedTricks={
             gameState.collectedTricks as unknown as ReadonlyMap<
               string,
@@ -900,6 +930,23 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
               : undefined
           }
           onCompleteTrickAnimation={completeTrickAnimation}
+          postTrickDealingAnimating={gameState.postTrickDealingAnimating}
+          postTrickDealingPending={gameState.postTrickDealingPending}
+          pendingPostTrickDraws={gameState.pendingPostTrickDraws?.map(d => ({
+            playerId: d.playerId as unknown as string,
+            // Preserve card id so incremental commits can match and update hands immediately
+            card: d.card as any,
+            source: d.source,
+          }))}
+          onCompletePostTrickDealing={completePostTrickDealing}
+          onPostTrickCardLanded={d => {
+            // Forward to hook to commit incrementally (types widened in GameTable overlay)
+            (onPostTrickCardLanded as any)({
+              playerId: d.playerId as any,
+              card: d.card as any,
+              source: d.source as 'deck' | 'trump',
+            });
+          }}
         />
 
         {/* Small corner score display during gameplay */}
@@ -911,36 +958,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           </View>
         )}
 
-        {/* Cantes display */}
-        {(gameState.teams[0].cantes.length > 0 || gameState.teams[1].cantes.length > 0) && (
-          <View style={styles.cantesContainer}>
-            {gameState.teams[0].cantes.map((cante, idx) => {
-              // Show if it's our team or if it's visible (Veinte)
-              const showCante = true; // Always show our team's cantes
-              if (showCante) {
-                return (
-                  <View key={`team0-cante-${idx}`} style={styles.canteItem}>
-                    <Text style={styles.canteText}>
-                      Nosotros: {cante.points === 40 ? 'Las 40' : '20'} en {cante.suit}
-                    </Text>
-                  </View>
-                );
-              }
-              return null;
-            })}
-            {gameState.teams[1].cantes.map((cante, idx) => {
-              // Show only if it's visible (Veinte = 20 points)
-              if (cante.isVisible) {
-                return (
-                  <View key={`team1-cante-${idx}`} style={styles.canteItem}>
-                    <Text style={styles.canteText}>Ellos: 20 en {cante.suit}</Text>
-                  </View>
-                );
-              }
-              return null;
-            })}
-          </View>
-        )}
+        {/* Cantes display removed - now shown as discrete animations */}
 
         {/* Compact action bar */}
         {gameState && isDealingComplete && (
@@ -1003,6 +1021,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             playerCard={cambiar7Animation.playerCard as any}
             trumpCard={cambiar7Animation.trumpCard as any}
             playerName={cambiar7Animation.playerName}
+            playerIndex={cambiar7Animation.playerIndex}
             onComplete={() => setCambiar7Animation(null)}
             playSound={playCardSound}
           />

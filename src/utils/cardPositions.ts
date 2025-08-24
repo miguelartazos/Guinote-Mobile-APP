@@ -149,10 +149,10 @@ export function getDeckPosition(
     const board = layoutInfo.boardLayout;
     const cardWidth = getCardWidth('medium');
     const cardHeight = getCardHeight('medium');
-    // Position deck near the middle-left of the board, but higher
+    // Position deck near the middle-left of the board
     return {
-      x: Math.floor(board.x + board.width * 0.26 - cardWidth / 2),
-      y: board.y + board.height * 0.35 - cardHeight / 2, // Moved higher (35% from top instead of 50%)
+      x: Math.floor(board.x + board.width * 0.20 - cardWidth / 2), // Moved left from 0.26 to 0.20
+      y: board.y + board.height * 0.42 - cardHeight / 2, // Moved lower (42% from top instead of 35%)
       rotation: 0,
       zIndex: 100,
     };
@@ -160,8 +160,8 @@ export function getDeckPosition(
 
   // Fallback to percentage-based positioning
   return {
-    x: screenWidth * 0.12, // slightly further left to leave more center space
-    y: screenHeight * 0.35, // 35% from top (moved higher)
+    x: screenWidth * 0.08, // Moved further left from 0.12 to 0.08
+    y: screenHeight * 0.42, // 42% from top (moved lower)
     rotation: 0,
     zIndex: 100,
   };
@@ -172,13 +172,15 @@ export function getTrumpPosition(
   screenHeight: number,
   layoutInfo?: LayoutInfo,
 ): Position {
-  // Trump card positioned slightly offset from deck
+  // Trump card positioned to the right of deck, rotated 180 degrees from original
   const deckPos = getDeckPosition(screenWidth, screenHeight, layoutInfo);
-  const cardOffset = 14; // Slightly larger offset so deck+trump read as a stack
+  const cardWidth = getCardWidth('medium');
+  // Position to the right of deck with card rotated -90deg (270deg)
+  // When rotated, the card's width becomes height visually
   return {
-    x: deckPos.x + cardOffset,
-    y: deckPos.y + cardOffset,
-    rotation: 90, // Rotate trump 90deg like reference
+    x: deckPos.x + cardWidth - 10, // Position to right of deck
+    y: deckPos.y + 15, // Align with middle of deck (was too low before)
+    rotation: -90, // Rotate trump -90deg (shows on right side)
     zIndex: 99,
   };
 }

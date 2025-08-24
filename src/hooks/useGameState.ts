@@ -440,6 +440,11 @@ export function useGameState({
   const playCard = useCallback(
     (cardId: CardId | string) => {
       if (!gameState || (gameState.phase !== 'playing' && gameState.phase !== 'arrastre')) return;
+      // Hard block plays during trick/post-trick animations and the pre-dealing pause
+      if (gameState.trickAnimating || gameState.postTrickDealingAnimating || (gameState as any).postTrickDealingPending) {
+        console.warn('⚠️ Blocked playCard: animations or dealing in progress');
+        return;
+      }
 
       // Prevent concurrent updates with simple flag
       if (isUpdatingRef.current) {
@@ -547,11 +552,14 @@ export function useGameState({
             const winnerTricks = newCollectedTricks.get(winnerId) || [];
             newCollectedTricks.set(winnerId, [...winnerTricks, newTrick]);
 
-            // Deal new cards if deck has cards
-            let newDeck = [...prevState.deck];
-            let newPhase = prevState.phase;
-
-            if (newDeck.length > 0 && prevState.phase === 'playing') {
+            // Prepare pending draws if deck has cards, but do NOT mutate hands/deck yet
+            const pendingDraws: Array<{
+              playerId: PlayerId;
+              card: Card;
+              source: 'deck' | 'trump';
+            }> = [];
+            const deckSnapshot = [...prevState.deck];
+            if (deckSnapshot.length > 0 && prevState.phase === 'playing') {
               // Winner draws first, then counter-clockwise
               const drawOrder = [winnerId];
               let nextIndex = prevState.players.findIndex(p => p.id === winnerId);
@@ -562,38 +570,24 @@ export function useGameState({
 
               console.log('📦 DRAWING ORDER (counter-clockwise from winner):', {
                 drawOrder: drawOrder.map(id => prevState.players.find(p => p.id === id)?.name),
-                deckSize: newDeck.length,
+                deckSize: deckSnapshot.length,
               });
 
-              // If the stock will be exhausted this round (fewer than 4 cards left),
-              // the last drawer must take the face-up trump from under the deck.
-              const initialDeckCountForRound = newDeck.length;
+              const initialDeckCountForRound = deckSnapshot.length;
               let trumpAwarded = false;
 
               drawOrder.forEach(playerId => {
-                if (newDeck.length > 0) {
-                  const drawnCard = newDeck.pop();
+                if (deckSnapshot.length > 0) {
+                  const drawnCard = deckSnapshot.pop();
                   if (drawnCard) {
-                    const playerCards = [...(newHands.get(playerId) || [])];
-                    playerCards.push(drawnCard);
-                    newHands.set(playerId, playerCards);
+                    pendingDraws.push({ playerId, card: drawnCard, source: 'deck' });
                   }
                 } else if (!trumpAwarded && initialDeckCountForRound < 4) {
                   // Award the face-up trump to complete the round of draws
-                  const playerCards = [...(newHands.get(playerId) || [])];
-                  playerCards.push(prevState.trumpCard);
-                  newHands.set(playerId, playerCards);
+                  pendingDraws.push({ playerId, card: prevState.trumpCard, source: 'trump' });
                   trumpAwarded = true;
                 }
               });
-
-              // If deck is now empty, transition to arrastre phase
-              if (newDeck.length === 0) {
-                newPhase = 'arrastre';
-              }
-            } else if (newDeck.length === 0 && prevState.phase === 'playing') {
-              // Already in arrastre or deck was already empty
-              newPhase = 'arrastre';
             }
 
             // Winner starts next trick
@@ -605,9 +599,9 @@ export function useGameState({
               nextPlayerId: prevState.players[winnerIndex]?.id,
             });
 
-            // Check if this is the last trick of the game
+            // Check if this is the last trick of the game (deck already empty and hands empty before trick)
             const isLastTrick =
-              newDeck.length === 0 &&
+              prevState.deck.length === 0 &&
               Array.from(newHands.values()).every(hand => hand.length === 0);
 
             // Award last trick bonus if applicable
@@ -626,21 +620,23 @@ export function useGameState({
             const shouldVueltas = shouldStartVueltas({
               ...prevState,
               teams: newTeams,
-              deck: newDeck,
+              // Deck/hands considered pre-draw for this decision; final phase updates happen after dealing
+              deck: prevState.deck,
               hands: newHands,
             });
 
-            // Check for phase transition to arrastre
-            const isEnteringArrastre = newDeck.length === 0 && !prevState.isVueltas;
-            if (isEnteringArrastre) {
-              console.log('🎴 PHASE TRANSITION: Deck empty, entering ARRASTRE phase');
+            // Determine if we will enter arrastre after dealing (computed but applied after dealing commits)
+            const willEnterArrastre = deckSnapshot.length === 0 && !prevState.isVueltas;
+            if (willEnterArrastre) {
+              console.log('🎴 PHASE TRANSITION PENDING: Will enter ARRASTRE after dealing');
             }
 
             // Don't clear the trick immediately - show animation first
             return {
               ...prevState,
               hands: newHands,
-              deck: newDeck,
+              // Keep deck unchanged until post-trick dealing animation commits
+              deck: prevState.deck,
               currentTrick: newTrick, // Keep the full trick visible
               currentPlayerIndex: winnerIndex,
               teams: newTeams,
@@ -648,6 +644,7 @@ export function useGameState({
               collectedTricks: newCollectedTricks,
               lastTrickWinner: winnerId,
               lastTrick: newTrick,
+              pendingPostTrickDraws: pendingDraws.length > 0 ? pendingDraws : undefined,
               // Provide metadata for last trick overlay and points
               pendingTrickWinner: {
                 playerId: winnerId,
@@ -672,11 +669,8 @@ export function useGameState({
                 } else if (isLastTrick && prevState.isVueltas) {
                   // Vueltas complete - go to scoring to determine winner
                   phase = 'scoring';
-                } else if (isEnteringArrastre) {
-                  // Transition to arrastre when deck is empty
-                  phase = 'arrastre';
                 } else {
-                  phase = newPhase;
+                  phase = prevState.phase;
                 }
 
                 // Clear AI memory on phase transitions
@@ -691,9 +685,9 @@ export function useGameState({
                 ? new Map(newTeams.map(t => [t.id, t.score]))
                 : prevState.initialScores,
               lastActionTimestamp: Date.now(),
-              trickAnimating: true, // Start animation
-              // Disable cantes and cambiar7 in arrastre phase
-              canCambiar7: isEnteringArrastre ? false : prevState.canCambiar7,
+              trickAnimating: true, // Start trick collection animation
+              // Keep cambiar7 until arrastre actually starts after dealing
+              canCambiar7: prevState.canCambiar7,
             };
           }
 
@@ -833,21 +827,8 @@ export function useGameState({
     if (!gameState || gameState.phase !== 'playing' || !gameState.canCambiar7) return;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const currentPlayerTeamId = findPlayerTeam(currentPlayer.id, gameState);
-
-    // Can only cambiar 7 after your pair won the previous trick and before next trick starts
-    const lastWinner = gameState.lastTrickWinner;
-    const lastWinnerTeamId = lastWinner ? findPlayerTeam(lastWinner, gameState) : undefined;
-
-    if (
-      gameState.currentTrick.length !== 0 ||
-      !currentPlayerTeamId ||
-      !lastWinnerTeamId ||
-      currentPlayerTeamId !== lastWinnerTeamId
-    ) {
-      console.warn('Can only exchange 7 after winning a trick!');
-      return;
-    }
+    // CAMBIAR7: Can be used anytime it's your turn and you have the 7 of trumps
+    // No need to check last trick winner - just needs to be player's turn
 
     const playerHand = gameState.hands.get(currentPlayer.id);
     if (!playerHand) return;
@@ -1026,15 +1007,248 @@ export function useGameState({
     setGameState(prev => {
       if (!prev || !prev.trickAnimating) return prev;
 
-      // Clear the trick and animation state
-      return {
+      // End trick animation but keep trick visible already cleared by animation; schedule post-trick dealing
+      const shouldStartPostDealing = (prev.pendingPostTrickDraws?.length || 0) > 0;
+      let nextState = {
         ...prev,
         currentTrick: [],
         trickAnimating: false,
         pendingTrickWinner: undefined,
-      };
+      } as GameState;
+
+      if (shouldStartPostDealing) {
+        // Start post-trick dealing after a 2s pause
+        setTimeout(() => {
+          setGameState(p => (p ? { ...p, postTrickDealingAnimating: true, postTrickDealingPending: false } : p));
+        }, 2000);
+        // Block interactions during the pause window
+        nextState = { ...nextState, postTrickDealingPending: true } as GameState;
+        // Log draw order for debugging mapping issues
+        const names = (prev.pendingPostTrickDraws || []).map(d =>
+          prev.players.find(p => p.id === d.playerId)?.name || String(d.playerId),
+        );
+        console.log('📝 Pending post-trick draws (winner → CCW):', names);
+      }
+
+      return nextState;
     });
   }, []);
+
+  // Complete post-trick dealing: commit pending draws and update phase/flags
+  const completePostTrickDealing = useCallback(() => {
+    setGameState(prev => {
+      if (!prev) return prev;
+      const draws = prev.pendingPostTrickDraws || [];
+      if (draws.length === 0) {
+        console.log('✅ Post-trick dealing finalized (no draws). Unblocking plays.');
+        return { ...prev, postTrickDealingAnimating: false, postTrickDealingPending: false };
+      }
+
+      // Apply draws in order
+      const newHands = new Map(prev.hands);
+      let newDeck = [...prev.deck];
+      let trumpConsumed = false;
+      draws.forEach(d => {
+        const newHand = [...(newHands.get(d.playerId) || [])];
+        newHand.push(d.card);
+        newHands.set(d.playerId, newHand);
+        if (d.source === 'deck') {
+          // Remove the specific card from the top of deck (it should match pop order)
+          const top = newDeck.pop();
+          // In case of mismatch, fallback to removing by id
+          if (top && top.id !== d.card.id) {
+            const idx = newDeck.findIndex(c => c.id === d.card.id);
+            if (idx !== -1) newDeck.splice(idx, 1);
+          }
+        } else if (d.source === 'trump') {
+          trumpConsumed = true;
+        }
+      });
+
+      // Determine phase: enter arrastre if deck empty now
+      const deckNowEmpty = newDeck.length === 0;
+      const nextPhase: GamePhase = deckNowEmpty ? 'arrastre' : (prev.phase === 'dealing' ? 'playing' : prev.phase);
+
+      const nextState = {
+        ...prev,
+        hands: newHands,
+        deck: newDeck,
+        // If trump was consumed, leave trumpCard value as-is but deck count drives visibility
+        postTrickDealingAnimating: false,
+        postTrickDealingPending: false,
+        pendingPostTrickDraws: undefined,
+        phase: nextPhase,
+        // Disable cambiar7 in arrastre
+        canCambiar7: nextPhase === 'arrastre' ? false : prev.canCambiar7,
+        lastActionTimestamp: Date.now(),
+      } as GameState;
+      console.log('✅ Post-trick dealing finalized. Flags cleared and phase set', {
+        postTrickDealingAnimating: nextState.postTrickDealingAnimating,
+        postTrickDealingPending: nextState.postTrickDealingPending,
+        phase: nextState.phase,
+        currentPlayer: nextState.players[nextState.currentPlayerIndex]?.name,
+      });
+      return nextState;
+    });
+  }, []);
+
+  // Commit a single dealt card as it lands (incremental update so hands reflect immediately)
+  const onPostTrickCardLanded = useCallback(
+    (draw: { playerId: PlayerId; card: Card; source: 'deck' | 'trump' }) => {
+      let shouldFinalizeAfterLast = false;
+      setGameState(prev => {
+        if (!prev) return prev;
+        const pending = prev.pendingPostTrickDraws || [];
+        // Remove one matching pending draw (first occurrence). Guard if not found to avoid loops
+        const idx = pending.findIndex(
+          d => d.playerId === draw.playerId && d.card.id === draw.card.id && d.source === draw.source,
+        );
+        if (idx === -1) {
+          // Fallback: if deck pop order progressed, try matching by player and source only (last occurrence)
+          let fallbackIdx = -1;
+          for (let i = pending.length - 1; i >= 0; i--) {
+            const pd = pending[i];
+            if (pd.playerId === draw.playerId && pd.source === draw.source) {
+              fallbackIdx = i;
+              break;
+            }
+          }
+          if (fallbackIdx === -1) {
+            console.warn('⚠️ onPostTrickCardLanded: draw not found in pending list, skipping', {
+              playerId: draw.playerId,
+              cardId: draw.card.id,
+              source: draw.source,
+              pendingCount: pending.length,
+            });
+            return prev; // no progress -> skip
+          }
+          // Use fallback index
+          const remaining = [...pending.slice(0, fallbackIdx), ...pending.slice(fallbackIdx + 1)];
+          const newHands = new Map(prev.hands);
+          const hand = [...(newHands.get(draw.playerId) || [])];
+          hand.push(draw.card);
+          newHands.set(draw.playerId, hand);
+
+          let newDeck = [...prev.deck];
+          if (draw.source === 'deck') {
+            newDeck.pop();
+          }
+
+          const playerName = prev.players.find(p => p.id === draw.playerId)?.name || String(draw.playerId);
+          console.log('✅ Dealt card committed via fallback', {
+            player: playerName,
+            playerId: draw.playerId,
+            card: `${draw.card.value} de ${draw.card.suit}`,
+            source: draw.source,
+            newHandSize: hand.length,
+            remainingDraws: remaining.length,
+          });
+
+          return {
+            ...prev,
+            hands: newHands,
+            deck: newDeck,
+            pendingPostTrickDraws: remaining,
+          };
+        }
+        const remaining = [...pending.slice(0, idx), ...pending.slice(idx + 1)];
+
+        // Apply to hands/deck incrementally
+        const newHands = new Map(prev.hands);
+        const hand = [...(newHands.get(draw.playerId) || [])];
+        hand.push(draw.card);
+        newHands.set(draw.playerId, hand);
+
+        let newDeck = [...prev.deck];
+        if (draw.source === 'deck') {
+          const top = newDeck.pop();
+          if (top && top.id !== draw.card.id) {
+            const didx = newDeck.findIndex(c => c.id === draw.card.id);
+            if (didx !== -1) newDeck.splice(didx, 1);
+          }
+        } else if (draw.source === 'trump') {
+          // nothing to pop from deck; visibility of trump is tied to deck count
+        }
+
+        const playerName = prev.players.find(p => p.id === draw.playerId)?.name || String(draw.playerId);
+        console.log('✅ Dealt card committed to hand', {
+          player: playerName,
+          playerId: draw.playerId,
+          card: `${draw.card.value} de ${draw.card.suit}`,
+          source: draw.source,
+          newHandSize: hand.length,
+          remainingDraws: remaining.length,
+        });
+
+        if (remaining.length === 0) {
+          // Schedule a safety finalize in case overlay onComplete is missed due to a race
+          shouldFinalizeAfterLast = true;
+        }
+
+        if (remaining.length === 0) {
+          const deckNowEmpty = newDeck.length === 0;
+          const nextPhase: GamePhase = deckNowEmpty ? 'arrastre' : prev.phase;
+          return {
+            ...prev,
+            hands: newHands,
+            deck: newDeck,
+            pendingPostTrickDraws: undefined,
+            postTrickDealingAnimating: false,
+            postTrickDealingPending: false,
+            phase: nextPhase,
+            canCambiar7: nextPhase === 'arrastre' ? false : prev.canCambiar7,
+            lastActionTimestamp: Date.now(),
+          };
+        }
+        return {
+          ...prev,
+          hands: newHands,
+          deck: newDeck,
+          pendingPostTrickDraws: remaining,
+        };
+      });
+      if (shouldFinalizeAfterLast) {
+        setTimeout(() => {
+          // Double-check state flags in case overlay already finalized
+          completePostTrickDealing();
+        }, 120);
+      }
+    },
+    [completePostTrickDealing],
+  );
+
+  // Safety watchdog for post-trick dealing overlay
+  useEffect(() => {
+    if (!gameState?.postTrickDealingAnimating) return;
+    const draws = gameState.pendingPostTrickDraws?.length || 0;
+    // Align with PostTrickDealingAnimation timings: 520ms per card + 80ms gap, add safety buffer
+    const expectedMs = draws > 0 ? Math.ceil(draws * (520 + 80) + 400) : 1000;
+    const watchdog = setTimeout(() => {
+      // Force-complete if animation did not signal completion
+      completePostTrickDealing();
+    }, expectedMs);
+    return () => clearTimeout(watchdog);
+  }, [
+    gameState?.postTrickDealingAnimating,
+    gameState?.pendingPostTrickDraws,
+    completePostTrickDealing,
+  ]);
+
+  // Safety: if pending is true but overlay is not active and there are no draws, clear pending
+  useEffect(() => {
+    if (
+      gameState?.postTrickDealingPending &&
+      !gameState.postTrickDealingAnimating &&
+      (gameState.pendingPostTrickDraws?.length || 0) === 0
+    ) {
+      console.warn('⚠️ Clearing stuck postTrickDealingPending flag');
+      setGameState(prev => (prev ? { ...prev, postTrickDealingPending: false } : prev));
+    }
+  }, [
+    gameState?.postTrickDealingPending,
+    gameState?.postTrickDealingAnimating,
+    gameState?.pendingPostTrickDraws,
+  ]);
 
   // Safety watchdog: ensure trick animation cannot hang AI turns
   useEffect(() => {
@@ -1446,6 +1660,8 @@ export function useGameState({
     isDealingComplete,
     completeDealingAnimation,
     completeTrickAnimation,
+    completePostTrickDealing,
+    onPostTrickCardLanded,
     setGameState,
   };
 }

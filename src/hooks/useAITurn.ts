@@ -70,8 +70,8 @@ export function useAITurn({
       return;
     }
 
-    // Do not make AI decisions while trick animation is running
-    if (gameState.trickAnimating) {
+    // Do not make AI decisions while trick or post-trick dealing animation/pause is running
+    if (gameState.trickAnimating || gameState.postTrickDealingAnimating || (gameState as any).postTrickDealingPending) {
       console.log('🎬 AI Turn: Skipping - trick animation in progress', {
         player: gameState.players[gameState.currentPlayerIndex].name,
         currentTrickLength: gameState.currentTrick.length,

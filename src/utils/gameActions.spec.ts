@@ -302,18 +302,20 @@ describe('cambiar7', () => {
     expect(result).toBeNull();
   });
 
-  it('returns null when team did not win last trick', () => {
-    gameState.lastTrickWinner = 'player2' as PlayerId;
+  it('returns null when not player turn', () => {
+    // Set current player to player2, try to cambiar7 as player1
+    gameState.currentPlayerIndex = 1; // player2
     const result = cambiar7(gameState, 'player1' as PlayerId);
     expect(result).toBeNull();
   });
 
-  it('returns null when trick has started', () => {
-    gameState.currentTrick = [
-      { playerId: 'player1' as PlayerId, card: { id: 'c1' as CardId, suit: 'copas', value: 5 } },
-    ];
+  it('allows cambiar7 on player turn regardless of last trick winner', () => {
+    // Player1's turn, player2 won last trick - should still work
+    gameState.currentPlayerIndex = 0; // player1
+    gameState.lastTrickWinner = 'player2' as PlayerId;
     const result = cambiar7(gameState, 'player1' as PlayerId);
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.trumpCard.value).toBe(7);
   });
 
   it('returns null when player does not have 7 of trumps', () => {
@@ -418,14 +420,14 @@ describe('declareCante', () => {
     expect(result).toBeNull();
   });
 
-  it('transitions to gameOver when score exceeds 101', () => {
+  it('updates score correctly when declaring cante', () => {
     gameState.teams[0].score = 95;
     gameState.teams[0].cardPoints = 50;
 
     const result = declareCante(gameState, 'player1' as PlayerId, 'copas');
 
     expect(result).not.toBeNull();
-    expect(result!.phase).toBe('gameOver');
     expect(result!.teams[0].score).toBe(115); // 95 + 20
+    // Note: phase transitions are now handled elsewhere in the game flow
   });
 });

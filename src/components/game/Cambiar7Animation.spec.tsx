@@ -20,6 +20,7 @@ describe('Cambiar7Animation', () => {
     playerCard: mockPlayerCard,
     trumpCard: mockTrumpCard,
     playerName: 'Juan',
+    playerIndex: 0,
     onComplete: jest.fn(),
     playSound: jest.fn(),
   };
@@ -37,7 +38,7 @@ describe('Cambiar7Animation', () => {
   test('renders with player name and message', () => {
     const { getByText } = render(<Cambiar7Animation {...defaultProps} />);
 
-    expect(getByText('CAMBIO EL 7')).toBeTruthy();
+    expect(getByText('Cambio el 7')).toBeTruthy();
     expect(getByText('Juan')).toBeTruthy();
   });
 
@@ -64,5 +65,23 @@ describe('Cambiar7Animation', () => {
     };
 
     expect(() => render(<Cambiar7Animation {...propsWithoutSound} />)).not.toThrow();
+  });
+
+  test('positions announcement bubble correctly for different players', () => {
+    // Test bottom player (index 0)
+    const { rerender } = render(<Cambiar7Animation {...defaultProps} playerIndex={0} />);
+    expect(() => render(<Cambiar7Animation {...defaultProps} playerIndex={0} />)).not.toThrow();
+
+    // Test left player (index 1)
+    rerender(<Cambiar7Animation {...defaultProps} playerIndex={1} />);
+    expect(() => render(<Cambiar7Animation {...defaultProps} playerIndex={1} />)).not.toThrow();
+
+    // Test top player (index 2)
+    rerender(<Cambiar7Animation {...defaultProps} playerIndex={2} />);
+    expect(() => render(<Cambiar7Animation {...defaultProps} playerIndex={2} />)).not.toThrow();
+
+    // Test right player (index 3)
+    rerender(<Cambiar7Animation {...defaultProps} playerIndex={3} />);
+    expect(() => render(<Cambiar7Animation {...defaultProps} playerIndex={3} />)).not.toThrow();
   });
 });
