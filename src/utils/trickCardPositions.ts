@@ -13,9 +13,9 @@ export function getTrickCardPositionWithinBoard(
     const centerX = width / 2;
     const centerY = height / 2;
 
-    // Adjusted offsets for smaller cards - can be tighter since cards are smaller
+    // Adjusted offsets for smaller cards - increased horizontal spread for better separation
     // Cards should be clearly separated in the center
-    const spreadX = dims.width * 0.45; // 45% of card width offset horizontally
+    const spreadX = dims.width * 0.9; // Increased to 90% of card width for maximum horizontal separation
     const spreadY = dims.height * 0.5; // 50% of card height offset vertically
 
     const positions: ViewStyle[] = [

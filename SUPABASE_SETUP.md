@@ -3,7 +3,7 @@
 ## Step 1: Create Supabase Account & Project
 
 1. Go to https://supabase.com
-2. Click "Start your project" 
+2. Click "Start your project"
 3. Sign up with GitHub or email
 4. Click "New project"
 5. Fill in:
@@ -32,7 +32,8 @@ EXPO_PUBLIC_SUPABASE_URL=https://xyzabc123.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-⚠️ **Important**: 
+⚠️ **Important**:
+
 - The URL should NOT have a trailing slash
 - The anon key is safe to use in client-side code (it's meant to be public)
 - Never commit the service role key to your repository
@@ -91,6 +92,7 @@ You can test if Supabase is working by:
 3. Try creating an account or logging in
 
 If you see errors like "Invalid API key" or "Project not found", double-check:
+
 - Your `.env` values match exactly what's in Supabase dashboard
 - You've restarted Metro bundler after changing `.env`
 - The URL doesn't have a trailing slash
@@ -100,18 +102,22 @@ If you see errors like "Invalid API key" or "Project not found", double-check:
 ### Common Issues:
 
 **"Invalid API key"**
+
 - Check that you copied the entire anon key
 - Make sure you're using the anon key, not the service role key
 
 **"Project not found"**
+
 - Verify the URL is correct (including the random ID part)
 - Ensure there's no trailing slash
 
 **"Failed to fetch"**
+
 - Check your internet connection
 - Verify the project is active in Supabase dashboard
 
 **Changes not taking effect**
+
 - Clear Metro bundler cache: `npx react-native start --reset-cache`
 - Delete `node_modules` and reinstall: `rm -rf node_modules && npm install`
 - For iOS: `cd ios && pod install`

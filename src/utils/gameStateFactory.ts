@@ -29,9 +29,9 @@ export function createInitialGameState(playerInfos: PlayerInfo[]): GameState {
     playerInfos.map(p => p.id as any),
   );
 
-  // Trump card is the next card in deck
-  const trumpCard = remainingDeck[0];
-  const deckAfterTrump = remainingDeck.slice(1);
+  // Trump card is the next card in deck (bottom of draw pile)
+  const trumpCard = remainingDeck[remainingDeck.length - 1];
+  const deckAfterTrump = remainingDeck.slice(0, -1);
 
   // Create players
   const players: Player[] = playerInfos.map((info, index) => ({
@@ -112,9 +112,9 @@ export function resetGameStateForVueltas(
     previousState.players.map(p => p.id),
   );
 
-  // Trump card is the next card in deck
-  const trumpCard = remainingDeck[0];
-  const deckAfterTrump = remainingDeck.slice(1);
+  // Trump card is the next card in deck (bottom of draw pile)
+  const trumpCard = remainingDeck[remainingDeck.length - 1];
+  const deckAfterTrump = remainingDeck.slice(0, -1);
 
   // Reset teams but keep scores
   const teams: [Team, Team] = [

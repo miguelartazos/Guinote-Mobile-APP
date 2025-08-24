@@ -9,7 +9,7 @@ import { SpanishCard } from './SpanishCard';
 import type { SpanishCardData } from '../../types/cardTypes';
 import { isPointInBounds } from '../../utils/gameLogic';
 import { haptics } from '../../utils/haptics';
-import { CARD_DRAG_SCALE, SPRING_CONFIG } from '../../constants/animations';
+import { SPRING_CONFIG } from '../../constants/animations';
 
 type DraggableCardProps = {
   card: SpanishCardData;
@@ -27,6 +27,7 @@ type DraggableCardProps = {
   cardSize?: 'small' | 'medium' | 'large';
   totalCards?: number;
   cardWidth?: number;
+  isPlayerTurn?: boolean;
 };
 
 export function DraggableCard({
@@ -40,25 +41,10 @@ export function DraggableCard({
   cardSize = 'medium',
   totalCards = 1,
   cardWidth = 80,
+  isPlayerTurn = true,
 }: DraggableCardProps) {
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(1)).current;
-
-  // Extract initial opacity from style if provided
-  const getInitialOpacity = () => {
-    if (style) {
-      const styles = Array.isArray(style) ? style : [style];
-      for (const s of styles) {
-        if (s && typeof s === 'object' && 'opacity' in s) {
-          return s.opacity as number;
-        }
-      }
-    }
-    return 1;
-  };
-
-  const opacity = useRef(new Animated.Value(getInitialOpacity())).current;
   const startX = useRef(0);
   const startY = useRef(0);
   const isDraggingHorizontally = useRef(false);
@@ -83,17 +69,7 @@ export function DraggableCard({
       startY.current = event.nativeEvent.y;
       isDraggingHorizontally.current = false;
 
-      Animated.parallel([
-        Animated.spring(scale, {
-          toValue: CARD_DRAG_SCALE,
-          ...SPRING_CONFIG,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0.8,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      // No visual feedback when starting drag
     } else if (event.nativeEvent.state === State.ACTIVE) {
       // Determine drag direction after moving 10 pixels
       const dx = Math.abs(event.nativeEvent.x - startX.current);
@@ -127,15 +103,6 @@ export function DraggableCard({
             toValue: 0,
             ...SPRING_CONFIG,
           }),
-          Animated.spring(scale, {
-            toValue: 1,
-            ...SPRING_CONFIG,
-          }),
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 100,
-            useNativeDriver: true,
-          }),
         ]).start();
       } else {
         // Handle vertical play mode
@@ -158,11 +125,6 @@ export function DraggableCard({
                 toValue: dropZoneBounds.y + dropZoneBounds.height / 2 - absoluteY,
                 ...SPRING_CONFIG,
               }),
-              Animated.timing(opacity, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: true,
-              }),
             ]).start(() => {
               onCardPlay(index);
             });
@@ -180,15 +142,6 @@ export function DraggableCard({
               toValue: 0,
               ...SPRING_CONFIG,
             }),
-            Animated.spring(scale, {
-              toValue: 1,
-              ...SPRING_CONFIG,
-            }),
-            Animated.timing(opacity, {
-              toValue: 1,
-              duration: 100,
-              useNativeDriver: true,
-            }),
           ]).start();
         }
       }
@@ -197,10 +150,13 @@ export function DraggableCard({
 
   // Always allow dragging for reordering, but only allow playing when enabled
   const canPlay = isEnabled;
-  const canReorder = onReorder !== undefined;
 
   return (
-    <PanGestureHandler onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
+    <PanGestureHandler 
+      enabled={true}
+      onGestureEvent={onGestureEvent} 
+      onHandlerStateChange={onHandlerStateChange}
+    >
       <Animated.View
         style={[
           style,
@@ -208,13 +164,11 @@ export function DraggableCard({
             transform: [
               { translateX },
               { translateY },
-              { scale },
               ...(Array.isArray(style) ? style : [style])
                 .filter(Boolean)
                 .flatMap((s: any) => s.transform || []),
             ],
           },
-          { opacity }, // Apply opacity last to override style opacity
         ]}
       >
         <TouchableOpacity
@@ -225,6 +179,7 @@ export function DraggableCard({
             }
           }}
           activeOpacity={1}
+          disabled={!canPlay}
         >
           <SpanishCard card={card} size={cardSize} />
         </TouchableOpacity>

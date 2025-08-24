@@ -1,11 +1,13 @@
 # Supabase Migration Guide
 
 ## Overview
+
 This guide explains how to migrate from Convex + Clerk to Supabase for the Guiñote game app.
 
 ## Current Status
 
 ### ✅ Completed
+
 - Supabase client setup and configuration
 - Database schema with all tables
 - Row Level Security (RLS) policies
@@ -22,10 +24,12 @@ This guide explains how to migrate from Convex + Clerk to Supabase for the Guiñ
 - Unified hooks that switch between Convex and Supabase
 
 ### 🚧 In Progress
+
 - Screen updates to use unified hooks
 - Testing and validation
 
 ### 📋 TODO
+
 - Create Supabase project and get credentials
 - Run SQL migrations in Supabase
 - Complete screen migrations
@@ -38,6 +42,7 @@ This guide explains how to migrate from Convex + Clerk to Supabase for the Guiñ
 1. Go to https://supabase.com and create a new project
 2. Note your project URL and anon key
 3. Update `.env` file:
+
 ```env
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
@@ -61,6 +66,7 @@ In Supabase Storage, create a bucket named `voice-messages` for voice recordings
 The app uses feature flags to gradually migrate. In development, all Supabase features are enabled by default.
 
 To control features manually:
+
 ```typescript
 import { featureFlags } from './src/config/featureFlags';
 
@@ -101,17 +107,20 @@ If you have existing data in Convex:
 Once everything is working:
 
 1. Remove Convex dependencies:
+
 ```bash
 npm uninstall convex
 rm -rf convex/
 ```
 
 2. Remove Clerk dependencies:
+
 ```bash
 npm uninstall @clerk/clerk-expo
 ```
 
 3. Clean up old files:
+
 - Delete `src/providers/ClerkProvider.tsx`
 - Delete `src/providers/ConvexClientProvider.tsx`
 - Delete all `src/hooks/useConvex*.ts` files
@@ -120,36 +129,44 @@ npm uninstall @clerk/clerk-expo
 ## Architecture Changes
 
 ### Authentication
+
 - **Before**: Clerk (external service) → Convex
 - **After**: Supabase Auth (integrated)
 
 ### Database
+
 - **Before**: Convex (NoSQL-like, reactive)
 - **After**: PostgreSQL with RLS
 
 ### Real-time
+
 - **Before**: Convex subscriptions
 - **After**: Supabase Realtime (Postgres Changes + Presence)
 
 ### File Storage
+
 - **Before**: Convex storage
 - **After**: Supabase Storage
 
 ## Key Differences
 
 ### 1. Authentication
+
 Supabase Auth is integrated, reducing complexity and cost. User sessions are persisted in AsyncStorage.
 
 ### 2. Database Operations
+
 - Convex uses mutations/queries
 - Supabase uses RPC functions for complex operations
 - Direct table access for simple CRUD
 
 ### 3. Real-time Updates
+
 - Convex: Automatic reactive queries
 - Supabase: Explicit channel subscriptions with presence
 
 ### 4. Optimistic Updates
+
 Supabase implementation includes optimistic updates with version control for conflict resolution.
 
 ## Performance Considerations
@@ -164,11 +181,13 @@ Supabase implementation includes optimistic updates with version control for con
 ### Common Issues
 
 1. **RLS Policies Blocking Access**
+
    - Check that policies are correctly set up
    - Verify user is authenticated
    - Use service key for admin operations
 
 2. **Real-time Not Working**
+
    - Ensure tables are added to publication
    - Check WebSocket connection
    - Verify RLS policies allow SELECT
@@ -190,6 +209,7 @@ If issues arise, you can quickly rollback:
 ## Support
 
 For Supabase-specific issues:
+
 - Documentation: https://supabase.com/docs
 - Discord: https://discord.supabase.com
 - GitHub: https://github.com/supabase/supabase

@@ -7,16 +7,18 @@ Sentry has been installed and configured for your React Native project.
 ## Configuration Steps
 
 ### 1. Get Your Sentry DSN
+
 1. Go to https://sentry.io/settings/artazos/projects/react-native/keys/
 2. Copy the DSN (looks like: `https://xxx@o123456.ingest.sentry.io/123456`)
 
 ### 2. Create Auth Token (Internal Integration - Recommended)
+
 1. Go to https://sentry.io/settings/artazos/developer-settings/
 2. Click "Create New Internal Integration"
 3. Name: `guinote2-mcp`
 4. Set permissions:
    - **Release**: Admin
-   - **Project**: Write  
+   - **Project**: Write
    - **Organization**: Read
    - **Issue & Event**: Read
 5. Save and copy the token
@@ -24,11 +26,13 @@ Sentry has been installed and configured for your React Native project.
 ### 3. Update Configuration Files
 
 #### In `sentry.properties`:
+
 ```properties
 auth.token=YOUR_AUTH_TOKEN_HERE
 ```
 
 #### In `sentry.config.js`:
+
 ```javascript
 Sentry.init({
   dsn: 'YOUR_DSN_HERE',
@@ -37,6 +41,7 @@ Sentry.init({
 ```
 
 #### In `.env.mcp.local`:
+
 ```bash
 SENTRY_DSN=YOUR_DSN_HERE
 SENTRY_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE
@@ -55,16 +60,18 @@ SENTRY_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE
 ## Testing Sentry
 
 ### Test Error Capture:
+
 ```javascript
 // Add this temporarily to any component
 Sentry.captureException(new Error('Test error from Guinote2'));
 ```
 
 ### Test Performance:
+
 ```javascript
 const transaction = Sentry.startTransaction({
   name: 'test-transaction',
-  op: 'test'
+  op: 'test',
 });
 // ... do something
 transaction.finish();
@@ -73,11 +80,13 @@ transaction.finish();
 ## Build Configuration
 
 ### For iOS:
+
 ```bash
 cd ios && pod install
 ```
 
 ### For Android:
+
 The Sentry gradle plugin will be configured automatically on next build.
 
 ## Environment-Specific Settings
@@ -88,6 +97,7 @@ The Sentry gradle plugin will be configured automatically on next build.
 ## MCP Integration
 
 The Sentry MCP server is configured and ready to use. Claude can now:
+
 - Create releases
 - Upload source maps
 - Monitor error rates
@@ -109,16 +119,19 @@ npx @sentry/cli releases finalize RELEASE_NAME
 ## Troubleshooting
 
 ### Auth Token Issues:
+
 - Ensure you're using Internal Integration token, not personal token
 - Check token has correct permissions
 - Token should not have quotes in config files
 
 ### DSN Issues:
+
 - Verify DSN format is correct
 - Check project exists in Sentry dashboard
 - Ensure DSN is for correct environment
 
 ### Build Issues:
+
 - Run `cd ios && pod install` after installation
 - Clean build folders if needed
 - Check `sentry.properties` is not committed to git
@@ -126,6 +139,7 @@ npx @sentry/cli releases finalize RELEASE_NAME
 ## Security Notes
 
 ⚠️ **NEVER commit these files:**
+
 - `sentry.properties` (contains auth token)
 - `.sentryclirc` (if created)
 - `.env.mcp.local` (contains credentials)
@@ -141,6 +155,6 @@ These are already in `.gitignore` for protection.
 
 ---
 
-*Organization: artazos*
-*Project: react-native*
-*Setup Date: January 2025*
+_Organization: artazos_
+_Project: react-native_
+_Setup Date: January 2025_

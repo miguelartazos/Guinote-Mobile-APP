@@ -19,7 +19,9 @@ guinote2/
 ## 🚀 Running Tests
 
 ### Prerequisites
+
 1. **Build the app first**:
+
    ```bash
    npx react-native run-ios --simulator="iPhone 16 Pro"
    ```
@@ -46,32 +48,35 @@ maestro studio
 ## 📝 Writing New Tests
 
 ### Basic Test Structure
+
 ```yaml
 appId: com.guinote2
 ---
 - launchApp
-- tapOn: "Button Text"
-- assertVisible: "Expected Text"
+- tapOn: 'Button Text'
+- assertVisible: 'Expected Text'
 ```
 
 ### Game-Specific Actions
+
 ```yaml
 # Tap a card in hand
 - tapOn:
-    point: "50%, 85%"  # Bottom center
+    point: '50%, 85%' # Bottom center
 
 # Wait for AI turn
 - waitForAnimationToEnd
 
 # Swipe to see more cards
 - swipeLeft:
-    start: "80%, 85%"
-    end: "20%, 85%"
+    start: '80%, 85%'
+    end: '20%, 85%'
 ```
 
 ## 🎮 Test Scenarios Created
 
 ### 1. Offline Mode (`01-offline-mode.yaml`)
+
 - Launches app
 - Navigates to offline mode
 - Starts new game
@@ -79,11 +84,13 @@ appId: com.guinote2
 - Returns to menu
 
 ### 2. Navigation (`02-navigation.yaml`)
+
 - Tests bottom navigation
 - Verifies all main screens
 - Checks tab switching
 
 ### 3. Quick Match (`03-quick-match.yaml`)
+
 - Attempts quick match
 - Handles login flow
 - Tests cancellation
@@ -91,67 +98,74 @@ appId: com.guinote2
 ## 🔍 Debugging
 
 ### View what Maestro sees
+
 ```bash
 maestro studio
 ```
 
 ### Take screenshots during test
+
 ```yaml
-- takeScreenshot: "game-started"
+- takeScreenshot: 'game-started'
 ```
 
 ### Add delays if needed
+
 ```yaml
 - waitForAnimationToEnd
 - wait:
-    timeout: 3000  # 3 seconds
+    timeout: 3000 # 3 seconds
 ```
 
 ## 🎯 Best Practices for Card Games
 
 1. **Use coordinates for cards**:
+
    ```yaml
    # Cards are usually in bottom 20% of screen
    - tapOn:
-       point: "30%, 85%"  # First card
+       point: '30%, 85%' # First card
    - tapOn:
-       point: "50%, 85%"  # Middle card
+       point: '50%, 85%' # Middle card
    - tapOn:
-       point: "70%, 85%"  # Third card
+       point: '70%, 85%' # Third card
    ```
 
 2. **Wait for animations**:
+
    ```yaml
    - waitForAnimationToEnd
-   - assertVisible: "Tu turno"
+   - assertVisible: 'Tu turno'
    ```
 
 3. **Handle AI turns**:
    ```yaml
-   - assertVisible: "IA jugando..."
+   - assertVisible: 'IA jugando...'
    - waitForAnimationToEnd
    ```
 
 ## 🆚 Maestro vs Detox
 
-| Feature | Maestro | Detox |
-|---------|---------|-------|
-| Setup Time | 5 minutes | 2+ hours |
-| Language | YAML | JavaScript |
-| Learning Curve | Easy | Complex |
-| Build Required | No | Yes |
-| Visual Feedback | Yes (Studio) | No |
-| Speed | Fast | Slow |
+| Feature         | Maestro      | Detox      |
+| --------------- | ------------ | ---------- |
+| Setup Time      | 5 minutes    | 2+ hours   |
+| Language        | YAML         | JavaScript |
+| Learning Curve  | Easy         | Complex    |
+| Build Required  | No           | Yes        |
+| Visual Feedback | Yes (Studio) | No         |
+| Speed           | Fast         | Slow       |
 
 ## 🚨 Common Issues
 
 ### "App not found"
+
 ```bash
 # Build and install first
 npx react-native run-ios
 ```
 
 ### "Java not found"
+
 ```bash
 # Add to ~/.zshrc
 export JAVA_HOME="/usr/local/Cellar/openjdk/24.0.2/libexec/openjdk.jdk/Contents/Home"
@@ -159,6 +173,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
 ### Test fails intermittently
+
 - Add `waitForAnimationToEnd` between actions
 - Use `assertVisible` with longer timeouts
 - Consider network delays

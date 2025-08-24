@@ -2,8 +2,6 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SpanishCard } from './SpanishCard';
 import type { SpanishCardData } from './SpanishCard';
-import { colors } from '../../constants/colors';
-import { typography } from '../../constants/typography';
 
 type DeckPileProps = {
   cardsRemaining: number;
@@ -56,8 +54,8 @@ const styles = StyleSheet.create({
   trumpCardContainer: {
     position: 'absolute',
     transform: [{ rotate: '-90deg' }],
-    top: 30,
-    right: -10,
+    top: 45,
+    left: -15,
     zIndex: 1,
   },
   deckContainer: {

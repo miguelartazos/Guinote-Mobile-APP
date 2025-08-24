@@ -1,6 +1,6 @@
 import type { GameState, Card, PlayerId, TeamId } from '../types/game.types';
 import type { GameMove } from '../types/gameMove.types';
-import { playCard, cambiar7, declareCante } from './gameLogic';
+import { playCard, cambiar7, declareCante, isGameOver as checkGameOver } from './gameLogic';
 
 /**
  * Apply a game move to the current state and return the new state
@@ -161,10 +161,8 @@ export function getGameStats(gameState: GameState) {
 export function continueFromScoring(gameState: GameState): GameState | null {
   if (gameState.phase !== 'scoring') return null;
 
-  // Check if any team has won
-  const winningTeam = gameState.teams.find(t => t.score >= 101);
-
-  if (winningTeam) {
+  // Check if any team has won (101+ points AND 30+ card points)
+  if (checkGameOver(gameState)) {
     // Game is finished
     return {
       ...gameState,
@@ -173,18 +171,31 @@ export function continueFromScoring(gameState: GameState): GameState | null {
   }
 
   // Continue to next hand (vueltas)
+  // Store current scores for vueltas
+  const initialScores = new Map<TeamId, number>();
+  gameState.teams.forEach(team => {
+    initialScores.set(team.id, team.score);
+  });
+
+  // Determine last trick winner team
+  const lastWinnerTeam = gameState.lastTrickWinner
+    ? gameState.teams.find(t => t.playerIds.includes(gameState.lastTrickWinner!))?.id
+    : undefined;
+
   // This would normally create a new shuffled deck and deal cards
   // For now, just change phase back to dealing
   return {
     ...gameState,
     phase: 'dealing',
     isVueltas: true,
+    initialScores,
+    lastTrickWinnerTeam: lastWinnerTeam,
     currentTrick: [],
     trickCount: 0,
     trickWins: new Map(),
     collectedTricks: new Map(),
     canCambiar7: true,
-    canDeclareVictory: true,
+    canDeclareVictory: !!lastWinnerTeam,
     dealerIndex: (gameState.dealerIndex + 1) % 4,
     currentPlayerIndex: (gameState.dealerIndex + 1 + 1) % 4, // Player after new dealer
   };

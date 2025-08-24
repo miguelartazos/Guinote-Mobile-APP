@@ -22,6 +22,8 @@ type CanteAnimationProps = {
   partnerPosition?: { x: number; y: number };
   onComplete: () => void;
   playSound?: () => void;
+  playerName?: string;
+  playerAvatar?: string;
 };
 
 export function CanteAnimation({
@@ -164,7 +166,7 @@ export function CanteAnimation({
     });
 
     // Keep text visible for a moment
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Fade out
     await new Promise(resolve => {
@@ -230,7 +232,7 @@ export function CanteAnimation({
     });
 
     // Keep visible briefly
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 800));
 
     // Fade out
     await new Promise(resolve => {
@@ -244,8 +246,8 @@ export function CanteAnimation({
 
   return (
     <View style={StyleSheet.absoluteFillObject}>
-      {/* Animated cards with glow */}
-      {cardAnimations.map((anim, index) => {
+      {/* Animated cards with glow - only show for veinte */}
+      {canteType === 'veinte' && cardAnimations.map((anim, index) => {
         const interpolatedRotation = anim.rotation.interpolate({
           inputRange: [0, 1],
           outputRange: ['0deg', '360deg'],

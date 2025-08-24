@@ -14,145 +14,140 @@ type CompactActionBarProps = {
   disabled: boolean;
 };
 
-export const CompactActionBar = React.memo(function CompactActionBar({
-  gameState,
-  onCantar,
-  onCambiar7,
-  disabled,
-}: CompactActionBarProps) {
-  const fadeAnimCantar = useRef(new Animated.Value(0)).current;
-  const fadeAnimCambiar = useRef(new Animated.Value(0)).current;
-  const scaleAnimCantar = useRef(new Animated.Value(0.8)).current;
-  const scaleAnimCambiar = useRef(new Animated.Value(0.8)).current;
+export const CompactActionBar = React.memo(
+  ({ gameState, onCantar, onCambiar7, disabled }: CompactActionBarProps) => {
+    const fadeAnimCantar = useRef(new Animated.Value(0)).current;
+    const fadeAnimCambiar = useRef(new Animated.Value(0)).current;
+    const scaleAnimCantar = useRef(new Animated.Value(0.8)).current;
+    const scaleAnimCambiar = useRef(new Animated.Value(0.8)).current;
 
-  const currentPlayer = gameState?.players?.[gameState.currentPlayerIndex];
-  const currentPlayerHand = currentPlayer ? gameState.hands.get(currentPlayer.id) || [] : [];
-  const playerTeam = currentPlayer
-    ? gameState.teams.find(team => team.playerIds.includes(currentPlayer.id))
-    : undefined;
+    const currentPlayer = gameState?.players?.[gameState.currentPlayerIndex];
+    const currentPlayerHand = currentPlayer ? gameState.hands.get(currentPlayer.id) || [] : [];
+    const playerTeam = currentPlayer
+      ? gameState.teams.find(team => team.playerIds.includes(currentPlayer.id))
+      : undefined;
 
-  const cantableSuits = canCantar(
-    currentPlayerHand,
-    gameState?.trumpSuit || 'oros',
-    playerTeam?.cantes || [],
-  );
+    const cantableSuits = canCantar(
+      currentPlayerHand,
+      gameState?.trumpSuit || 'oros',
+      playerTeam?.cantes || [],
+    );
 
-  const canPlayerCantar = cantableSuits.length > 0 && !disabled;
-  const canPlayerCambiar7 =
-    gameState &&
-    canCambiar7(currentPlayerHand, gameState.trumpCard, gameState.deck.length) &&
-    !disabled;
+    const canPlayerCantar = cantableSuits.length > 0 && !disabled;
+    const canPlayerCambiar7 =
+      gameState &&
+      canCambiar7(currentPlayerHand, gameState.trumpCard, gameState.deck.length) &&
+      !disabled;
 
-  // Animate Cantar button
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnimCantar, {
-        toValue: canPlayerCantar ? 1 : 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnimCantar, {
-        toValue: canPlayerCantar ? 1 : 0.8,
-        friction: 5,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [canPlayerCantar, fadeAnimCantar, scaleAnimCantar]);
+    // Animate Cantar button
+    useEffect(() => {
+      Animated.parallel([
+        Animated.timing(fadeAnimCantar, {
+          toValue: canPlayerCantar ? 1 : 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnimCantar, {
+          toValue: canPlayerCantar ? 1 : 0.8,
+          friction: 5,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, [canPlayerCantar, fadeAnimCantar, scaleAnimCantar]);
 
-  // Animate Cambiar 7 button
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnimCambiar, {
-        toValue: canPlayerCambiar7 ? 1 : 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnimCambiar, {
-        toValue: canPlayerCambiar7 ? 1 : 0.8,
-        friction: 5,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [canPlayerCambiar7, fadeAnimCambiar, scaleAnimCambiar]);
+    // Animate Cambiar 7 button
+    useEffect(() => {
+      Animated.parallel([
+        Animated.timing(fadeAnimCambiar, {
+          toValue: canPlayerCambiar7 ? 1 : 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnimCambiar, {
+          toValue: canPlayerCambiar7 ? 1 : 0.8,
+          friction: 5,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, [canPlayerCambiar7, fadeAnimCambiar, scaleAnimCambiar]);
 
-  // Don't render if no actions available or invalid state
-  if (!gameState || !currentPlayer || currentPlayer.isBot) {
-    return null;
-  }
+    // Don't render if no actions available or invalid state
+    if (!gameState || !currentPlayer || currentPlayer.isBot) {
+      return null;
+    }
 
-  if (!canPlayerCantar && !canPlayerCambiar7) {
-    return null;
-  }
+    if (!canPlayerCantar && !canPlayerCambiar7) {
+      return null;
+    }
 
-  return (
-    <View style={styles.container}>
-      {canPlayerCantar && (
-        <Animated.View
-          style={[
-            styles.buttonWrapper,
-            {
-              opacity: fadeAnimCantar,
-              transform: [{ scale: scaleAnimCantar }],
-            },
-          ]}
-        >
-          <AnimatedButton
-            onPress={onCantar}
-            style={[styles.actionButton, styles.cantarButton]}
-            hapticType="medium"
+    return (
+      <View style={styles.container}>
+        {canPlayerCantar && (
+          <Animated.View
+            style={[
+              styles.buttonWrapper,
+              {
+                opacity: fadeAnimCantar,
+                transform: [{ scale: scaleAnimCantar }],
+              },
+            ]}
           >
-            <Text style={styles.buttonText}>Cantar</Text>
-          </AnimatedButton>
-        </Animated.View>
-      )}
+            <AnimatedButton
+              onPress={onCantar}
+              style={[styles.actionButton, styles.cantarButton]}
+              hapticType="medium"
+            >
+              <Text style={styles.buttonText}>Cantar</Text>
+            </AnimatedButton>
+          </Animated.View>
+        )}
 
-      {canPlayerCambiar7 && (
-        <Animated.View
-          style={[
-            styles.buttonWrapper,
-            {
-              opacity: fadeAnimCambiar,
-              transform: [{ scale: scaleAnimCambiar }],
-            },
-          ]}
-        >
-          <AnimatedButton
-            onPress={onCambiar7}
-            style={[styles.actionButton, styles.cambiarButton]}
-            hapticType="medium"
+        {canPlayerCambiar7 && (
+          <Animated.View
+            style={[
+              styles.buttonWrapper,
+              {
+                opacity: fadeAnimCambiar,
+                transform: [{ scale: scaleAnimCambiar }],
+              },
+            ]}
           >
-            <Text style={styles.buttonText}>Cambiar 7</Text>
-          </AnimatedButton>
-        </Animated.View>
-      )}
-    </View>
-  );
-});
+            <AnimatedButton
+              onPress={onCambiar7}
+              style={[styles.actionButton, styles.cambiarButton]}
+              hapticType="medium"
+            >
+              <Text style={styles.buttonText}>Cambiar 7</Text>
+            </AnimatedButton>
+          </Animated.View>
+        )}
+      </View>
+    );
+  },
+);
 
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
     bottom: 20,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: dimensions.spacing.md,
+    right: 20,
+    flexDirection: 'column',
+    gap: dimensions.spacing.sm,
     zIndex: 50,
   },
   buttonWrapper: {
     // Wrapper for animation
   },
   actionButton: {
-    paddingHorizontal: dimensions.spacing.xl,
-    paddingVertical: dimensions.spacing.sm,
-    borderRadius: dimensions.borderRadius.xl,
-    minWidth: 100,
+    paddingHorizontal: dimensions.spacing.md,
+    paddingVertical: dimensions.spacing.xs,
+    borderRadius: dimensions.borderRadius.lg,
+    minWidth: 80,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowRadius: 3,
+    elevation: 4,
   },
   cantarButton: {
     backgroundColor: colors.cantarGreen,
@@ -166,7 +161,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: colors.white,
-    fontSize: typography.fontSize.md,
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
     textAlign: 'center',
     textShadowColor: 'rgba(0, 0, 0, 0.3)',

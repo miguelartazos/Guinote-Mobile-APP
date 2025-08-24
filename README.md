@@ -5,12 +5,14 @@ A modern implementation of the classic Spanish card game Guiñote, built with Re
 ## Features
 
 ### 🎮 Game Modes
+
 - **Online Multiplayer** - Play with players worldwide with ELO-based matchmaking
 - **Offline vs AI** - Play against intelligent AI with different personalities and difficulty levels
 - **Local Multiplayer** - Pass & play mode for up to 4 players on the same device
 - **Tutorial Mode** - Learn the rules step by step
 
 ### 🌐 Online Multiplayer Features
+
 - Real-time gameplay using WebSocket connections
 - ELO rating system for fair matchmaking
 - Player profiles and statistics tracking
@@ -19,12 +21,14 @@ A modern implementation of the classic Spanish card game Guiñote, built with Re
 - Guest mode for quick play
 
 ### 🤖 AI Features
+
 - Three difficulty levels (Easy, Medium, Hard)
 - Unique AI personalities (Prudent, Aggressive, Tricky)
 - Memory system for realistic gameplay
 - Strategic decision making
 
 ### 🎯 Game Features
+
 - Authentic Guiñote rules implementation
 - Beautiful Spanish card graphics
 - Voice recording for in-game communication
@@ -36,6 +40,7 @@ A modern implementation of the classic Spanish card game Guiñote, built with Re
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js 18+
 - React Native development environment ([Setup Guide](https://reactnative.dev/docs/set-up-your-environment))
 - For iOS: macOS with Xcode
@@ -44,17 +49,20 @@ A modern implementation of the classic Spanish card game Guiñote, built with Re
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/guinote2.git
 cd guinote2
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. For iOS, install CocoaPods:
+
 ```bash
 cd ios
 bundle install
@@ -67,16 +75,19 @@ cd ..
 #### Development Mode
 
 Start Metro bundler:
+
 ```bash
 npm start
 ```
 
 Run on iOS:
+
 ```bash
 npm run ios
 ```
 
 Run on Android:
+
 ```bash
 npm run android
 ```
@@ -86,23 +97,27 @@ npm run android
 To enable online multiplayer, you need to run the backend server:
 
 1. Navigate to server directory:
+
 ```bash
 cd server
 npm install
 ```
 
 2. Set up environment variables:
+
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
 3. Start the server with Docker:
+
 ```bash
 docker-compose up -d
 ```
 
 Or run locally:
+
 ```bash
 npm run dev
 ```
@@ -133,11 +148,13 @@ guinote2/
 ### Code Quality
 
 Run linting:
+
 ```bash
 npm run lint
 ```
 
 Run tests:
+
 ```bash
 npm test
 ```
@@ -145,11 +162,13 @@ npm test
 ### Building for Production
 
 #### iOS
+
 1. Open `ios/guinote2.xcworkspace` in Xcode
 2. Select your signing team
 3. Archive and upload to App Store Connect
 
 #### Android
+
 ```bash
 cd android
 ./gradlew assembleRelease
@@ -167,7 +186,7 @@ Guiñote is a Spanish trick-taking card game for 4 players in partnerships. Key 
   - Las Cuarenta (40): King-Knight of trump suit
   - Veinte (20): King-Knight of other suits
 - **Arrastre**: Last phase when deck is empty
-- **Special Rules**: 
+- **Special Rules**:
   - 30 Malas: Need 30+ card points to win
   - Vueltas: Second hand if no winner
   - 10 de Últimas: 10 bonus points for last trick

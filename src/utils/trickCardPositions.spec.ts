@@ -17,7 +17,7 @@ describe('trickCardPositions', () => {
 
       // With new fixed positioning:
       // small card dimensions (from getCardDimensions) are { width: 32, height: 48 }
-      // spreadX = 32 * 0.45 = 14.4
+      // spreadX = 32 * 0.9 = 28.8 (increased for maximum separation)
       // spreadY = 48 * 0.5 = 24
       // centerX = 150, centerY = 200
 
@@ -29,10 +29,10 @@ describe('trickCardPositions', () => {
         zIndex: 1,
       });
 
-      // Left player card - moved up more
+      // Left player card - moved up more and further left
       expect(positions[1]).toMatchObject({
         position: 'absolute',
-        left: expect.closeTo(119.6, 1), // centerX - spreadX - cardWidth/2 = 150 - 14.4 - 16
+        left: expect.closeTo(105.2, 1), // centerX - spreadX - cardWidth/2 = 150 - 28.8 - 16
         top: expect.closeTo(166.4, 1), // centerY - cardHeight/2 - spreadY * 0.4 = 200 - 24 - 9.6
         zIndex: 2,
       });
@@ -45,10 +45,10 @@ describe('trickCardPositions', () => {
         zIndex: 3,
       });
 
-      // Right player card - moved up more
+      // Right player card - moved up more and further right
       expect(positions[3]).toMatchObject({
         position: 'absolute',
-        left: expect.closeTo(148.4, 1), // centerX + spreadX - cardWidth/2 = 150 + 14.4 - 16
+        left: expect.closeTo(162.8, 1), // centerX + spreadX - cardWidth/2 = 150 + 28.8 - 16
         top: expect.closeTo(166.4, 1), // centerY - cardHeight/2 - spreadY * 0.4 = 200 - 24 - 9.6
         zIndex: 4,
       });

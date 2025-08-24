@@ -16,11 +16,11 @@ export const SCORE_FLOAT_DURATION = 1200;
 export const SCORE_FLOAT_HEIGHT = -80;
 
 // Cante animations
-export const CANTE_GLOW_DURATION = 1000;
-export const CANTE_FLIP_DURATION = 600;
-export const CANTE_TEXT_DURATION = 800;
-export const COIN_RAIN_DURATION = 2000;
-export const PARTNER_NOTIFY_DURATION = 500;
+export const CANTE_GLOW_DURATION = 600;
+export const CANTE_FLIP_DURATION = 400;
+export const CANTE_TEXT_DURATION = 500;
+export const COIN_RAIN_DURATION = 1200;
+export const PARTNER_NOTIFY_DURATION = 400;
 
 // Game end celebration
 export const CONFETTI_DURATION = 3000;

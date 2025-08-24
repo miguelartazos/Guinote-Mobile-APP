@@ -25,8 +25,8 @@ const SIDE_VISIBLE = 0.6; // Sides: compact fan that looked good before
 const EDGE_MARGIN_VERTICAL = 8; // Match side player container margin for symmetry
 const TOP_PLAYER_Y_OFFSET = EDGE_MARGIN_VERTICAL; // Move closer to top
 const SIDE_PLAYER_MARGIN = 60; // Keep current side spacing
-// Move the bottom hand closer to the bottom edge to free vertical space for the board
-const BOTTOM_PLAYER_OFFSET = 0;
+// Negative offset to push cards partially off-screen at bottom
+const BOTTOM_PLAYER_OFFSET = -20;
 
 type Position = {
   x: number;
@@ -111,7 +111,6 @@ export function getSidePlayerCardPosition(
   layoutInfo?: LayoutInfo,
 ): Position {
   // Side player cards with compact overlap and SMALL size
-  const cardWidth = getCardWidth('small');
   const cardHeight = getCardHeight('small');
   const visibleCardHeight = cardHeight * SIDE_VISIBLE;
   const totalHeight = visibleCardHeight * (totalCards - 1) + cardHeight;
@@ -150,10 +149,10 @@ export function getDeckPosition(
     const board = layoutInfo.boardLayout;
     const cardWidth = getCardWidth('medium');
     const cardHeight = getCardHeight('medium');
-    // Position deck near the middle-left of the board
+    // Position deck near the middle-left of the board, but higher
     return {
       x: Math.floor(board.x + board.width * 0.26 - cardWidth / 2),
-      y: board.y + board.height / 2 - cardHeight / 2, // Vertically centered with board
+      y: board.y + board.height * 0.35 - cardHeight / 2, // Moved higher (35% from top instead of 50%)
       rotation: 0,
       zIndex: 100,
     };
@@ -162,7 +161,7 @@ export function getDeckPosition(
   // Fallback to percentage-based positioning
   return {
     x: screenWidth * 0.12, // slightly further left to leave more center space
-    y: screenHeight * 0.45, // 45% from top (slightly below middle)
+    y: screenHeight * 0.35, // 35% from top (moved higher)
     rotation: 0,
     zIndex: 100,
   };

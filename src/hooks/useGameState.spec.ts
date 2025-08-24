@@ -4,6 +4,16 @@ import type { GameState, Team, TeamId } from '../types/game.types';
 
 // Mock the gameLogic functions
 jest.mock('../utils/gameLogic', () => ({
+  createInitialMatchScore: jest.fn(() => ({
+    team1Partidas: 0,
+    team2Partidas: 0,
+    team1Cotos: 0,
+    team2Cotos: 0,
+    partidasPerCoto: 3,
+    cotosPerMatch: 2,
+    team1Sets: 0,
+    team2Sets: 0,
+  })),
   createDeck: jest.fn(() => []),
   shuffleDeck: jest.fn(deck => deck),
   dealInitialCards: jest.fn(() => ({
@@ -53,6 +63,25 @@ jest.mock('../utils/gameLogic', () => ({
   shouldStartVueltas: jest.fn(() => false),
   canDeclareVictory: jest.fn(() => false),
   getValidCards: jest.fn(hand => hand),
+  startNewPartida: jest.fn(gameState => gameState),
+  updateMatchScoreAndDeterminePhase: jest.fn(() => ({
+    matchScore: {
+      team1Partidas: 0,
+      team2Partidas: 0,
+      team1Cotos: 0,
+      team2Cotos: 0,
+      partidasPerCoto: 3,
+      cotosPerMatch: 2,
+      team1Sets: 0,
+      team2Sets: 0,
+    },
+    phase: 'scoring',
+  })),
+  updateMatchScoreForPartida: jest.fn(matchScore => matchScore),
+  isMatchComplete: jest.fn(() => false),
+  isValidTeamIndex: jest.fn(() => true),
+  determineVueltasWinner: jest.fn(() => null),
+  resetGameStateForVueltas: jest.fn((state, scores) => state),
 }));
 
 // Mock AI functions
@@ -66,6 +95,9 @@ jest.mock('../utils/aiPlayer', () => ({
 jest.mock('../utils/aiMemory', () => ({
   createMemory: jest.fn(() => new Map()),
   updateMemory: jest.fn(memory => memory),
+  clearMemory: jest.fn(() => new Map()),
+  shouldClearMemory: jest.fn(() => false),
+  clearMemoryOnPhaseChange: jest.fn(() => new Map()),
 }));
 
 // Mock the useAITurn hook

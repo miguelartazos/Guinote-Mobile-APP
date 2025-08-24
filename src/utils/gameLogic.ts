@@ -9,11 +9,19 @@ import type {
   GamePhase,
   MatchScore,
   TeamIndex,
+  Team,
 } from '../types/game.types';
 import type { SpanishSuit, CardValue } from '../types/cardTypes';
 import { CARD_POINTS } from '../types/game.types';
 import { resetGameStateForVueltas } from './gameStateFactory';
 import { validateGameState } from './gameStateValidator';
+import {
+  calculateTrickResult,
+  applyTrickScoring,
+  dealCardsAfterTrick,
+  applyLastTrickBonus,
+  isLastTrick,
+} from './gameEngineHelpers';
 
 // Export constants for reuse
 export const SPANISH_SUITS: SpanishSuit[] = ['espadas', 'bastos', 'oros', 'copas'];
@@ -300,12 +308,17 @@ export function canDeclareVictory(teamId: TeamId, gameState: GameState): boolean
   const teamTotal = (gameState.initialScores.get(teamId) || 0) + team.score;
   const otherTeamTotal = (gameState.initialScores.get(otherTeam.id) || 0) + otherTeam.score;
 
+  // Calculate total card points (initial + current)
+  const teamCardPoints = team.cardPoints;
+
   // Win if:
   // 1. Total score >= 101 (not just > 100)
-  // 2. Have more total points than opponent
-  // 3. In case of tie, the team that won last trick in first hand wins
+  // 2. Have at least 30 card points (30 malas rule)
+  // 3. Have more total points than opponent
+  // 4. In case of tie, the team that won last trick in first hand wins
   return (
     teamTotal >= 101 &&
+    teamCardPoints >= 30 &&
     (teamTotal > otherTeamTotal ||
       (teamTotal === otherTeamTotal && gameState.lastTrickWinnerTeam === teamId))
   );
@@ -327,16 +340,16 @@ export function determineVueltasWinner(gameState: GameState): TeamId | null {
   } else if (team2Total > team1Total) {
     return team2.id;
   } else {
-    // In case of tie, team that won last trick in first hand wins
+    // In case of tie, team that won last trick in first hand wins. If missing, treat as no winner.
     return gameState.lastTrickWinnerTeam || null;
   }
 }
 
 export function isGameOver(gameState: GameState): boolean {
-  return gameState.teams.some(team => {
-    // Must have 101+ points AND at least 30 points from cards (30 malas rule)
-    return team.score >= 101 && team.cardPoints >= 30;
-  });
+  // Game is only over when the MATCH is complete (e.g., first to 2 cotos)
+  // Partida and coto wins are handled in scoring -> matchScore updates, not here
+  if (!gameState.matchScore) return false;
+  return isMatchComplete(gameState.matchScore);
 }
 
 export function calculateFinalPoints(gameState: GameState): Map<TeamId, number> {
@@ -589,31 +602,26 @@ export function startNewPartida(previousState: GameState, matchScore: MatchScore
 }
 
 /**
- * Play a card from player's hand
+ * Validate if a player can play a card
  */
-export function playCard(gameState: GameState, playerId: PlayerId, card: Card): GameState | null {
-  // Validate that it's the player's turn
+function validateCanPlayCard(gameState: GameState, playerId: PlayerId, card: Card): boolean {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   if (currentPlayer.id !== playerId) {
     console.warn('Not player turn');
-    return null;
+    return false;
   }
 
-  // Get player's hand
   const playerHand = gameState.hands.get(playerId);
   if (!playerHand) {
     console.warn('Player hand not found');
-    return null;
+    return false;
   }
 
-  // Check if player has the card
-  const cardIndex = playerHand.findIndex(c => c.id === card.id);
-  if (cardIndex === -1) {
+  if (!playerHand.find(c => c.id === card.id)) {
     console.warn('Card not in hand');
-    return null;
+    return false;
   }
 
-  // Validate the play
   if (
     !isValidPlay(
       card,
@@ -626,132 +634,118 @@ export function playCard(gameState: GameState, playerId: PlayerId, card: Card): 
     )
   ) {
     console.warn('Invalid play');
-    return null;
+    return false;
   }
 
-  // Remove card from player's hand
+  return true;
+}
+
+/**
+ * Add a card to the current trick
+ */
+function addCardToTrick(gameState: GameState, playerId: PlayerId, card: Card): GameState {
   const newHands = new Map(gameState.hands);
-  const newPlayerHand = [...playerHand];
-  newPlayerHand.splice(cardIndex, 1);
-  newHands.set(playerId, newPlayerHand);
+  const playerHand = [...(newHands.get(playerId) || [])];
+  const cardIndex = playerHand.findIndex(c => c.id === card.id);
 
-  // Add card to current trick
-  const newTrick: TrickCard[] = [...gameState.currentTrick, { playerId, card }];
-
-  // Check if trick is complete
-  if (newTrick.length === 4) {
-    // Calculate winner and points
-    const winnerId = calculateTrickWinner(newTrick, gameState.trumpSuit);
-    const points = calculateTrickPoints(newTrick);
-    const winnerTeam = findPlayerTeam(winnerId, gameState);
-
-    // Update scores
-    const newTeams = [...gameState.teams] as [Team, Team];
-    const teamIndex = newTeams.findIndex(t => t.id === winnerTeam);
-    if (teamIndex !== -1) {
-      newTeams[teamIndex] = {
-        ...newTeams[teamIndex],
-        score: newTeams[teamIndex].score + points,
-        cardPoints: newTeams[teamIndex].cardPoints + points,
-      };
-    }
-
-    // Update collected tricks
-    const newCollectedTricks = new Map(gameState.collectedTricks);
-    const winnerTricks = newCollectedTricks.get(winnerId) || [];
-    newCollectedTricks.set(winnerId, [...winnerTricks, newTrick]);
-
-    // Deal new cards if deck has cards (only in playing phase)
-    let newDeck = [...gameState.deck];
-    let newPhase = gameState.phase;
-
-    if (newDeck.length > 0 && gameState.phase === 'playing') {
-      // Winner draws first, then counter-clockwise
-      const drawOrder = [winnerId];
-      let nextIndex = gameState.players.findIndex(p => p.id === winnerId);
-      for (let i = 0; i < 3; i++) {
-        nextIndex = getNextPlayerIndex(nextIndex, 4);
-        drawOrder.push(gameState.players[nextIndex].id);
-      }
-
-      // Deal cards
-      drawOrder.forEach(pId => {
-        if (newDeck.length > 0) {
-          const drawnCard = newDeck.pop();
-          if (drawnCard) {
-            const playerCards = [...(newHands.get(pId) || [])];
-            playerCards.push(drawnCard);
-            newHands.set(pId, playerCards);
-          }
-        }
-      });
-
-      // Transition to arrastre if deck is empty
-      if (newDeck.length === 0) {
-        newPhase = 'arrastre';
-      }
-    }
-
-    // Check if this is the last trick
-    const isLastTrick =
-      newDeck.length === 0 && Array.from(newHands.values()).every(hand => hand.length === 0);
-
-    // Award last trick bonus
-    if (isLastTrick) {
-      const teamIdx = newTeams.findIndex(t => t.id === winnerTeam);
-      if (teamIdx !== -1) {
-        newTeams[teamIdx] = {
-          ...newTeams[teamIdx],
-          score: newTeams[teamIdx].score + 10,
-        };
-      }
-    }
-
-    // Winner starts next trick
-    const winnerIndex = gameState.players.findIndex(p => p.id === winnerId);
-
-    // Determine phase
-    if (isGameOver({ ...gameState, teams: newTeams })) {
-      newPhase = 'gameOver';
-    } else if (isLastTrick) {
-      newPhase = 'scoring';
-    }
-
-    const newState = {
-      ...gameState,
-      hands: newHands,
-      deck: newDeck,
-      currentTrick: [], // Clear trick after completion
-      currentPlayerIndex: winnerIndex,
-      teams: newTeams,
-      trickCount: gameState.trickCount + 1,
-      collectedTricks: newCollectedTricks,
-      lastTrickWinner: winnerId,
-      lastTrick: newTrick,
-      phase: newPhase,
-      canCambiar7: newPhase === 'arrastre' ? false : gameState.canCambiar7,
-      lastActionTimestamp: Date.now(),
-    };
-
-    // Validate in development
-    if (process.env.NODE_ENV === 'development') {
-      const validation = validateGameState(newState);
-      if (!validation.isValid) {
-        console.error('Invalid state after trick completion:', validation.errors);
-      }
-    }
-
-    return newState;
-  }
-
-  // Trick not complete, next player's turn
-  const nextPlayerIndex = getNextPlayerIndex(gameState.currentPlayerIndex, 4);
+  playerHand.splice(cardIndex, 1);
+  newHands.set(playerId, playerHand);
 
   return {
     ...gameState,
     hands: newHands,
-    currentTrick: newTrick,
-    currentPlayerIndex: nextPlayerIndex,
+    currentTrick: [...gameState.currentTrick, { playerId, card }],
+  };
+}
+
+/**
+ * Process a completed trick using existing helpers
+ */
+function processTrickCompletion(gameState: GameState): GameState {
+  const trick = gameState.currentTrick as TrickCard[];
+
+  // Use existing helper to calculate trick result
+  const trickResult = calculateTrickResult(trick, gameState.trumpSuit, gameState);
+
+  // Apply scoring
+  let newState = applyTrickScoring(gameState, trickResult);
+
+  // Deal new cards if needed
+  if (newState.deck.length > 0 && newState.phase === 'playing') {
+    const { gameState: stateWithCards, newHands } = dealCardsAfterTrick(
+      newState,
+      newState.hands as Map<PlayerId, ReadonlyArray<Card>>,
+      trickResult.winnerId,
+    );
+    newState = { ...stateWithCards, hands: newHands };
+  }
+
+  // Check if last trick and apply bonus
+  const lastTrick = isLastTrick(newState.deck, newState.hands);
+  if (lastTrick) {
+    newState = applyLastTrickBonus(newState, trickResult.winnerTeam);
+  }
+
+  // Determine phase
+  let newPhase = newState.phase;
+  if (isGameOver(newState)) {
+    // Only when match is fully complete
+    newPhase = 'gameOver';
+  } else if (
+    // Auto-stop Vueltas as soon as any team reaches 101 combined points
+    newState.isVueltas &&
+    newState.initialScores &&
+    (newState.teams.some(team => (newState.initialScores!.get(team.id) || 0) + team.score >= 101))
+  ) {
+    newPhase = 'scoring';
+  } else if (lastTrick) {
+    newPhase = 'scoring';
+  }
+
+  // Clear trick and set next player
+  const winnerIndex = newState.players.findIndex(p => p.id === trickResult.winnerId);
+
+  const finalState = {
+    ...newState,
+    currentTrick: [],
+    currentPlayerIndex: winnerIndex,
+    phase: newPhase,
+    canCambiar7: newPhase === 'arrastre' ? false : newState.canCambiar7,
+    lastActionTimestamp: Date.now(),
+  };
+
+  // Validate in development
+  if (process.env.NODE_ENV === 'development') {
+    const validation = validateGameState(finalState);
+    if (!validation.isValid) {
+      console.error('Invalid state after trick completion:', validation.errors);
+    }
+  }
+
+  return finalState;
+}
+
+/**
+ * Play a card from player's hand (refactored to use helpers)
+ */
+export function playCard(gameState: GameState, playerId: PlayerId, card: Card): GameState | null {
+  // Step 1: Validation
+  if (!validateCanPlayCard(gameState, playerId, card)) {
+    return null;
+  }
+
+  // Step 2: Add card to trick
+  const stateWithCard = addCardToTrick(gameState, playerId, card);
+
+  // Step 3: If trick complete, process it
+  if (stateWithCard.currentTrick.length === 4) {
+    return processTrickCompletion(stateWithCard);
+  }
+
+  // Step 4: Next player's turn
+  return {
+    ...stateWithCard,
+    currentPlayerIndex: getNextPlayerIndex(stateWithCard.currentPlayerIndex, 4),
     lastActionTimestamp: Date.now(),
   };
 }

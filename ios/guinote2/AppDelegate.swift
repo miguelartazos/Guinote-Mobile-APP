@@ -41,7 +41,9 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 
   override func bundleURL() -> URL? {
 #if DEBUG
-    RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
+    // Force port 8083 for this project
+    RCTBundleURLProvider.sharedSettings().jsLocation = "localhost:8083"
+    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
 #else
     Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif

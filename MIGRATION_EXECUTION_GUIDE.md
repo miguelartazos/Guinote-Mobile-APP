@@ -1,18 +1,21 @@
 # Supabase Migration Execution Guide
 
 ## Overview
+
 This guide walks you through executing the Supabase SQL migrations in the correct order. The migrations create a complete database schema for the Guiñote card game.
 
 ## Prerequisites
+
 - Supabase CLI installed (`npm install supabase --save-dev` or `npm install -g supabase`)
 - Access to your Supabase project
 - Database connection configured
 
 ## Migration Files Created
+
 I've created separate SQL files for easier execution:
 
 1. `/Users/maiky/Documents/guinote2/run_migrations.sql` - Initial schema (Step 1)
-2. `/Users/maiky/Documents/guinote2/migration_step_2_rls.sql` - RLS policies (Step 2)  
+2. `/Users/maiky/Documents/guinote2/migration_step_2_rls.sql` - RLS policies (Step 2)
 3. `/Users/maiky/Documents/guinote2/migration_step_3_functions.sql` - Game functions (Step 3)
 4. `/Users/maiky/Documents/guinote2/migration_step_4_fixes.sql` - Fixes (Step 4)
 
@@ -71,6 +74,7 @@ psql "postgresql://[user]:[password]@[host]:[port]/[database]"
 ## What Each Migration Does
 
 ### Step 1: Initial Schema (`run_migrations.sql`)
+
 - Enables required PostgreSQL extensions (uuid-ossp, pgcrypto)
 - Creates all main tables:
   - `users` - User profiles and authentication
@@ -85,6 +89,7 @@ psql "postgresql://[user]:[password]@[host]:[port]/[database]"
 - Sets up triggers for updated_at fields
 
 ### Step 2: RLS Policies (`migration_step_2_rls.sql`)
+
 - Enables Row Level Security on all tables
 - Creates security policies ensuring:
   - Users can only access their own data
@@ -93,6 +98,7 @@ psql "postgresql://[user]:[password]@[host]:[port]/[database]"
 - Creates helper views for user management
 
 ### Step 3: Game Functions (`migration_step_3_functions.sql`)
+
 - `generate_room_code()` - Generates unique 6-character room codes
 - `create_room()` - Creates new game rooms
 - `join_room()` - Allows players to join existing rooms
@@ -104,6 +110,7 @@ psql "postgresql://[user]:[password]@[host]:[port]/[database]"
 - `add_ai_player()` - Placeholder for AI players (disabled)
 
 ### Step 4: Fixes (`migration_step_4_fixes.sql`)
+
 - Adds unique constraint ensuring one game state per room
 - Creates `end_trick()` function for atomic trick completion
 - Properly disables AI player functionality
@@ -114,19 +121,19 @@ After running all migrations, verify the setup:
 
 ```sql
 -- Check that all tables exist
-SELECT table_name FROM information_schema.tables 
-WHERE table_schema = 'public' 
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public'
 ORDER BY table_name;
 
 -- Check that RLS is enabled
-SELECT schemaname, tablename, rowsecurity 
-FROM pg_tables 
+SELECT schemaname, tablename, rowsecurity
+FROM pg_tables
 WHERE schemaname = 'public';
 
 -- Check functions were created
-SELECT routine_name 
-FROM information_schema.routines 
-WHERE routine_schema = 'public' 
+SELECT routine_name
+FROM information_schema.routines
+WHERE routine_schema = 'public'
 AND routine_type = 'FUNCTION';
 
 -- Test basic functionality
@@ -134,8 +141,9 @@ SELECT generate_room_code();
 ```
 
 Expected tables:
+
 - friendships
-- game_states  
+- game_states
 - game_stats
 - matchmaking_queue
 - room_players
@@ -186,6 +194,7 @@ DROP TABLE IF EXISTS users CASCADE;
 ## Support
 
 If you encounter issues during migration:
+
 1. Check Supabase logs in the dashboard
 2. Verify your database connection
 3. Ensure you have the necessary permissions

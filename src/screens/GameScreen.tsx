@@ -9,16 +9,25 @@ import { PassDeviceOverlay } from '../components/game/PassDeviceOverlay';
 import { CompactActionBar } from '../components/game/CompactActionBar';
 import { GameModals } from '../components/game/GameModals';
 import { AnimatedButton } from '../components/ui/AnimatedButton';
+import { Toast, toastManager } from '../components/ui/Toast';
+import { CanteAnimation } from '../components/game/CanteAnimation';
+import { Cambiar7Animation } from '../components/game/Cambiar7Animation';
 import { ScreenContainer } from '../components/ScreenContainer';
-import { ConnectionStatus } from '../components/game/ConnectionStatus';
+// import { ConnectionStatus } from '../components/game/ConnectionStatus';
 import { GameErrorBoundary } from '../components/game/GameErrorBoundary';
 // import { VoiceMessaging } from '../components/game/VoiceMessaging'; // Disabled until online works
 import { haptics } from '../utils/haptics';
 import type { JugarStackScreenProps } from '../types/navigation';
 import { useGameState } from '../hooks/useGameState';
 import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
-import { useUnifiedGame } from '../hooks/useUnifiedGame';
-import { canCantar, shouldStartVueltas } from '../utils/gameLogic';
+import { canCantar, shouldStartVueltas, determineVueltasWinner } from '../utils/gameLogic';
+import {
+  detectNewCante,
+  getPlayerPositionForIndex,
+  createCanteAnimationData,
+  shouldShowCanteAnimation,
+} from '../utils/canteDetection';
+import type { SpanishSuit } from '../types/cardTypes';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
 import { dimensions } from '../constants/dimensions';
@@ -52,22 +61,20 @@ const RENUNCIO_REASONS = [
 ];
 
 export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>) {
-  const { playerName, difficulty, gameMode, playerNames, roomId, roomCode } = route.params;
+  const { playerName, difficulty, gameMode, playerNames } = route.params;
   const isLocalMultiplayer = gameMode === 'local';
   const isOnline = gameMode === 'friends' || gameMode === 'online';
 
   // Get user for online games
-  const { user, isAuthenticated } = useUnifiedAuth();
+  const { user } = useUnifiedAuth();
 
   // Use appropriate game state hook based on game mode
-  const gameStateHook =
-    isOnline && roomId
-      ? useUnifiedGame(roomId)
-      : useGameState({
-          playerName: playerName || user?.username || 'Tú',
-          difficulty: difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
-          playerNames: playerNames,
-        });
+  // FIXME: Online mode is not fully implemented yet, always use offline mode
+  const gameStateHook = useGameState({
+    playerName: playerName || user?.username || 'Tú',
+    difficulty: difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
+    playerNames,
+  });
 
   const {
     gameState,
@@ -85,35 +92,57 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     isDealingComplete,
     completeDealingAnimation,
     completeTrickAnimation,
-    isConnected,
-    isLoading,
-    networkError,
-  } = gameStateHook as any;
+  } = gameStateHook;
 
   const [showLastTrick, setShowLastTrick] = useState(false);
   const [showDeclareVictory, setShowDeclareVictory] = useState(false);
   const [showRenuncio, setShowRenuncio] = useState(false);
   const [selectedRenuncioReason, setSelectedRenuncioReason] = useState('');
   const [showGameEndCelebration, setShowGameEndCelebration] = useState(false);
+  // Track last known match progression to avoid showing celebration too early
+  const lastProgressRef = useRef(0);
   const [showPassDevice, setShowPassDevice] = useState(false);
   const [lastPlayerIndex, setLastPlayerIndex] = useState<number | null>(null);
+  // Prevent rapid double-clicks from playing multiple cards
+  const isProcessingCardPlay = useRef(false);
   const [gameStartTime] = useState(Date.now());
+  const autoVueltasTriggeredRef = useRef(false);
+
+  // Cante animation state
+  const [canteAnimation, setCanteAnimation] = useState<{
+    active: boolean;
+    cards: Array<{ suit: SpanishSuit; value: number }>;
+    canteType: 'veinte' | 'cuarenta';
+    playerPosition: { x: number; y: number };
+    playerName: string;
+    playerAvatar?: string;
+  } | null>(null);
+
+  // Cambiar 7 animation state
+  const [cambiar7Animation, setCambiar7Animation] = useState<{
+    active: boolean;
+    playerCard: { id: string; suit: SpanishSuit; value: number };
+    trumpCard: { id: string; suit: SpanishSuit; value: number };
+    playerName: string;
+  } | null>(null);
 
   // Track if we've already recorded this game to prevent infinite loop
   const gameRecordedRef = useRef(false);
   const lastRecordedGameIdRef = useRef<string | null>(null);
 
-  // Handle network errors
-  React.useEffect(() => {
-    if (isOnline && networkError) {
-      Alert.alert('Connection Error', networkError, [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
-    }
-  }, [isOnline, networkError, navigation]);
+  // Track last cante count to detect new cantes from any player
+  const lastCanteCountRef = useRef(0);
+  // Debounce cante animations to prevent race conditions
+  const canteAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Toast state
+  const [toastConfig, setToastConfig] = useState<{
+    message: string;
+    type?: 'success' | 'error' | 'warning' | 'info';
+    duration?: number;
+  } | null>(null);
+
+  // Online flow is not active; network error handling removed
 
   const {
     playCardSound,
@@ -126,12 +155,99 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   } = useSounds();
   const { settings } = useGameSettings();
   const { recordGame } = useGameStatistics();
-  // Statistics recording removed for offline mode
-  // Will be added back when online mode is properly implemented
-  const recordGameResult = async () => {
-    console.log('📊 Game statistics recording skipped (offline mode)');
-  };
   // Audio hooks removed - these features were broken and deleted during cleanup
+
+  // Setup toast manager
+  React.useEffect(() => {
+    toastManager.setShowToast(config => {
+      setToastConfig(config);
+    });
+  }, []);
+
+  // Detect cantes from any player (including bots)
+  React.useEffect(() => {
+    if (!gameState) return;
+
+    const totalCantes = gameState.teams.reduce((sum, team) => sum + team.cantes.length, 0);
+
+    if (shouldShowCanteAnimation(totalCantes, lastCanteCountRef.current)) {
+      const newCante = detectNewCante(gameState.teams, lastCanteCountRef.current);
+
+      if (newCante) {
+        // Clear any pending animation
+        if (canteAnimationTimeoutRef.current) {
+          clearTimeout(canteAnimationTimeoutRef.current);
+        }
+
+        // Debounce the animation to prevent race conditions
+        canteAnimationTimeoutRef.current = setTimeout(() => {
+          const animationData = createCanteAnimationData(gameState, newCante);
+
+          if (animationData) {
+            const playerPosition = getPlayerPositionForIndex(animationData.playerIndex);
+
+            // Get the cante cards
+            const canteCards = [
+              { suit: animationData.suit, value: 10 }, // Sota
+              { suit: animationData.suit, value: 12 }, // Rey
+            ];
+
+            // Show animation
+            setCanteAnimation({
+              active: true,
+              cards: canteCards,
+              canteType: animationData.points === 40 ? 'cuarenta' : 'veinte',
+              playerPosition,
+              playerName: animationData.playerName,
+              playerAvatar: animationData.playerAvatar,
+            });
+
+            // Play sound
+            playCardSound?.();
+          }
+        }, 100); // Small debounce delay
+      }
+    }
+
+    // Update the ref
+    if (lastCanteCountRef.current === 0 && totalCantes > 0) {
+      // Initial load - don't trigger animations for existing cantes
+      lastCanteCountRef.current = totalCantes;
+    } else if (totalCantes !== lastCanteCountRef.current) {
+      lastCanteCountRef.current = totalCantes;
+    }
+
+    return () => {
+      if (canteAnimationTimeoutRef.current) {
+        clearTimeout(canteAnimationTimeoutRef.current);
+      }
+    };
+  }, [gameState?.teams, gameState?.currentPlayerIndex, playCardSound]);
+
+  // Auto-start vueltas a short moment after scoring if no team reached 101
+  React.useEffect(() => {
+    if (!gameState) return;
+    if (gameState.phase !== 'scoring') {
+      autoVueltasTriggeredRef.current = false;
+      return;
+    }
+
+    const shouldPlayVueltas = shouldStartVueltas(gameState);
+    if (shouldPlayVueltas && !autoVueltasTriggeredRef.current) {
+      autoVueltasTriggeredRef.current = true;
+      const t = setTimeout(() => {
+        continueFromScoring();
+        autoVueltasTriggeredRef.current = false;
+      }, 2000);
+      return () => clearTimeout(t);
+    }
+  }, [
+    gameState?.phase,
+    gameState?.teams,
+    gameState?.deck,
+    gameState?.isVueltas,
+    continueFromScoring,
+  ]);
 
   // Hide tab bar when this screen is focused
   useFocusEffect(
@@ -158,16 +274,6 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       };
     }, [navigation]),
   );
-
-  // Show loading state for online games
-  if (isOnline && isLoading) {
-    return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <Text style={styles.loadingText}>Connecting to game...</Text>
-        {roomCode && <Text style={styles.roomCode}>Room Code: {roomCode}</Text>}
-      </View>
-    );
-  }
 
   // Play turn sound when it's player's turn + Handle pass device for local multiplayer
   React.useEffect(() => {
@@ -205,11 +311,21 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
   // Play game over sound and record statistics
   React.useEffect(() => {
-    // Show celebration for partida/coto wins (scoring phase) or full match wins (gameOver phase)
-    if (
+    const matchScore = gameState?.matchScore;
+
+    // Compute a simple progress signature: total partidas + cotos
+    const progressSignature = matchScore
+      ? matchScore.team1Partidas +
+        matchScore.team2Partidas +
+        matchScore.team1Cotos +
+        matchScore.team2Cotos
+      : 0;
+
+    const shouldShowCelebration =
       gameState?.phase === 'gameOver' ||
-      (gameState?.phase === 'scoring' && gameState?.matchScore)
-    ) {
+      (gameState?.phase === 'scoring' && progressSignature > lastProgressRef.current);
+
+    if (shouldShowCelebration && gameState) {
       // Create a unique game session ID based on game start time and current state
       const gameSessionId = `${gameStartTime}-${gameState.teams[0].score}-${gameState.teams[1].score}`;
 
@@ -229,6 +345,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         playDefeatSound();
       }
       setShowGameEndCelebration(true);
+      lastProgressRef.current = progressSignature;
 
       // Record statistics only once per game session
       if (!gameRecordedRef.current) {
@@ -246,22 +363,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             playerScore,
             partnerPlayer?.name || 'IA',
             difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
-          ).catch(error => {
-            console.error('Failed to record offline game stats:', error);
+          ).catch(() => {
+            // Silently fail if stats recording fails
           });
         } else if (user && gameState.matchScore) {
           // Online games - Record stats for authenticated users
-          const userId = user.id || user._id;
-          if (userId) {
-            recordGameResult(
-              gameState,
-              userId,
-              gameMode as 'ranked' | 'casual' | 'friends',
-              gameStartTime,
-            ).catch(error => {
-              console.error('Failed to record online game stats:', error);
-            });
-          }
+          // Stats recording disabled for now as online mode is not fully implemented
         }
       }
     } else if (gameState?.phase === 'dealing' || gameState?.phase === 'playing') {
@@ -274,7 +381,6 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     playVictorySound,
     playDefeatSound,
     recordGame,
-    recordGameResult,
     difficulty,
     isOnline,
     user,
@@ -331,6 +437,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   const handleCardPlay = (cardIndex: number) => {
     if (!isDealingComplete) return;
 
+    // Prevent rapid double-clicks
+    if (isProcessingCardPlay.current) {
+      console.warn('⚠️ Blocked rapid card play attempt');
+      return;
+    }
+
     // For local multiplayer, check if it's the current human player's turn
     if (isLocalMultiplayer) {
       const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
@@ -349,8 +461,17 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     const cardToPlay = playerHand[cardIndex];
     if (!cardToPlay) return;
 
+    // Set lock before playing card
+    isProcessingCardPlay.current = true;
+
+    // Play the card
     playCard(cardToPlay.id);
     playCardSound();
+
+    // Reset lock after a short delay to allow state to update
+    setTimeout(() => {
+      isProcessingCardPlay.current = false;
+    }, 500);
 
     // Audio accessibility removed - feature was broken
   };
@@ -376,15 +497,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     const playerHand = gameState?.hands.get(currentPlayer.id) || [];
     const validCards = getValidCardsForCurrentPlayer();
 
-    // Debug logging only in arrastre
-    if (gameState.phase === 'arrastre' && validCards.length === 0) {
-      console.error('❌ No valid cards in Arrastre phase! Debug info:', {
-        phase: gameState.phase,
-        currentTrickLength: gameState.currentTrick.length,
-        playerHandSize: playerHand.length,
-        trumpSuit: gameState.trumpSuit,
-      });
-    }
+    // Debug logging only in arrastre - removed for production
 
     // Map valid cards to their indices in the player's hand
     const validIndices = playerHand
@@ -418,7 +531,10 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
     // For now, cantar the first available suit
     if (cantableSuits.length > 0) {
-      cantar(cantableSuits[0]);
+      const suit = cantableSuits[0];
+
+      // Just declare the cante - the useEffect will handle the animation
+      cantar(suit);
     }
   };
 
@@ -433,7 +549,30 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       if (!isPlayerTurn()) return;
     }
 
-    cambiar7();
+    const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+    if (!currentPlayer) return;
+
+    const playerHand = gameState?.hands.get(currentPlayer.id) || [];
+    const seven = playerHand.find(c => c.suit === gameState.trumpSuit && c.value === 7);
+
+    if (!seven) return;
+
+    // Show animation
+    setCambiar7Animation({
+      active: true,
+      playerCard: seven,
+      trumpCard: gameState.trumpCard,
+      playerName: currentPlayer.name,
+    });
+
+    // Play sound
+    playCardSound();
+
+    // Perform the actual cambiar7 after a short delay to sync with animation
+    // Animation breakdown: message (500ms + 1000ms wait) + card swap (1000ms + 600ms wait) = 2500ms total
+    setTimeout(() => {
+      cambiar7();
+    }, 2100);
   };
 
   const handleSalir = () => {
@@ -474,6 +613,63 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     const team2 = gameState.teams[1];
     const shouldPlayVueltas = shouldStartVueltas(gameState);
 
+    // If a team reached 101 in the first hand, show celebration immediately
+    if (!gameState.isVueltas && (team1.score >= 101 || team2.score >= 101)) {
+      const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
+      const winnerTeamId = team1.score >= 101 ? team1.id : team2.id;
+      const playerWon = winnerTeamId && playerTeam && winnerTeamId === playerTeam.id;
+
+      return (
+        <GameEndCelebration
+          isWinner={!!playerWon}
+          finalScore={{ player: team1.score, opponent: team2.score }}
+          onComplete={() => setShowGameEndCelebration(false)}
+          playSound={playerWon ? playVictorySound : playDefeatSound}
+          celebrationType={'partida'}
+          matchScore={gameState.matchScore}
+          onContinue={continueFromScoring}
+        />
+      );
+    }
+
+    // If we have a partida/coto result to announce, show the celebration overlay here
+    if (showGameEndCelebration) {
+      // Determine if player's team won
+      const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
+      let winnerTeamId: string | undefined;
+      if (gameState.isVueltas) {
+        // Winner decided by combined scores across hands
+        const wt = determineVueltasWinner(gameState);
+        winnerTeamId = wt || undefined;
+      } else {
+        // Winner decided by first hand reaching 101
+        const wt = gameState.teams.find(t => t.score >= 101);
+        winnerTeamId = wt?.id;
+      }
+      const playerWon = winnerTeamId && playerTeam && winnerTeamId === playerTeam.id;
+
+      return (
+        <GameEndCelebration
+          isWinner={!!playerWon}
+          finalScore={{ player: team1.score, opponent: team2.score }}
+          onComplete={() => setShowGameEndCelebration(false)}
+          playSound={playerWon ? playVictorySound : playDefeatSound}
+          celebrationType={'partida'}
+          matchScore={gameState.matchScore}
+          onContinue={continueFromScoring}
+        />
+      );
+    }
+
+    // Auto-advance behavior: after 5s show celebration if a team reached 101 in first hand
+    if (!gameState.isVueltas && (team1.score >= 101 || team2.score >= 101)) {
+      setTimeout(() => {
+        if (!showGameEndCelebration) {
+          setShowGameEndCelebration(true);
+        }
+      }, 5000);
+    }
+
     return (
       <ScreenContainer orientation="landscape" style={styles.scoringContainer}>
         <StatusBar hidden />
@@ -506,24 +702,20 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         <Text style={styles.scoringInfo}>
           {shouldPlayVueltas
             ? 'Ningún equipo ha alcanzado 101 puntos. ¡Vamos a las VUELTAS!'
-            : team1.score >= 101 && team1.cardPoints < 30
-            ? 'Nosotros: 101+ puntos pero menos de 30 malas. ¡Continúa el juego!'
-            : team2.score >= 101 && team2.cardPoints < 30
-            ? 'Ellos: 101+ puntos pero menos de 30 malas. ¡Continúa el juego!'
             : team1.score >= 101
             ? '¡Nosotros ganamos la partida!'
-            : '¡Ellos ganan la partida!'}
+            : team2.score >= 101
+            ? '¡Ellos ganan la partida!'
+            : 'Mano completada'}
         </Text>
 
-        {(team1.cardPoints < 30 || team2.cardPoints < 30) && (
-          <Text style={styles.malasWarning}>
-            ⚠️ Puntos de cartas - Nosotros: {team1.cardPoints} | Ellos: {team2.cardPoints}
-          </Text>
-        )}
+        {/* 30 malas hint removed per updated rules */}
 
         <AnimatedButton
           style={[styles.gameOverButton, styles.continueButton]}
-          onPress={continueFromScoring}
+          onPress={() => {
+            continueFromScoring();
+          }}
           hapticType="medium"
         >
           <Text style={styles.continueButtonText}>
@@ -629,7 +821,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         <StatusBar hidden />
 
         {/* Connection status for online games */}
-        {isOnline && <ConnectionStatus />}
+        {/* {isOnline && <ConnectionStatus />} */}
 
         {/* Voice messaging for online games - disabled until online works */}
         {/* {isOnline && (
@@ -688,7 +880,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           validCardIndices={getValidCardIndices()}
           isVueltas={gameState.isVueltas}
           canDeclareVictory={gameState.canDeclareVictory}
-          collectedTricks={gameState.collectedTricks}
+          collectedTricks={
+            gameState.collectedTricks as unknown as ReadonlyMap<
+              string,
+              Array<Array<{ playerId: string; card: any }>>
+            >
+          }
           trickAnimating={gameState.trickAnimating}
           pendingTrickWinner={
             gameState.pendingTrickWinner
@@ -784,6 +981,41 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             playerAvatar={gameState.players[gameState.currentPlayerIndex].avatar}
             onContinue={() => setShowPassDevice(false)}
             autoHideDelay={3000}
+          />
+        )}
+
+        {/* Cante animation overlay */}
+        {canteAnimation?.active && (
+          <CanteAnimation
+            cards={canteAnimation.cards.map(c => ({ suit: c.suit, value: c.value as 10 | 12 }))}
+            canteType={canteAnimation.canteType}
+            playerPosition={canteAnimation.playerPosition}
+            playerName={canteAnimation.playerName}
+            playerAvatar={canteAnimation.playerAvatar}
+            onComplete={() => setCanteAnimation(null)}
+            playSound={playCardSound}
+          />
+        )}
+
+        {/* Cambiar 7 animation overlay */}
+        {cambiar7Animation?.active && (
+          <Cambiar7Animation
+            playerCard={cambiar7Animation.playerCard as any}
+            trumpCard={cambiar7Animation.trumpCard as any}
+            playerName={cambiar7Animation.playerName}
+            onComplete={() => setCambiar7Animation(null)}
+            playSound={playCardSound}
+          />
+        )}
+
+        {/* Toast notification */}
+        {toastConfig && (
+          <Toast
+            visible={!!toastConfig}
+            message={toastConfig.message}
+            type={toastConfig.type}
+            duration={toastConfig.duration}
+            onHide={() => setToastConfig(null)}
           />
         )}
       </ScreenContainer>

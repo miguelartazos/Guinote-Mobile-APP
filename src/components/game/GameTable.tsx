@@ -15,6 +15,7 @@ import { useOrientation } from '../../hooks/useOrientation';
 import { useTableLayout } from '../../hooks/useTableLayout';
 import { getPlayerCardPosition, getDeckPosition, type LayoutInfo } from '../../utils/cardPositions';
 import { getTrickCardPositionWithinBoard } from '../../utils/trickCardPositions';
+import type { PlayerId } from '../../types/game.types';
 
 type Player = {
   id: string;
@@ -29,9 +30,9 @@ type GameTableProps = {
   currentPlayerIndex: number;
   trumpCard?: SpanishCardData;
   currentTrick?: Array<{ playerId: string; card: SpanishCardData }>;
-  collectedTricks?: Map<string, Array<Array<{ playerId: string; card: SpanishCardData }>>>;
+  collectedTricks?: ReadonlyMap<string, Array<Array<{ playerId: string; card: SpanishCardData }>>>;
   onCardPlay: (cardIndex: number) => void;
-  onCardReorder?: (playerId: string, fromIndex: number, toIndex: number) => void;
+  onCardReorder?: (playerId: PlayerId, fromIndex: number, toIndex: number) => void;
   onExitGame?: () => void;
   onRenuncio?: () => void;
   thinkingPlayerId?: string | null;
@@ -46,6 +47,8 @@ type GameTableProps = {
     playerId: string;
     points: number;
     cards: SpanishCardData[];
+    isLastTrick?: boolean;
+    bonus?: number;
   };
   onCompleteTrickAnimation?: () => void;
 };
@@ -264,7 +267,7 @@ export function GameTable({
                   <SpanishCard
                     key={`trick-${index}`}
                     card={play.card}
-                    size="medium"
+                    size="small"
                     style={[
                       styles.trickCard,
                       getTrickCardPositionWithinBoard(position, layout.board),
@@ -283,6 +286,8 @@ export function GameTable({
           cards={pendingTrickWinner.cards}
           winnerPosition={getPlayerPosition(playerIdToPosition[pendingTrickWinner.playerId] ?? 0)}
           points={pendingTrickWinner.points}
+          bonus={pendingTrickWinner.bonus}
+          showLastTrickBonus={!!pendingTrickWinner.isLastTrick && (pendingTrickWinner.bonus || 0) > 0}
           onComplete={() => {
             onCompleteTrickAnimation?.();
           }}
@@ -363,11 +368,12 @@ export function GameTable({
                 onCardPlay={onCardPlay}
                 onReorder={
                   onCardReorder
-                    ? (fromIndex, toIndex) => onCardReorder(bottomPlayer.id, fromIndex, toIndex)
+                    ? (fromIndex, toIndex) => onCardReorder((bottomPlayer.id as unknown) as PlayerId, fromIndex, toIndex)
                     : undefined
                 }
                 dropZoneBounds={dropZoneBounds || undefined}
                 isEnabled={!isDealing && !!dropZoneBounds && isPlayerTurn && isValidCard}
+                isPlayerTurn={isPlayerTurn}
                 cardSize="medium" // match dealing size for consistency
                 totalCards={bottomPlayer.cards.length}
                 cardWidth={scaledCardWidth}
@@ -381,7 +387,6 @@ export function GameTable({
                   },
                   styles.handCard,
                   landscape && styles.handCardLandscape,
-                  !isValidCard && isPlayerTurn && styles.invalidCard,
                 ]}
               />
             );
@@ -573,10 +578,6 @@ const styles = StyleSheet.create({
     left: 'auto',
     flexDirection: 'row',
     gap: 10,
-  },
-  invalidCard: {
-    opacity: 0.5,
-    // Grayed out cards that can't be played
   },
   vueltasIndicator: {
     position: 'absolute',

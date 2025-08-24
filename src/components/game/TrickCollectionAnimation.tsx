@@ -13,6 +13,8 @@ type TrickCollectionAnimationProps = {
   cards: Array<{ suit: SpanishSuit; value: CardValue }>;
   winnerPosition: { x: number; y: number };
   points: number;
+  bonus?: number;
+  showLastTrickBonus?: boolean;
   onComplete: () => void;
   playSound?: () => void;
 };
@@ -21,6 +23,8 @@ export function TrickCollectionAnimation({
   cards,
   winnerPosition,
   points: _points,
+  bonus,
+  showLastTrickBonus,
   onComplete,
   playSound,
 }: TrickCollectionAnimationProps) {
@@ -190,6 +194,18 @@ export function TrickCollectionAnimation({
       >
         <Text style={styles.sparkleText}>✨</Text>
       </Animated.View>
+
+      {/* Last trick bonus overlay */}
+      {showLastTrickBonus && (
+        <View
+          style={[
+            styles.bonusContainer,
+            { left: winnerPosition.x - 10, top: winnerPosition.y - 50 },
+          ]}
+        >
+          <Text style={styles.bonusText}>+{(bonus ?? 10).toString()} de últimas</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -209,5 +225,20 @@ const styles = StyleSheet.create({
   },
   sparkleText: {
     fontSize: 40,
+  },
+  bonusContainer: {
+    position: 'absolute',
+    zIndex: 4,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D4A574',
+  },
+  bonusText: {
+    color: '#D4A574',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });

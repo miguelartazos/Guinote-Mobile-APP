@@ -114,6 +114,10 @@ export type GameState = Readonly<{
     playerId: PlayerId;
     points: number;
     cards: ReadonlyArray<Card>;
+    // True when this pending trick was the very last trick of the hand
+    isLastTrick?: boolean;
+    // Bonus points applied to this trick (e.g., +10 de últimas)
+    bonus?: number;
   }; // Data for trick animation
   matchScore?: MatchScore; // Track buenas/malas sets
 }>;

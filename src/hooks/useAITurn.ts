@@ -168,7 +168,8 @@ export function useAITurn({
     }
 
     // Set thinking indicator after clearing timers
-    setThinkingPlayer(currentPlayer.id);
+    // Disabled: Don't show "está pensando" message for bots
+    // setThinkingPlayer(currentPlayer.id);
 
     // Capture all necessary data in closure to prevent stale references
     const botId = currentPlayer.id;

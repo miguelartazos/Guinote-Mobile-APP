@@ -420,7 +420,7 @@ function selectFollowingCard(
   const trumpLosers = validCards.filter(c => c.suit === trumpSuit && !winningCards.includes(c));
 
   // PHASE-AWARE STRATEGY
-  if (phase === 'arrastre' || phase === 'vueltas') {
+  if (phase === 'arrastre' || gameState.isVueltas) {
     // ARRASTRE: Very conservative with trumps
     if (winningCards.length > 0) {
       // High value trick - must win but preserve trumps if possible
@@ -588,11 +588,16 @@ export function playAICard(
 
   // If no valid cards in arrastre, something is wrong - return any card
   if (validCards.length === 0) {
-    console.error('❌ No valid cards found! Phase:', phase, 'Hand size:', hand.length);
+    console.warn('⚠️ No valid cards computed. Phase:', phase, 'Hand size:', hand.length);
     // In arrastre phase, if no valid moves found, return first card as fallback
     if (phase === 'arrastre' && hand.length > 0) {
       console.warn('🔧 ARRASTRE FALLBACK: Playing first card');
       return hand[0];
+    }
+    // General fallback: play the lowest-value card to minimize harm
+    if (hand.length > 0) {
+      const sorted = [...hand].sort((a, b) => getCardPoints(a) - getCardPoints(b));
+      return sorted[0];
     }
     return null;
   }

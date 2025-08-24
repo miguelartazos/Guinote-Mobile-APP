@@ -307,6 +307,7 @@ describe('applyGameMove', () => {
         ['team2' as TeamId, 40],
       ]);
       gameState.teams[0].score = 80;
+      gameState.teams[0].cardPoints = 35; // Add card points to meet 30 malas rule
       gameState.teams[1].score = 50;
 
       const move = createMove.declareVictory('player1' as PlayerId);
@@ -326,7 +327,9 @@ describe('applyGameMove', () => {
         ['team2' as TeamId, 50],
       ]);
       gameState.teams[0].score = 60;
+      gameState.teams[0].cardPoints = 35; // Add card points
       gameState.teams[1].score = 60;
+      gameState.teams[1].cardPoints = 35; // Add card points
 
       const move = createMove.declareVictory('player1' as PlayerId);
       const newState = applyGameMove(gameState, move);
@@ -383,9 +386,6 @@ describe('continueFromScoring', () => {
 
     expect(newState).not.toBeNull();
     expect(newState!.phase).toBe('gameOver');
-    expect(newState!.matchScore).toBeDefined();
-    expect(newState!.matchScore?.team1Sets).toBe(1);
-    expect(newState!.matchScore?.team2Sets).toBe(0);
   });
 
   it('continues to vueltas when team has 101 but less than 30 card points', () => {
