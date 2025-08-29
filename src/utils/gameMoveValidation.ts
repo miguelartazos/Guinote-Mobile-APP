@@ -1,6 +1,7 @@
 import type { GameState, Card, PlayerId } from '../types/game.types';
 import type { GameMove } from '../types/gameMove.types';
-import { isValidPlay, findPlayerTeam } from './gameLogic';
+import { isValidPlay } from './gameLogic';
+import { areTeammates } from './teamValidation';
 
 /**
  * Validate a game move before applying it
@@ -57,9 +58,11 @@ export function isValidMove(gameState: GameState, move: GameMove): boolean {
 
         // Must have won last trick
         if (!gameState.lastTrickWinner) return false;
-        const lastWinnerTeam = findPlayerTeam(gameState.lastTrickWinner, gameState);
-        const playerTeam = findPlayerTeam(move.playerId, gameState);
-        if (lastWinnerTeam !== playerTeam) return false;
+
+        // Check if player is on same team as last trick winner
+        if (!areTeammates(gameState.lastTrickWinner, move.playerId, gameState)) {
+          return false;
+        }
 
         // Current trick must be empty (not started)
         if (gameState.currentTrick.length > 0) return false;

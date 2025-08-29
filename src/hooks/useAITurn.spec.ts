@@ -8,7 +8,7 @@ import * as aiPlayer from '../utils/aiPlayer';
 // Mock the AI player utilities
 jest.mock('../utils/aiPlayer');
 
-describe('useAITurn - Cante Workflow', () => {
+describe('useAITurn', () => {
   let mockGameState: GameState;
   let mockPlayCard: jest.Mock;
   let mockCantar: jest.Mock;
@@ -259,5 +259,152 @@ describe('useAITurn - Cante Workflow', () => {
 
     // Verify playCard was still called
     expect(mockPlayCard).toHaveBeenCalledWith('card3');
+  });
+
+  describe('Phase validation', () => {
+    test('should not attempt to play during dealing phase', () => {
+      const dealingState = {
+        ...mockGameState,
+        phase: 'dealing' as const,
+        currentPlayerIndex: 1, // Bot's turn
+      };
+
+      const { result } = renderHook(() =>
+        useAITurn({
+          gameState: dealingState,
+          currentTurnKey: 'test-turn-1',
+          playCard: mockPlayCard,
+          cantar: mockCantar,
+          aiMemory: mockAIMemory,
+          setAIMemory: mockSetAIMemory,
+        }),
+      );
+
+      // Advance timers
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+
+      // AI should not attempt to play
+      expect(mockPlayCard).not.toHaveBeenCalled();
+      expect(mockCantar).not.toHaveBeenCalled();
+      expect(result.current.thinkingPlayer).toBeNull();
+    });
+
+    test('should not attempt to play during scoring phase', () => {
+      const scoringState = {
+        ...mockGameState,
+        phase: 'scoring' as const,
+        currentPlayerIndex: 1, // Bot's turn
+      };
+
+      const { result } = renderHook(() =>
+        useAITurn({
+          gameState: scoringState,
+          currentTurnKey: 'test-turn-2',
+          playCard: mockPlayCard,
+          cantar: mockCantar,
+          aiMemory: mockAIMemory,
+          setAIMemory: mockSetAIMemory,
+        }),
+      );
+
+      // Advance timers
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+
+      // AI should not attempt to play
+      expect(mockPlayCard).not.toHaveBeenCalled();
+      expect(mockCantar).not.toHaveBeenCalled();
+      expect(result.current.thinkingPlayer).toBeNull();
+    });
+
+    test('should not attempt to play during gameOver phase', () => {
+      const gameOverState = {
+        ...mockGameState,
+        phase: 'gameOver' as const,
+        currentPlayerIndex: 1, // Bot's turn
+      };
+
+      const { result } = renderHook(() =>
+        useAITurn({
+          gameState: gameOverState,
+          currentTurnKey: 'test-turn-3',
+          playCard: mockPlayCard,
+          cantar: mockCantar,
+          aiMemory: mockAIMemory,
+          setAIMemory: mockSetAIMemory,
+        }),
+      );
+
+      // Advance timers
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+
+      // AI should not attempt to play
+      expect(mockPlayCard).not.toHaveBeenCalled();
+      expect(mockCantar).not.toHaveBeenCalled();
+      expect(result.current.thinkingPlayer).toBeNull();
+    });
+
+    test('should play during playing phase', () => {
+      // Mock the AI to select a card
+      (aiPlayer.playAICard as jest.Mock).mockReturnValue({ id: 'card1', suit: 'oros', value: 1 });
+      (aiPlayer.shouldAICante as jest.Mock).mockReturnValue(null);
+      (aiPlayer.getAIThinkingTime as jest.Mock).mockReturnValue(1000);
+
+      const { result } = renderHook(() =>
+        useAITurn({
+          gameState: mockGameState, // Already in 'playing' phase
+          currentTurnKey: 'test-turn-4',
+          playCard: mockPlayCard,
+          cantar: mockCantar,
+          aiMemory: mockAIMemory,
+          setAIMemory: mockSetAIMemory,
+        }),
+      );
+
+      // Advance timers
+      act(() => {
+        jest.advanceTimersByTime(2000);
+      });
+
+      // AI should play
+      expect(mockPlayCard).toHaveBeenCalledWith('card1');
+    });
+
+    test('should play during arrastre phase', () => {
+      const arrastreState = {
+        ...mockGameState,
+        phase: 'arrastre' as const,
+        currentPlayerIndex: 1, // Bot's turn
+      };
+
+      // Mock the AI to select a card
+      (aiPlayer.playAICard as jest.Mock).mockReturnValue({ id: 'card2', suit: 'copas', value: 3 });
+      (aiPlayer.shouldAICante as jest.Mock).mockReturnValue(null);
+      (aiPlayer.getAIThinkingTime as jest.Mock).mockReturnValue(1000);
+
+      const { result } = renderHook(() =>
+        useAITurn({
+          gameState: arrastreState,
+          currentTurnKey: 'test-turn-5',
+          playCard: mockPlayCard,
+          cantar: mockCantar,
+          aiMemory: mockAIMemory,
+          setAIMemory: mockSetAIMemory,
+        }),
+      );
+
+      // Advance timers
+      act(() => {
+        jest.advanceTimersByTime(2000);
+      });
+
+      // AI should play
+      expect(mockPlayCard).toHaveBeenCalledWith('card2');
+    });
   });
 });

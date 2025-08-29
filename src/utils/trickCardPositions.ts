@@ -9,14 +9,14 @@ export function getTrickCardPositionWithinBoard(
   // symmetric offsets toward each player's side (classic cross layout).
   if (boardLayout) {
     const { width, height } = boardLayout;
-    const dims = getCardDimensions().small; // Use small dimensions for played cards
+    const dims = getCardDimensions().medium; // Use medium dimensions for larger played cards
     const centerX = width / 2;
     const centerY = height / 2;
 
-    // Adjusted offsets for smaller cards - increased horizontal spread for better separation
+    // Adjusted offsets for medium cards - increased spacing for better visibility
     // Cards should be clearly separated in the center
-    const spreadX = dims.width * 0.9; // Increased to 90% of card width for maximum horizontal separation
-    const spreadY = dims.height * 0.5; // 50% of card height offset vertically
+    const spreadX = dims.width * 0.85; // 85% of card width for good horizontal separation
+    const spreadY = dims.height * 0.45; // 45% of card height offset vertically
 
     const positions: ViewStyle[] = [
       // Bottom player - moved much higher to avoid overlap with hand cards
@@ -53,7 +53,7 @@ export function getTrickCardPositionWithinBoard(
   }
 
   // Fallback to percentage-based positioning
-  const dims = getCardDimensions().small;
+  const dims = getCardDimensions().medium;
   const margin = 24;
   const positions: ViewStyle[] = [
     {

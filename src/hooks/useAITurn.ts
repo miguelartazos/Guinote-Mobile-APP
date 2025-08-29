@@ -71,15 +71,28 @@ export function useAITurn({
     }
 
     // Do not make AI decisions while trick or post-trick dealing animation/pause is running
-    if (gameState.trickAnimating || gameState.postTrickDealingAnimating || (gameState as any).postTrickDealingPending) {
-      console.log('🎬 AI Turn: Skipping - trick animation in progress', {
+    if (
+      gameState.trickAnimating ||
+      gameState.postTrickDealingAnimating ||
+      gameState.postTrickDealingPending
+    ) {
+      console.log('🎬 AI Turn: Skipping - animation in progress', {
         player: gameState.players[gameState.currentPlayerIndex].name,
         currentTrickLength: gameState.currentTrick.length,
+        trickAnimating: gameState.trickAnimating,
+        postTrickDealingAnimating: gameState.postTrickDealingAnimating,
+        postTrickDealingPending: gameState.postTrickDealingPending,
       });
       return;
     }
 
-    if (gameState.phase !== 'playing' && gameState.phase !== 'arrastre') {
+    if (
+      gameState.phase === 'dealing' ||
+      gameState.phase === 'scoring' ||
+      gameState.phase === 'gameOver' ||
+      gameState.phase === 'waiting' ||
+      gameState.phase === 'finished'
+    ) {
       console.log('🚫 AI Turn: Invalid phase:', gameState.phase);
       return;
     }
@@ -124,7 +137,16 @@ export function useAITurn({
     }
 
     if (!playerHand || playerHand.length === 0) {
-      console.error('❌ AI Turn: Bot has no cards!', currentPlayer.name);
+      // This can happen legitimately when cards are being dealt after a trick
+      // The postTrickDealingAnimating/Pending checks above should prevent this
+      // but add extra safety logging
+      console.log('⏳ AI Turn: Bot temporarily has no cards (dealing in progress?)', {
+        player: currentPlayer.name,
+        phase: gameState.phase,
+        deckSize: gameState.deck.length,
+        trickCount: gameState.trickCount,
+        hasPendingDraws: !!gameState.pendingPostTrickDraws?.length,
+      });
       return;
     }
 
@@ -149,11 +171,15 @@ export function useAITurn({
         }
         setThinkingPlayer(null);
         retryAttemptsRef.current = 0;
+        // Clear last played card ref when forcing play
+        lastPlayedCardRef.current = null;
         return;
       }
     } else {
-      // Reset retry attempts for new turn
+      // Reset retry attempts and last played card for new turn
       retryAttemptsRef.current = 0;
+      // Clear last played card ref when turn changes
+      lastPlayedCardRef.current = null;
     }
     lastTurnKeyRef.current = currentTurnKey;
 
@@ -168,7 +194,7 @@ export function useAITurn({
     }
 
     // Set thinking indicator after clearing timers
-    // Disabled: Don't show "está pensando" message for bots
+    // Disabled: Don't show "está pensando" message for bots - better UX without it
     // setThinkingPlayer(currentPlayer.id);
 
     // Capture all necessary data in closure to prevent stale references
@@ -330,7 +356,7 @@ export function useAITurn({
           // This ensures recovery still happens if cante doesn't lead to card play
 
           if (botHand.length === 0) {
-            console.error('❌ BOT HAS NO CARDS:', botName);
+            console.log('⏳ Bot has no cards in timer callback (dealing in progress?)', botName);
             setThinkingPlayer(null);
             return;
           }
@@ -379,12 +405,32 @@ export function useAITurn({
           );
 
           if (cardToPlay) {
+            console.log('🎯 AI selected card:', {
+              bot: botName,
+              card: `${cardToPlay.value} de ${cardToPlay.suit}`,
+              phase: capturedGameState.phase,
+              trickSize: capturedGameState.currentTrick.length,
+            });
             // Check if we're trying to play the same card again (stuck state)
             if (lastPlayedCardRef.current === cardToPlay.id) {
-              console.error('❌ AI trying to play same card again, selecting different card');
-              const alternativeCards = botHand.filter(c => c.id !== cardToPlay.id);
+              console.error('❌ AI trying to play same card again, selecting different card', {
+                lastPlayed: lastPlayedCardRef.current,
+                attempting: cardToPlay.id,
+                bot: botName,
+              });
+              // Get valid cards and filter out the stuck card
+              const validCards = getValidCards(botHand, capturedGameState, currentPlayer.id);
+              const alternativeCards = validCards.filter(c => c.id !== cardToPlay.id);
               const alternativeCard =
-                alternativeCards.length > 0 ? alternativeCards[0] : cardToPlay;
+                alternativeCards.length > 0
+                  ? alternativeCards[0]
+                  : validCards.length > 0
+                  ? validCards[0]
+                  : cardToPlay;
+              console.log('🔄 Selected alternative card:', {
+                card: `${alternativeCard.value} de ${alternativeCard.suit}`,
+                id: alternativeCard.id,
+              });
               lastPlayedCardRef.current = alternativeCard.id;
               playCardRef.current?.(alternativeCard.id);
             } else {
@@ -444,6 +490,8 @@ export function useAITurn({
         botRecoveryTimerRef.current = null;
       }
       setThinkingPlayer(null);
+      // Clear last played card ref on cleanup
+      lastPlayedCardRef.current = null;
       isCleaningUpRef.current = false;
     };
   }, [

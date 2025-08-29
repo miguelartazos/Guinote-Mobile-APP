@@ -152,24 +152,24 @@ export function Cambiar7Animation({
           Animated.timing(sevenAnimation.scale, {
             toValue: 1.15,
             duration: 200,
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
           // Then move to deck position
           Animated.parallel([
             Animated.timing(sevenAnimation.translateX, {
               toValue: adjustedDeckPosition.x + 5, // Slightly offset to show it's going under
               duration: 600,
-              useNativeDriver: false,
+              useNativeDriver: true,
             }),
             Animated.timing(sevenAnimation.translateY, {
               toValue: adjustedDeckPosition.y + 5,
               duration: 600,
-              useNativeDriver: false,
+              useNativeDriver: true,
             }),
             Animated.timing(sevenAnimation.rotation, {
               toValue: 90, // Rotate to match trump orientation
               duration: 600,
-              useNativeDriver: false,
+              useNativeDriver: true,
             }),
             Animated.sequence([
               Animated.delay(400),
@@ -187,24 +187,24 @@ export function Cambiar7Animation({
           Animated.timing(trumpAnimation.scale, {
             toValue: 1.15,
             duration: 200,
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
           // Then move to player position
           Animated.parallel([
             Animated.timing(trumpAnimation.translateX, {
               toValue: adjustedPlayerPosition.x,
               duration: 600,
-              useNativeDriver: false,
+              useNativeDriver: true,
             }),
             Animated.timing(trumpAnimation.translateY, {
               toValue: adjustedPlayerPosition.y,
               duration: 600,
-              useNativeDriver: false,
+              useNativeDriver: true,
             }),
             Animated.timing(trumpAnimation.rotation, {
               toValue: playerHandPosition.rotation,
               duration: 600,
-              useNativeDriver: false,
+              useNativeDriver: true,
             }),
           ]),
         ]),

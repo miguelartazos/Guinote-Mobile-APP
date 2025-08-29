@@ -100,6 +100,7 @@ export type GameState = Readonly<{
   trickCount: number; // Total tricks played
   trickWins: ReadonlyMap<TeamId, number>;
   collectedTricks: ReadonlyMap<PlayerId, ReadonlyArray<TrickCard[]>>; // Tricks won by each player
+  teamTrickPiles: ReadonlyMap<TeamId, ReadonlyArray<TrickCard[]>>; // Tricks won by each team
   lastTrickWinner?: PlayerId;
   lastTrick?: ReadonlyArray<TrickCard>;
   canCambiar7: boolean;
@@ -114,6 +115,7 @@ export type GameState = Readonly<{
     playerId: PlayerId;
     points: number;
     cards: ReadonlyArray<Card>;
+    teamId: TeamId; // Add team ID for animation target
     // True when this pending trick was the very last trick of the hand
     isLastTrick?: boolean;
     // Bonus points applied to this trick (e.g., +10 de últimas)
@@ -149,8 +151,8 @@ export const CARD_POINTS: Record<CardValue, number> = {
   1: 11, // As
   3: 10, // Tres
   12: 4, // Rey
-  11: 2, // Caballo
   10: 3, // Sota
+  11: 2, // Caballo
   7: 0,
   6: 0,
   5: 0,

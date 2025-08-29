@@ -39,13 +39,16 @@ export const scaleFont = (size: number): number => {
 export const getResponsiveFontSize = scaleFont;
 
 export const isSmallScreen = (): boolean => {
-  const { width } = Dimensions.get('window');
-  return width < 375;
+  const { width, height } = Dimensions.get('window');
+  const shortestSide = Math.min(width, height);
+  return shortestSide < 375;
 };
 
 export const isTablet = (): boolean => {
-  const { width } = Dimensions.get('window');
-  return width >= 768;
+  const { width, height } = Dimensions.get('window');
+  const shortestSide = Math.min(width, height);
+  // Use the shortest side threshold so landscape phones are not treated as tablets
+  return shortestSide >= 768;
 };
 
 export const getCardDimensions = () => {

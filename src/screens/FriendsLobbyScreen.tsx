@@ -311,6 +311,8 @@ const styles = StyleSheet.create({
     paddingVertical: dimensions.spacing.sm,
     borderRadius: dimensions.borderRadius.lg,
     marginTop: dimensions.spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.accent,
   },
   userIcon: {
     fontSize: 20,
@@ -324,6 +326,9 @@ const styles = StyleSheet.create({
   card: {
     marginVertical: dimensions.spacing.md,
     padding: dimensions.spacing.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -331,7 +336,7 @@ const styles = StyleSheet.create({
     marginBottom: dimensions.spacing.lg,
   },
   cardIcon: {
-    fontSize: 32,
+    fontSize: 36,
     marginRight: dimensions.spacing.md,
   },
   cardTitleContainer: {
@@ -374,6 +379,9 @@ const styles = StyleSheet.create({
     marginTop: dimensions.spacing.lg,
     marginBottom: dimensions.spacing.xl,
     minHeight: 200,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   friendsHeader: {
     flexDirection: 'row',
@@ -390,7 +398,7 @@ const styles = StyleSheet.create({
     padding: dimensions.spacing.sm,
   },
   refreshIcon: {
-    fontSize: 24,
+    fontSize: 28,
   },
   friendsList: {
     gap: dimensions.spacing.sm,
@@ -398,6 +406,12 @@ const styles = StyleSheet.create({
   friendCard: {
     marginBottom: dimensions.spacing.sm,
     padding: dimensions.spacing.md,
+    backgroundColor: colors.secondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   friendInfo: {
     flexDirection: 'row',
@@ -409,15 +423,15 @@ const styles = StyleSheet.create({
     marginRight: dimensions.spacing.md,
   },
   friendAvatar: {
-    fontSize: 32,
+    fontSize: 36,
   },
   onlineIndicator: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: colors.cantarGreen,
     borderWidth: 2,
     borderColor: colors.background,
@@ -436,12 +450,12 @@ const styles = StyleSheet.create({
     gap: dimensions.spacing.md,
   },
   friendElo: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.md,
     color: colors.accent,
     fontWeight: typography.fontWeight.medium,
   },
   friendStatus: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.md,
     color: colors.cantarGreen,
     fontWeight: typography.fontWeight.medium,
   },

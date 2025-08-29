@@ -163,6 +163,34 @@ _React Native Project Structure:_
   - `types/` - TypeScript type definitions
 - `__tests__/` - Test files
 
+## Team Detection Pattern
+
+When working with player teams in the game logic:
+
+- **BP-TD-1 (MUST)** Always check team existence with type guards from `teamValidation.ts`
+- **BP-TD-2 (MUST)** Deny operations when team detection fails (safety first)
+- **BP-TD-3 (SHOULD)** Log warnings with context for debugging
+- **BP-TD-4 (MUST)** Return null/false/unchanged state on team detection failure
+
+### Example Usage
+
+```typescript
+import { areTeammates, hasTeam, getPlayerTeamSafe } from './teamValidation';
+
+// Check if players are teammates
+if (!areTeammates(player1, player2, gameState)) {
+  console.warn('Players not on same team', { player1, player2 });
+  return false;
+}
+
+// Type-safe team checking
+const team = getPlayerTeamSafe(playerId, gameState);
+if (team) {
+  // TypeScript knows team is TeamId here
+  updateTeamScore(team, points);
+}
+```
+
 ## Remember Shortcuts
 
 Remember the following shortcuts which the user may invoke at any time.

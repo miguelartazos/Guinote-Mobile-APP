@@ -83,7 +83,7 @@ export function DraggableCard({
 
       // Handle horizontal reordering
       if (isDraggingHorizontally.current && onReorder && totalCards > 1) {
-        const cardSpacing = cardWidth * 0.55; // Account for overlap
+        const cardSpacing = cardWidth; // No overlap in bottom hand
         const dragDistance = translationX;
         const newPosition = Math.round(dragDistance / cardSpacing);
         const targetIndex = Math.max(0, Math.min(totalCards - 1, index + newPosition));

@@ -142,8 +142,13 @@ export function useGameState({
                 const points = calculateTrickPoints(newTrick);
                 const winnerTeam = findPlayerTeam(winnerId, prev);
 
+                // Handle team detection failure - log warning but continue
+                if (!winnerTeam) {
+                  console.warn('Team detection failed for winner:', winnerId);
+                }
+
                 const newTeams = [...prev.teams] as [Team, Team];
-                const teamIndex = newTeams.findIndex(t => t.id === winnerTeam);
+                const teamIndex = winnerTeam ? newTeams.findIndex(t => t.id === winnerTeam) : -1;
                 if (teamIndex !== -1) {
                   newTeams[teamIndex] = {
                     ...newTeams[teamIndex],
@@ -280,6 +285,10 @@ export function useGameState({
           trickCount: 0,
           trickWins: new Map(),
           collectedTricks: new Map(),
+          teamTrickPiles: new Map([
+            [teams[0].id, []],
+            [teams[1].id, []],
+          ]),
           canCambiar7: true,
           gameHistory: [],
           isVueltas: false,
@@ -422,6 +431,10 @@ export function useGameState({
         trickCount: 0,
         trickWins: new Map(),
         collectedTricks: new Map(),
+        teamTrickPiles: new Map([
+          [teams[0].id, []],
+          [teams[1].id, []],
+        ]),
         canCambiar7: true,
         gameHistory: [],
         isVueltas: false,
@@ -441,7 +454,11 @@ export function useGameState({
     (cardId: CardId | string) => {
       if (!gameState || (gameState.phase !== 'playing' && gameState.phase !== 'arrastre')) return;
       // Hard block plays during trick/post-trick animations and the pre-dealing pause
-      if (gameState.trickAnimating || gameState.postTrickDealingAnimating || (gameState as any).postTrickDealingPending) {
+      if (
+        gameState.trickAnimating ||
+        gameState.postTrickDealingAnimating ||
+        (gameState as any).postTrickDealingPending
+      ) {
         console.warn('⚠️ Blocked playCard: animations or dealing in progress');
         return;
       }
@@ -523,6 +540,11 @@ export function useGameState({
             const points = calculateTrickPoints(newTrick);
             const winnerTeam = findPlayerTeam(winnerId, prevState);
 
+            // Handle team detection failure
+            if (!winnerTeam) {
+              console.warn('Team detection failed for trick winner:', winnerId);
+            }
+
             console.log('🏆 TRICK COMPLETE:', {
               winner: winnerId,
               winnerName: prevState.players.find(p => p.id === winnerId)?.name,
@@ -551,6 +573,8 @@ export function useGameState({
             const newCollectedTricks = new Map(prevState.collectedTricks);
             const winnerTricks = newCollectedTricks.get(winnerId) || [];
             newCollectedTricks.set(winnerId, [...winnerTricks, newTrick]);
+
+            // Do NOT add to team trick piles yet – wait until the animation completes
 
             // Prepare pending draws if deck has cards, but do NOT mutate hands/deck yet
             const pendingDraws: Array<{
@@ -632,7 +656,7 @@ export function useGameState({
             }
 
             // Don't clear the trick immediately - show animation first
-            return {
+            const nextStateAfterTrick: GameState = {
               ...prevState,
               hands: newHands,
               // Keep deck unchanged until post-trick dealing animation commits
@@ -642,6 +666,7 @@ export function useGameState({
               teams: newTeams,
               trickCount: newTrickCount,
               collectedTricks: newCollectedTricks,
+              teamTrickPiles: prevState.teamTrickPiles,
               lastTrickWinner: winnerId,
               lastTrick: newTrick,
               pendingPostTrickDraws: pendingDraws.length > 0 ? pendingDraws : undefined,
@@ -650,6 +675,7 @@ export function useGameState({
                 playerId: winnerId,
                 points: points + (lastTrickBonusApplied ? 10 : 0),
                 cards: newTrick.map(tc => tc.card),
+                teamId: winnerTeam as TeamId,
                 isLastTrick,
                 bonus: lastTrickBonusApplied ? 10 : 0,
               },
@@ -685,10 +711,18 @@ export function useGameState({
                 ? new Map(newTeams.map(t => [t.id, t.score]))
                 : prevState.initialScores,
               lastActionTimestamp: Date.now(),
-              trickAnimating: true, // Start trick collection animation
+              trickAnimating: false,
               // Keep cambiar7 until arrastre actually starts after dealing
               canCambiar7: prevState.canCambiar7,
-            };
+            } as GameState;
+
+            // Start trick animation after a short delay so last card settles visually
+            if (winnerTimeoutRef.current) clearTimeout(winnerTimeoutRef.current);
+            winnerTimeoutRef.current = setTimeout(() => {
+              setGameState(p => (p ? { ...p, trickAnimating: true } : p));
+            }, 250);
+
+            return nextStateAfterTrick;
           }
 
           // Next player's turn
@@ -1005,27 +1039,60 @@ export function useGameState({
   // Complete trick animation
   const completeTrickAnimation = useCallback(() => {
     setGameState(prev => {
-      if (!prev || !prev.trickAnimating) return prev;
+      if (!prev) return prev;
 
       // End trick animation but keep trick visible already cleared by animation; schedule post-trick dealing
       const shouldStartPostDealing = (prev.pendingPostTrickDraws?.length || 0) > 0;
+
+      // Commit last trick to winner's team pile now that the animation finished
+      let committedPiles = prev.teamTrickPiles;
+      if (prev.lastTrick && prev.lastTrickWinner) {
+        const winnerTeamId = prev.teams.find(t =>
+          t.playerIds.includes(prev.lastTrickWinner as PlayerId),
+        )?.id;
+        if (winnerTeamId) {
+          const m = new Map(committedPiles);
+          const arr = [...(m.get(winnerTeamId) || [])];
+          // Idempotency: only append if this exact trick isn't already present
+          const keyOf = (tr: ReadonlyArray<TrickCard>) =>
+            tr
+              .map(tc => tc.card.id)
+              .sort()
+              .join('-');
+          const lastKey = keyOf(prev.lastTrick);
+          const already = arr.some((t: ReadonlyArray<TrickCard>) => keyOf(t) === lastKey);
+          if (!already) {
+            arr.push(prev.lastTrick);
+            console.log('📦 Trick committed to team pile', {
+              teamId: String(winnerTeamId),
+              newCount: arr.length,
+            });
+          }
+          m.set(winnerTeamId, arr);
+          committedPiles = m;
+        }
+      }
+
       let nextState = {
         ...prev,
         currentTrick: [],
         trickAnimating: false,
         pendingTrickWinner: undefined,
+        teamTrickPiles: committedPiles,
       } as GameState;
 
       if (shouldStartPostDealing) {
         // Start post-trick dealing after a 2s pause
         setTimeout(() => {
-          setGameState(p => (p ? { ...p, postTrickDealingAnimating: true, postTrickDealingPending: false } : p));
+          setGameState(p =>
+            p ? { ...p, postTrickDealingAnimating: true, postTrickDealingPending: false } : p,
+          );
         }, 2000);
         // Block interactions during the pause window
         nextState = { ...nextState, postTrickDealingPending: true } as GameState;
         // Log draw order for debugging mapping issues
-        const names = (prev.pendingPostTrickDraws || []).map(d =>
-          prev.players.find(p => p.id === d.playerId)?.name || String(d.playerId),
+        const names = (prev.pendingPostTrickDraws || []).map(
+          d => prev.players.find(p => p.id === d.playerId)?.name || String(d.playerId),
         );
         console.log('📝 Pending post-trick draws (winner → CCW):', names);
       }
@@ -1067,7 +1134,11 @@ export function useGameState({
 
       // Determine phase: enter arrastre if deck empty now
       const deckNowEmpty = newDeck.length === 0;
-      const nextPhase: GamePhase = deckNowEmpty ? 'arrastre' : (prev.phase === 'dealing' ? 'playing' : prev.phase);
+      const nextPhase: GamePhase = deckNowEmpty
+        ? 'arrastre'
+        : prev.phase === 'dealing'
+        ? 'playing'
+        : prev.phase;
 
       const nextState = {
         ...prev,
@@ -1101,7 +1172,8 @@ export function useGameState({
         const pending = prev.pendingPostTrickDraws || [];
         // Remove one matching pending draw (first occurrence). Guard if not found to avoid loops
         const idx = pending.findIndex(
-          d => d.playerId === draw.playerId && d.card.id === draw.card.id && d.source === draw.source,
+          d =>
+            d.playerId === draw.playerId && d.card.id === draw.card.id && d.source === draw.source,
         );
         if (idx === -1) {
           // Fallback: if deck pop order progressed, try matching by player and source only (last occurrence)
@@ -1134,7 +1206,8 @@ export function useGameState({
             newDeck.pop();
           }
 
-          const playerName = prev.players.find(p => p.id === draw.playerId)?.name || String(draw.playerId);
+          const playerName =
+            prev.players.find(p => p.id === draw.playerId)?.name || String(draw.playerId);
           console.log('✅ Dealt card committed via fallback', {
             player: playerName,
             playerId: draw.playerId,
@@ -1170,7 +1243,8 @@ export function useGameState({
           // nothing to pop from deck; visibility of trump is tied to deck count
         }
 
-        const playerName = prev.players.find(p => p.id === draw.playerId)?.name || String(draw.playerId);
+        const playerName =
+          prev.players.find(p => p.id === draw.playerId)?.name || String(draw.playerId);
         console.log('✅ Dealt card committed to hand', {
           player: playerName,
           playerId: draw.playerId,
@@ -1221,8 +1295,8 @@ export function useGameState({
   useEffect(() => {
     if (!gameState?.postTrickDealingAnimating) return;
     const draws = gameState.pendingPostTrickDraws?.length || 0;
-    // Align with PostTrickDealingAnimation timings: 520ms per card + 80ms gap, add safety buffer
-    const expectedMs = draws > 0 ? Math.ceil(draws * (520 + 80) + 400) : 1000;
+    // Align with PostTrickDealingAnimation timings: 440ms per card + 60ms gap, add safety buffer
+    const expectedMs = draws > 0 ? Math.ceil(draws * (440 + 60) + 350) : 900;
     const watchdog = setTimeout(() => {
       // Force-complete if animation did not signal completion
       completePostTrickDealing();
@@ -1232,6 +1306,28 @@ export function useGameState({
     gameState?.postTrickDealingAnimating,
     gameState?.pendingPostTrickDraws,
     completePostTrickDealing,
+  ]);
+
+  // Rescue starter: begin post-trick dealing ONLY after trick animation fully completed
+  useEffect(() => {
+    if (!gameState) return;
+    const hasPendingDraws = (gameState.pendingPostTrickDraws?.length || 0) > 0;
+    const shouldStart =
+      hasPendingDraws &&
+      !gameState.trickAnimating &&
+      !gameState.pendingTrickWinner && // ensure onComplete cleared it
+      !gameState.postTrickDealingAnimating &&
+      !gameState.postTrickDealingPending;
+    if (shouldStart) {
+      console.warn('⚠️ Starting post-trick dealing via rescue starter');
+      setGameState(prev => (prev ? { ...prev, postTrickDealingAnimating: true } : prev));
+    }
+  }, [
+    gameState?.pendingPostTrickDraws,
+    gameState?.trickAnimating,
+    gameState?.pendingTrickWinner,
+    gameState?.postTrickDealingAnimating,
+    gameState?.postTrickDealingPending,
   ]);
 
   // Safety: if pending is true but overlay is not active and there are no draws, clear pending

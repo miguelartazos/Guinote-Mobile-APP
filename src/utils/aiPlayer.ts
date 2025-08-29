@@ -341,6 +341,12 @@ function selectLeadingCard(
   phase: GamePhase,
   gameState: GameState,
 ): Card {
+  // Safety check - ensure we have cards to consider
+  if (cardsToConsider.length === 0) {
+    console.error('❌ selectLeadingCard: No cards to consider!');
+    return cardsToConsider[0]; // This will throw, but gives better error
+  }
+
   const nonTrumps = cardsToConsider.filter(c => c.suit !== trumpSuit);
   const trumps = cardsToConsider.filter(c => c.suit === trumpSuit);
   const opponentHasForty = gameState.teams.some(
@@ -352,13 +358,26 @@ function selectLeadingCard(
 
   // ARRASTRE PHASE - Prefer bleeding trumps when strong
   if (phase === 'arrastre') {
+    // Log decision context
+    console.log('🎯 Arrastre leading decision:', {
+      trumpCount: trumps.length,
+      nonTrumpCount: nonTrumps.length,
+      opponentHasForty,
+    });
+
     if (trumps.length > 0 && (trumps.length >= 3 || opponentHasForty)) {
-      return [...trumps].sort((a, b) => getCardPower(b) - getCardPower(a))[0];
+      const selected = [...trumps].sort((a, b) => getCardPower(b) - getCardPower(a))[0];
+      console.log('🎯 Leading with strong trump:', `${selected.value} de ${selected.suit}`);
+      return selected;
     }
     if (nonTrumps.length > 0) {
-      return [...nonTrumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
+      const selected = [...nonTrumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
+      console.log('🎯 Leading with low non-trump:', `${selected.value} de ${selected.suit}`);
+      return selected;
     }
-    return [...trumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
+    const selected = [...trumps].sort((a, b) => getCardPower(a) - getCardPower(b))[0];
+    console.log('🎯 Leading with only trump:', `${selected.value} de ${selected.suit}`);
+    return selected;
   }
 
   // DRAW PHASE - Strategic freedom
@@ -542,6 +561,24 @@ function playStrategicCard(
     }
   }
 
+  // Special 4th player strategy in arrastre when partner is winning
+  const isFourthPlayer = currentTrick.length === 3;
+  const leadSuit = currentTrick.length > 0 ? currentTrick[0].card.suit : null;
+  const hasSuit = leadSuit ? hand.some(c => c.suit === leadSuit) : false;
+  
+  if (phase === 'arrastre' && isFourthPlayer && partnerIsWinning && !hasSuit) {
+    // 4th player with partner winning and no suit - can discard anything
+    // Strategy: discard lowest value cards, preserve trumps and high cards
+    const sortedByValue = [...validCards].sort((a, b) => {
+      // First prefer non-trumps
+      if (a.suit === trumpSuit && b.suit !== trumpSuit) return 1;
+      if (a.suit !== trumpSuit && b.suit === trumpSuit) return -1;
+      // Then sort by points
+      return getCardPoints(a) - getCardPoints(b);
+    });
+    return sortedByValue[0]; // Play lowest value non-trump if possible
+  }
+
   // If partner is winning a valuable trick, give them points
   if (partnerIsWinning && trickValue >= AI_THRESHOLDS.VALUABLE_TRICK) {
     // Give high point cards to partner
@@ -586,18 +623,75 @@ export function playAICard(
     ),
   );
 
-  // If no valid cards in arrastre, something is wrong - return any card
+  // If no valid cards in arrastre, something is wrong - try to find a valid card
   if (validCards.length === 0) {
-    console.warn('⚠️ No valid cards computed. Phase:', phase, 'Hand size:', hand.length);
-    // In arrastre phase, if no valid moves found, return first card as fallback
-    if (phase === 'arrastre' && hand.length > 0) {
-      console.warn('🔧 ARRASTRE FALLBACK: Playing first card');
-      return hand[0];
-    }
-    // General fallback: play the lowest-value card to minimize harm
+    console.error('❌ CRITICAL: No valid cards found! This should never happen.', {
+      phase,
+      handSize: hand.length,
+      trickSize: currentTrick.length,
+      trumpSuit,
+      playerId,
+    });
+
+    // Enhanced fallback logic - validate each candidate before returning
     if (hand.length > 0) {
-      const sorted = [...hand].sort((a, b) => getCardPoints(a) - getCardPoints(b));
-      return sorted[0];
+      // Try different strategies to find a valid card
+
+      // Strategy 1: If starting a trick, all cards should be valid
+      if (currentTrick.length === 0) {
+        // In arrastre, when starting a trick, all cards should be valid
+        // Double-check each card
+        for (const card of hand) {
+          if (isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState)) {
+            console.warn('🔧 Fallback: Found valid card for trick start:', 
+              `${card.value} de ${card.suit}`);
+            return card;
+          }
+        }
+      } else {
+        // Strategy 2: Try to follow suit
+        const leadSuit = currentTrick[0].card.suit;
+        const suitCards = hand.filter(c => c.suit === leadSuit);
+        for (const card of suitCards) {
+          if (isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState)) {
+            console.warn('🔧 Fallback: Found valid suit card:', 
+              `${card.value} de ${card.suit}`);
+            return card;
+          }
+        }
+
+        // Strategy 3: Try trumps
+        const trumpCards = hand.filter(c => c.suit === trumpSuit);
+        for (const card of trumpCards) {
+          if (isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState)) {
+            console.warn('🔧 Fallback: Found valid trump:', 
+              `${card.value} de ${card.suit}`);
+            return card;
+          }
+        }
+
+        // Strategy 4: Try any card
+        for (const card of hand) {
+          if (isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState)) {
+            console.warn('🔧 Fallback: Found valid card:', 
+              `${card.value} de ${card.suit}`);
+            return card;
+          }
+        }
+      }
+
+      // CRITICAL: No valid card found after trying everything
+      // This indicates a serious bug in the game rules
+      // Return the first card as absolute last resort to prevent game freeze
+      console.error('❌ CRITICAL BUG: No valid moves found after trying all cards!', {
+        phase,
+        currentTrick: currentTrick.map(tc => `${tc.card.value} de ${tc.card.suit}`),
+        hand: hand.map(c => `${c.value} de ${c.suit}`),
+        trumpSuit,
+        playerId,
+      });
+      console.error('🚨 Returning first card to prevent freeze - THIS IS A BUG!');
+      return hand[0];
     }
     return null;
   }

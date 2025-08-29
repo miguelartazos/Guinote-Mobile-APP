@@ -2,13 +2,13 @@ import React, { useState, useRef } from 'react';
 import { View, StyleSheet, StatusBar, Text, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { GameTable } from '../components/game/GameTable';
-import { CardDealingAnimation } from '../components/game/CardDealingAnimation';
 import { GameEndCelebration } from '../components/game/GameEndCelebration';
-import { MatchProgressIndicator } from '../components/game/MatchProgressIndicator';
+// import { MatchProgressIndicator } from '../components/game/MatchProgressIndicator'; // Hidden - not showing scores during gameplay
 import { PassDeviceOverlay } from '../components/game/PassDeviceOverlay';
+import { HandEndOverlay } from '../components/game/HandEndOverlay';
+// import { VueltasScoreBanner } from '../components/game/VueltasScoreBanner'; // Hidden - not showing scores during gameplay
 import { CompactActionBar } from '../components/game/CompactActionBar';
 import { GameModals } from '../components/game/GameModals';
-import { AnimatedButton } from '../components/ui/AnimatedButton';
 import { Toast, toastManager } from '../components/ui/Toast';
 import { CanteAnimation } from '../components/game/CanteAnimation';
 import { Cambiar7Animation } from '../components/game/Cambiar7Animation';
@@ -28,6 +28,7 @@ import {
   shouldShowCanteAnimation,
 } from '../utils/canteDetection';
 import type { SpanishSuit } from '../types/cardTypes';
+import type { TeamId } from '../types/game.types';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
 import { dimensions } from '../constants/dimensions';
@@ -104,6 +105,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   // Track last known match progression to avoid showing celebration too early
   const lastProgressRef = useRef(0);
   const [showPassDevice, setShowPassDevice] = useState(false);
+  const [showHandEndOverlay, setShowHandEndOverlay] = useState(false);
   const [lastPlayerIndex, setLastPlayerIndex] = useState<number | null>(null);
   // Prevent rapid double-clicks from playing multiple cards
   const isProcessingCardPlay = useRef(false);
@@ -227,30 +229,18 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     };
   }, [gameState?.teams, gameState?.currentPlayerIndex, playCardSound]);
 
-  // Auto-start vueltas a short moment after scoring if no team reached 101
+  // Show hand end overlay when scoring phase starts
   React.useEffect(() => {
     if (!gameState) return;
-    if (gameState.phase !== 'scoring') {
-      autoVueltasTriggeredRef.current = false;
-      return;
-    }
 
-    const shouldPlayVueltas = shouldStartVueltas(gameState);
-    if (shouldPlayVueltas && !autoVueltasTriggeredRef.current) {
-      autoVueltasTriggeredRef.current = true;
-      const t = setTimeout(() => {
-        continueFromScoring();
-        autoVueltasTriggeredRef.current = false;
-      }, 2000);
-      return () => clearTimeout(t);
+    if (gameState.phase === 'scoring') {
+      // Show the overlay for scoring
+      setShowHandEndOverlay(true);
+    } else {
+      // Hide overlay when phase changes
+      setShowHandEndOverlay(false);
     }
-  }, [
-    gameState?.phase,
-    gameState?.teams,
-    gameState?.deck,
-    gameState?.isVueltas,
-    continueFromScoring,
-  ]);
+  }, [gameState?.phase]);
 
   // Hide tab bar when this screen is focused
   useFocusEffect(
@@ -390,6 +380,24 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     gameMode,
     gameStartTime,
   ]);
+
+  // Handle scoring phase with overlay instead of full screen
+  // This effect must be before any conditional returns to avoid hooks order violations
+  React.useEffect(() => {
+    if (!gameState || gameState.phase !== 'scoring') return;
+
+    const team1 = gameState.teams[0];
+    const team2 = gameState.teams[1];
+
+    // Check if any team has won (reached 101+ points)
+    const hasWinner = team1.score >= 101 || team2.score >= 101;
+
+    // If a team reached 101 in first hand or vueltas complete, don't auto-transition
+    // The HandEndOverlay will handle the timing and call onAutoAdvance
+    if (hasWinner || gameState.isVueltas) {
+      console.log('🎯 Victory or vueltas complete - HandEndOverlay will handle transition');
+    }
+  }, [gameState?.phase, gameState?.teams, gameState?.isVueltas]);
 
   if (!gameState) {
     return (
@@ -627,121 +635,40 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     setSelectedRenuncioReason('');
   };
 
-  // Show scoring screen (after each hand)
-  if (gameState.phase === 'scoring') {
+  // Don't return early for scoring phase - let the game table remain visible
+  if (gameState.phase === 'scoring' && showGameEndCelebration) {
     const team1 = gameState.teams[0];
     const team2 = gameState.teams[1];
-    const shouldPlayVueltas = shouldStartVueltas(gameState);
+    const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
+    let winnerTeamId: string | undefined;
 
-    // If a team reached 101 in the first hand, show celebration immediately
-    if (!gameState.isVueltas && (team1.score >= 101 || team2.score >= 101)) {
-      const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
-      const winnerTeamId = team1.score >= 101 ? team1.id : team2.id;
-      const playerWon = winnerTeamId && playerTeam && winnerTeamId === playerTeam.id;
-
-      return (
-        <GameEndCelebration
-          isWinner={!!playerWon}
-          finalScore={{ player: team1.score, opponent: team2.score }}
-          onComplete={() => setShowGameEndCelebration(false)}
-          playSound={playerWon ? playVictorySound : playDefeatSound}
-          celebrationType={'partida'}
-          matchScore={gameState.matchScore}
-          onContinue={continueFromScoring}
-        />
-      );
+    if (gameState.isVueltas) {
+      const wt = determineVueltasWinner(gameState);
+      winnerTeamId = wt || undefined;
+    } else {
+      const wt = gameState.teams.find(t => t.score >= 101);
+      winnerTeamId = wt?.id;
     }
 
-    // If we have a partida/coto result to announce, show the celebration overlay here
-    if (showGameEndCelebration) {
-      // Determine if player's team won
-      const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
-      let winnerTeamId: string | undefined;
-      if (gameState.isVueltas) {
-        // Winner decided by combined scores across hands
-        const wt = determineVueltasWinner(gameState);
-        winnerTeamId = wt || undefined;
-      } else {
-        // Winner decided by first hand reaching 101
-        const wt = gameState.teams.find(t => t.score >= 101);
-        winnerTeamId = wt?.id;
-      }
-      const playerWon = winnerTeamId && playerTeam && winnerTeamId === playerTeam.id;
-
-      return (
-        <GameEndCelebration
-          isWinner={!!playerWon}
-          finalScore={{ player: team1.score, opponent: team2.score }}
-          onComplete={() => setShowGameEndCelebration(false)}
-          playSound={playerWon ? playVictorySound : playDefeatSound}
-          celebrationType={'partida'}
-          matchScore={gameState.matchScore}
-          onContinue={continueFromScoring}
-        />
-      );
-    }
-
-    // Auto-advance behavior: after 5s show celebration if a team reached 101 in first hand
-    if (!gameState.isVueltas && (team1.score >= 101 || team2.score >= 101)) {
-      setTimeout(() => {
-        if (!showGameEndCelebration) {
-          setShowGameEndCelebration(true);
-        }
-      }, 5000);
-    }
+    const playerWon = winnerTeamId && playerTeam && winnerTeamId === playerTeam.id;
 
     return (
-      <ScreenContainer orientation="landscape" style={styles.scoringContainer}>
-        <StatusBar hidden />
-        <Text style={styles.scoringTitle}>FIN DE LA MANO</Text>
-
-        <View style={styles.scoreBreakdown}>
-          <View style={styles.teamScore}>
-            <Text style={styles.teamLabel}>Nosotros</Text>
-            <Text style={styles.finalScore}>{team1.score}</Text>
-            {team1.cantes.length > 0 && (
-              <Text style={styles.canteInfo}>
-                Cantes: {team1.cantes.reduce((sum, c) => sum + c.points, 0)}
-              </Text>
-            )}
-          </View>
-
-          <Text style={styles.scoreSeparator}>-</Text>
-
-          <View style={styles.teamScore}>
-            <Text style={styles.teamLabel}>Ellos</Text>
-            <Text style={styles.finalScore}>{team2.score}</Text>
-            {team2.cantes.length > 0 && (
-              <Text style={styles.canteInfo}>
-                Cantes: {team2.cantes.reduce((sum, c) => sum + c.points, 0)}
-              </Text>
-            )}
-          </View>
-        </View>
-
-        <Text style={styles.scoringInfo}>
-          {shouldPlayVueltas
-            ? 'Ningún equipo ha alcanzado 101 puntos. ¡Vamos a las VUELTAS!'
-            : team1.score >= 101
-            ? '¡Nosotros ganamos la partida!'
-            : team2.score >= 101
-            ? '¡Ellos ganan la partida!'
-            : 'Mano completada'}
-        </Text>
-
-        {/* 30 malas hint removed per updated rules */}
-
-        <AnimatedButton
-          style={[styles.gameOverButton, styles.continueButton]}
-          onPress={() => {
+      <ScreenContainer orientation="landscape" style={styles.gameContainer}>
+        <GameEndCelebration
+          isWinner={!!playerWon}
+          finalScore={{ player: team1.score, opponent: team2.score }}
+          onComplete={() => {
+            setShowGameEndCelebration(false);
             continueFromScoring();
           }}
-          hapticType="medium"
-        >
-          <Text style={styles.continueButtonText}>
-            {shouldPlayVueltas ? 'JUGAR VUELTAS' : 'CONTINUAR'}
-          </Text>
-        </AnimatedButton>
+          playSound={playerWon ? playVictorySound : playDefeatSound}
+          celebrationType={'partida'}
+          matchScore={gameState.matchScore}
+          onContinue={() => {
+            setShowGameEndCelebration(false);
+            continueFromScoring();
+          }}
+        />
       </ScreenContainer>
     );
   }
@@ -766,15 +693,23 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       }
 
       return (
-        <GameEndCelebration
-          isWinner={playerWon}
-          finalScore={{ player: team1.score, opponent: team2.score }}
-          onComplete={() => setShowGameEndCelebration(false)}
-          playSound={playerWon ? playVictorySound : playDefeatSound}
-          celebrationType={celebrationType}
-          matchScore={matchScore}
-          onContinue={celebrationType !== 'match' ? continueToNextPartida : undefined}
-        />
+        <ScreenContainer orientation="landscape" style={styles.gameContainer}>
+          <GameEndCelebration
+            isWinner={playerWon}
+            finalScore={{ player: team1.score, opponent: team2.score }}
+            onComplete={() => {
+              setShowGameEndCelebration(false);
+              // After celebration completes, automatically continue if not match end
+              if (celebrationType !== 'match') {
+                continueToNextPartida();
+              }
+            }}
+            playSound={playerWon ? playVictorySound : playDefeatSound}
+            celebrationType={celebrationType}
+            matchScore={matchScore}
+            onContinue={celebrationType !== 'match' ? continueToNextPartida : undefined}
+          />
+        </ScreenContainer>
       );
     }
 
@@ -810,13 +745,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         </View>
 
         <View style={styles.gameOverButtons}>
-          <AnimatedButton
+          <TouchableOpacity
             style={[styles.gameOverButton, styles.newGameButton]}
             onPress={() => navigation.navigate('JugarHome')}
-            hapticType="medium"
           >
             <Text style={styles.newGameButtonText}>JUGAR DE NUEVO</Text>
-          </AnimatedButton>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.gameOverButton, styles.exitButton]}
@@ -851,25 +785,14 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           />
         )} */}
 
-        {/* Card dealing animation */}
-        {gameState?.phase === 'dealing' && (
-          <CardDealingAnimation
-            trumpCard={gameState.trumpCard}
-            playerCards={players[0].cards}
-            onComplete={completeDealingAnimation}
-            playDealSound={playDealSound}
-            playTrumpRevealSound={playTrumpRevealSound}
-            playShuffleSound={playShuffleSound}
-            firstPlayerIndex={gameState.currentPlayerIndex}
-          />
-        )}
+        {/* Card dealing animation now rendered inside GameTable to share layout */}
 
-        {/* Show match progress if we have match score */}
-        {gameState.matchScore && (
+        {/* Match progress indicator - HIDDEN to not show scores during gameplay */}
+        {/* {gameState.matchScore && (
           <View style={styles.matchProgressWrapper}>
             <MatchProgressIndicator matchScore={gameState.matchScore} compact />
           </View>
-        )}
+        )} */}
 
         <GameTable
           players={
@@ -885,6 +808,10 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             suit: gameState.trumpSuit,
             value: gameState.trumpCard.value,
           }}
+          onCompleteDealingAnimation={completeDealingAnimation}
+          playShuffleSound={playShuffleSound}
+          playDealSound={playDealSound}
+          playTrumpRevealSound={playTrumpRevealSound}
           currentTrick={gameState.currentTrick.map(tc => ({
             playerId: tc.playerId,
             card: { suit: tc.card.suit, value: tc.card.value },
@@ -897,6 +824,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           tableColor={settings?.tableColor || 'green'}
           isDealing={gameState?.phase === 'dealing'}
           deckCount={gameState?.deck?.length || 0}
+          gamePhase={gameState?.phase}
           validCardIndices={getValidCardIndices()}
           isVueltas={gameState.isVueltas}
           canDeclareVictory={gameState.canDeclareVictory}
@@ -916,6 +844,10 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
               Array<Array<{ playerId: string; card: any }>>
             >
           }
+          teamTrickCounts={{
+            team1: (gameState.teamTrickPiles?.get(gameState.teams[0].id as TeamId) || []).length,
+            team2: (gameState.teamTrickPiles?.get(gameState.teams[1].id as TeamId) || []).length,
+          }}
           trickAnimating={gameState.trickAnimating}
           pendingTrickWinner={
             gameState.pendingTrickWinner
@@ -948,15 +880,6 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             });
           }}
         />
-
-        {/* Small corner score display during gameplay */}
-        {gameState?.teams && gameState.phase === 'playing' && (
-          <View style={styles.cornerScore}>
-            <Text style={styles.cornerScoreText}>
-              {gameState.teams[0].score} - {gameState.teams[1].score}
-            </Text>
-          </View>
-        )}
 
         {/* Cantes display removed - now shown as discrete animations */}
 
@@ -1027,6 +950,85 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           />
         )}
 
+        {/* Vueltas Score Banner - HIDDEN to not show scores during gameplay */}
+        {/* {gameState && (
+          <VueltasScoreBanner
+            visible={gameState.isVueltas && gameState.phase === 'playing'}
+            team1Score={gameState.teams[0].score}
+            team2Score={gameState.teams[1].score}
+          />
+        )} */}
+
+        {/* Hand End Overlay - shows scoring after each hand with detailed point breakdown */}
+        {gameState && (
+          <HandEndOverlay
+            visible={showHandEndOverlay && gameState.phase === 'scoring'}
+            team1Score={gameState.teams[0].score}
+            team2Score={gameState.teams[1].score}
+            team1HandPoints={
+              gameState.isVueltas && gameState.initialScores
+                ? gameState.teams[0].score -
+                  (gameState.initialScores.get(gameState.teams[0].id) || 0)
+                : gameState.teams[0].score
+            }
+            team2HandPoints={
+              gameState.isVueltas && gameState.initialScores
+                ? gameState.teams[1].score -
+                  (gameState.initialScores.get(gameState.teams[1].id) || 0)
+                : gameState.teams[1].score
+            }
+            team1Cantes={gameState.teams[0].cantes.reduce((sum, c) => sum + c.points, 0)}
+            team2Cantes={gameState.teams[1].cantes.reduce((sum, c) => sum + c.points, 0)}
+            team1Tricks={gameState.teamTrickPiles?.get(gameState.teams[0].id) || []}
+            team2Tricks={gameState.teamTrickPiles?.get(gameState.teams[1].id) || []}
+            lastTrickWinnerTeam={
+              gameState.lastTrickWinner
+                ? gameState.teams.find(t => t.playerIds.includes(gameState.lastTrickWinner!))?.id
+                : undefined
+            }
+            team1Id={gameState.teams[0].id}
+            team2Id={gameState.teams[1].id}
+            isVueltas={gameState.isVueltas}
+            shouldPlayVueltas={shouldStartVueltas(gameState)}
+            onAutoAdvance={() => {
+              const team1 = gameState.teams[0];
+              const team2 = gameState.teams[1];
+              const hasWinner = team1.score >= 101 || team2.score >= 101;
+
+              setShowHandEndOverlay(false);
+
+              if (hasWinner && !gameState.isVueltas) {
+                // Victory in first hand - show celebration
+                console.log('🎉 Showing victory celebration');
+                setShowGameEndCelebration(true);
+              } else if (gameState.isVueltas && hasWinner) {
+                // Vueltas complete with winner - show celebration
+                console.log('🎉 Vueltas complete, showing victory celebration');
+                setShowGameEndCelebration(true);
+              } else {
+                // No winner, continue to vueltas or next phase
+                console.log('➡️ Continuing to next phase');
+                continueFromScoring();
+              }
+            }}
+            onManualContinue={() => {
+              const team1 = gameState.teams[0];
+              const team2 = gameState.teams[1];
+              const hasWinner = team1.score >= 101 || team2.score >= 101;
+
+              setShowHandEndOverlay(false);
+
+              if (hasWinner) {
+                // Show game end celebration
+                setShowGameEndCelebration(true);
+              } else {
+                // Continue to next phase
+                continueFromScoring();
+              }
+            }}
+          />
+        )}
+
         {/* Toast notification */}
         {toastConfig && (
           <Toast
@@ -1071,43 +1073,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.tableGreen,
-  },
-  scoringContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.tableGreen,
-  },
-  scoringTitle: {
-    fontSize: typography.fontSize.xxxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.accent,
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  scoringInfo: {
-    color: colors.text,
-    fontSize: typography.fontSize.lg,
-    textAlign: 'center',
-    marginBottom: 40,
-    paddingHorizontal: 20,
-    lineHeight: 28,
-  },
-  malasWarning: {
-    color: colors.warning,
-    fontSize: typography.fontSize.md,
-    textAlign: 'center',
-    marginTop: -20,
-    marginBottom: 30,
-    fontStyle: 'italic',
-  },
-  continueButton: {
-    backgroundColor: colors.accent,
-  },
-  continueButtonText: {
-    color: colors.white,
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    textAlign: 'center',
   },
   gameOverTitle: {
     fontSize: typography.fontSize.xxxl * 1.2,
@@ -1444,21 +1409,6 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.5,
-  },
-  cornerScore: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    zIndex: 100,
-  },
-  cornerScoreText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   roomCode: {
     fontSize: typography.fontSize.lg,

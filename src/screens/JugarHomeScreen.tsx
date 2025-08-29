@@ -10,25 +10,40 @@ import { useGameStatistics } from '../hooks/useGameStatistics';
 
 export function JugarHomeScreen({ navigation }: JugarStackScreenProps<'JugarHome'>) {
   const glowAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const { statistics } = useGameStatistics();
 
   useEffect(() => {
-    // Glow animation for main CTA
+    // Subtle glow animation for main CTA
     Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, {
           toValue: 1,
-          duration: 1500,
+          duration: 2000,
           useNativeDriver: false,
         }),
         Animated.timing(glowAnim, {
           toValue: 0,
-          duration: 1500,
+          duration: 2000,
           useNativeDriver: false,
         }),
       ]),
     ).start();
   }, [glowAnim]);
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
 
   return (
     <ScreenContainer>
@@ -39,7 +54,7 @@ export function JugarHomeScreen({ navigation }: JugarStackScreenProps<'JugarHome
             <Text style={styles.logo}>♠♥♣♦</Text>
             <Text style={styles.logoText}>GUIÑOTE</Text>
           </View>
-          <Text style={styles.tagline}>El clásico Guiñote, mejorado para ti</Text>
+          <Text style={styles.tagline}>El juego tradicional español</Text>
           <View style={styles.userInfo}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>👤</Text>
@@ -50,20 +65,39 @@ export function JugarHomeScreen({ navigation }: JugarStackScreenProps<'JugarHome
 
         {/* Primary Game Modes */}
         <View style={styles.primaryModes}>
-          <TouchableOpacity
-            style={[styles.primaryButton, styles.quickMatchButton]}
-            onPress={() => navigation.navigate('QuickMatch')}
-            activeOpacity={0.8}
-            testID="quick-match-button"
+          <Animated.View
+            style={[
+              styles.glowWrapper,
+              {
+                shadowOpacity: glowAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.3, 0.6],
+                }),
+                shadowRadius: glowAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [8, 16],
+                }),
+              },
+            ]}
           >
-            <View style={styles.buttonContent}>
-              <Text style={styles.buttonIcon}>🎯</Text>
-              <View style={styles.buttonTextContainer}>
-                <Text style={styles.buttonTitle}>PARTIDA RÁPIDA</Text>
-                <Text style={styles.buttonSubtitle}>Juega con otros jugadores</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.primaryButton, styles.quickMatchButton]}
+              onPress={() => navigation.navigate('QuickMatch')}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+              activeOpacity={0.8}
+              testID="quick-match-button"
+            >
+              <Animated.View style={[styles.buttonContent, { transform: [{ scale: scaleAnim }] }]}>
+                <Text style={styles.buttonIcon}>🎯</Text>
+                <View style={styles.buttonTextContainer}>
+                  <Text style={styles.buttonTitle}>PARTIDA RÁPIDA</Text>
+                  <Text style={styles.buttonSubtitle}>Juega con otros jugadores</Text>
+                </View>
+              </Animated.View>
+              <View style={styles.buttonGradient} />
+            </TouchableOpacity>
+          </Animated.View>
 
           <TouchableOpacity
             style={[styles.primaryButton, styles.friendsButton]}
@@ -78,6 +112,7 @@ export function JugarHomeScreen({ navigation }: JugarStackScreenProps<'JugarHome
                 <Text style={styles.buttonSubtitle}>Crea una sala o únete</Text>
               </View>
             </View>
+            <View style={styles.buttonGradient} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -93,6 +128,7 @@ export function JugarHomeScreen({ navigation }: JugarStackScreenProps<'JugarHome
                 <Text style={styles.buttonSubtitle}>Practica en solitario</Text>
               </View>
             </View>
+            <View style={styles.buttonGradient} />
           </TouchableOpacity>
         </View>
 
@@ -173,17 +209,17 @@ const styles = StyleSheet.create({
     marginBottom: dimensions.spacing.sm,
   },
   logo: {
-    fontSize: 36,
+    fontSize: 42, // Larger for seniors
     marginRight: dimensions.spacing.md,
   },
   logoText: {
-    fontSize: 36,
+    fontSize: 42, // Larger for seniors
     fontWeight: typography.fontWeight.bold,
     color: colors.accent,
     letterSpacing: 2,
   },
   tagline: {
-    fontSize: typography.fontSize.md,
+    fontSize: typography.fontSize.lg, // Larger text
     color: colors.text,
     fontStyle: 'italic',
     marginBottom: dimensions.spacing.lg,
@@ -193,19 +229,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48, // Larger avatar
+    height: 48,
+    borderRadius: 24,
     backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: dimensions.spacing.sm,
+    borderWidth: 2,
+    borderColor: colors.accent,
   },
   avatarText: {
-    fontSize: 20,
+    fontSize: 24,
   },
   welcomeText: {
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.xl, // Larger text
     color: colors.text,
     fontWeight: typography.fontWeight.medium,
   },
@@ -213,45 +251,65 @@ const styles = StyleSheet.create({
     paddingHorizontal: dimensions.spacing.lg,
     marginBottom: dimensions.spacing.xl,
   },
-  primaryButton: {
-    marginBottom: dimensions.spacing.md,
-    borderRadius: 16,
-    padding: dimensions.spacing.lg,
-    shadowColor: colors.black,
+  glowWrapper: {
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+    elevation: 8,
+    marginBottom: dimensions.spacing.md,
+  },
+  primaryButton: {
+    borderRadius: 16,
+    padding: dimensions.spacing.xl, // Larger padding
+    overflow: 'hidden',
+    position: 'relative',
+    marginBottom: dimensions.spacing.md,
+  },
+  buttonGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.1,
+    backgroundColor: colors.white,
   },
   quickMatchButton: {
     backgroundColor: '#FF7043',
+    borderWidth: 1,
+    borderColor: '#FF8A65',
   },
   friendsButton: {
     backgroundColor: '#5C6BC0',
+    borderWidth: 1,
+    borderColor: '#7986CB',
   },
   aiButton: {
     backgroundColor: '#66BB6A',
+    borderWidth: 1,
+    borderColor: '#81C784',
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    zIndex: 1,
   },
   buttonIcon: {
-    fontSize: 40,
-    marginRight: dimensions.spacing.md,
+    fontSize: 48, // Larger icons
+    marginRight: dimensions.spacing.lg,
   },
   buttonTextContainer: {
     flex: 1,
   },
   buttonTitle: {
-    fontSize: 18,
+    fontSize: typography.fontSize.lg, // Larger text
     fontWeight: '700',
     color: colors.white,
     marginBottom: 4,
+    letterSpacing: 0.5,
   },
   buttonSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: typography.fontSize.md, // Larger text
+    color: 'rgba(255, 255, 255, 0.95)',
   },
   secondaryOptions: {
     flexDirection: 'row',
@@ -263,18 +321,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    paddingHorizontal: dimensions.spacing.lg,
-    paddingVertical: dimensions.spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingHorizontal: dimensions.spacing.xl,
+    paddingVertical: dimensions.spacing.lg, // Larger padding
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.accent,
   },
   secondaryButtonIcon: {
-    fontSize: 20,
+    fontSize: 24, // Larger icons
     marginRight: dimensions.spacing.sm,
   },
   secondaryButtonText: {
-    fontSize: 16,
+    fontSize: typography.fontSize.md, // Larger text
     fontWeight: '600',
     color: colors.text,
   },
@@ -283,7 +341,7 @@ const styles = StyleSheet.create({
     marginBottom: dimensions.spacing.xxl,
   },
   sectionTitle: {
-    fontSize: typography.fontSize.xl,
+    fontSize: typography.fontSize.xxl, // Larger text
     fontWeight: typography.fontWeight.bold,
     color: colors.accent,
     marginBottom: dimensions.spacing.lg,
@@ -297,21 +355,21 @@ const styles = StyleSheet.create({
   statCard: {
     width: '48%',
     backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: dimensions.spacing.lg,
+    borderRadius: 14,
+    padding: dimensions.spacing.xl, // Larger padding
     marginBottom: dimensions.spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.accent,
   },
   statValue: {
-    fontSize: 28,
+    fontSize: typography.fontSize.xxl, // Larger text
     fontWeight: '700',
     color: colors.accent,
     marginBottom: dimensions.spacing.xs,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: typography.fontSize.md, // Larger text
     color: colors.text,
     fontWeight: '500',
   },

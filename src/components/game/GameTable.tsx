@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
 import type { Card, PlayerId as CorePlayerId } from '../../types/game.types';
@@ -7,6 +7,7 @@ import { MinimalPlayerPanel } from './MinimalPlayerPanel';
 import { DeckPile } from './DeckPile';
 import { TrickCollectionAnimation } from './TrickCollectionAnimation';
 import { PostTrickDealingAnimation } from './PostTrickDealingAnimation';
+import { TeamTrickPile } from './TeamTrickPile';
 // import { CardCountBadge } from './CardCountBadge';
 import { CollapsibleGameMenu } from './CollapsibleGameMenu';
 import { colors, TABLE_COLORS } from '../../constants/colors';
@@ -15,9 +16,15 @@ import { typography } from '../../constants/typography';
 import { getCardDimensions } from '../../utils/responsive';
 import { useOrientation } from '../../hooks/useOrientation';
 import { useTableLayout } from '../../hooks/useTableLayout';
-import { getPlayerCardPosition, getDeckPosition, type LayoutInfo } from '../../utils/cardPositions';
+import {
+  getPlayerCardPosition,
+  getDeckPosition,
+  type LayoutInfo,
+  type Position,
+} from '../../utils/cardPositions';
 import { getTrickCardPositionWithinBoard } from '../../utils/trickCardPositions';
 import type { PlayerId } from '../../types/game.types';
+import { CardDealingAnimation } from './CardDealingAnimation';
 
 type Player = {
   id: string;
@@ -33,6 +40,7 @@ type GameTableProps = {
   trumpCard?: SpanishCardData;
   currentTrick?: Array<{ playerId: string; card: SpanishCardData }>;
   collectedTricks?: ReadonlyMap<string, Array<Array<{ playerId: string; card: SpanishCardData }>>>;
+  teamTrickCounts?: { team1: number; team2: number };
   onCardPlay: (cardIndex: number) => void;
   onCardReorder?: (playerId: PlayerId, fromIndex: number, toIndex: number) => void;
   onExitGame?: () => void;
@@ -41,6 +49,7 @@ type GameTableProps = {
   tableColor?: 'green' | 'blue' | 'red' | 'wood';
   isDealing?: boolean;
   deckCount?: number;
+  gamePhase?: string;
   validCardIndices?: number[]; // Indices of valid cards for current player
   isVueltas?: boolean;
   canDeclareVictory?: boolean;
@@ -70,6 +79,11 @@ type GameTableProps = {
   // Hide cards during animations
   hideTrumpCard?: boolean;
   hideCardFromHand?: { playerId: string; suit: string; value: number };
+  // Dealing overlay control
+  onCompleteDealingAnimation?: () => void;
+  playShuffleSound?: () => void;
+  playDealSound?: () => void;
+  playTrumpRevealSound?: () => void;
 };
 
 export function GameTable({
@@ -78,6 +92,7 @@ export function GameTable({
   trumpCard,
   currentTrick = [],
   collectedTricks = new Map(),
+  teamTrickCounts = { team1: 0, team2: 0 },
   onCardPlay,
   onCardReorder,
   onExitGame,
@@ -86,6 +101,7 @@ export function GameTable({
   tableColor = 'green',
   isDealing = false,
   deckCount = 0,
+  gamePhase,
   validCardIndices,
   isVueltas = false,
   canDeclareVictory = false,
@@ -99,6 +115,10 @@ export function GameTable({
   onPostTrickCardLanded,
   hideTrumpCard,
   hideCardFromHand,
+  onCompleteDealingAnimation,
+  playShuffleSound,
+  playDealSound,
+  playTrumpRevealSound,
 }: GameTableProps) {
   const [bottomPlayer, leftPlayer, topPlayer, rightPlayer] = players;
   const orientation = useOrientation();
@@ -117,6 +137,37 @@ export function GameTable({
     parentLayout: layout.table,
     boardLayout: layout.board,
   };
+
+  // Store deck position in a ref to prevent jumps
+  const deckPositionRef = useRef<Position | null>(null);
+
+  // Only update deck position when layout becomes ready or dimensions change significantly
+  const deckPosition = useMemo(() => {
+    if (!layout.isReady) return deckPositionRef.current;
+
+    const currentLayoutInfo: LayoutInfo = {
+      parentLayout: layout.table,
+      boardLayout: layout.board,
+    };
+
+    const newPosition = getDeckPosition(layout.table.width, layout.table.height, currentLayoutInfo);
+
+    // Only update if position changed significantly (more than 5 pixels)
+    if (
+      !deckPositionRef.current ||
+      Math.abs(deckPositionRef.current.x - newPosition.x) > 5 ||
+      Math.abs(deckPositionRef.current.y - newPosition.y) > 5
+    ) {
+      deckPositionRef.current = newPosition;
+    }
+
+    return deckPositionRef.current;
+  }, [
+    // Only recalculate on major dimension changes
+    Math.floor(layout.table.width / 20) * 20,
+    Math.floor(layout.table.height / 20) * 20,
+    layout.isReady,
+  ]);
 
   // Create mapping of player IDs to their positions
   // NOTE: This mapping is used for trick positions (0 bottom, 1 left, 2 top, 3 right)
@@ -138,6 +189,57 @@ export function GameTable({
   const isDealingBlocked =
     !!postTrickDealingAnimating || !!postTrickDealingPending || !!trickAnimating || !!isDealing;
 
+  // Measure pile centers so trick animation can land exactly on stacks
+  const [team1PileCenter, setTeam1PileCenter] = useState<{ x: number; y: number } | null>(null);
+  const [team2PileCenter, setTeam2PileCenter] = useState<{ x: number; y: number } | null>(null);
+
+  // Manage overlay fade-out after dealing completes to avoid deck blink
+  const [shouldFadeOutOverlay, setShouldFadeOutOverlay] = useState(false);
+  const [, forceUpdate] = useState(0);
+
+  // Determine if deck should be visible - centralized logic to prevent bugs
+  const shouldShowDeck = useMemo(() => {
+    // Never show during certain phases
+    if (
+      gamePhase === 'arrastre' ||
+      gamePhase === 'scoring' ||
+      gamePhase === 'gameOver' ||
+      gamePhase === 'finished'
+    ) {
+      return false;
+    }
+    // Never show during dealing animations
+    if (isDealing || postTrickDealingAnimating) {
+      return false;
+    }
+    // Never show during fadeout overlay
+    if (shouldFadeOutOverlay) {
+      return false;
+    }
+    // Only show if there are actually cards to draw
+    if (deckCount <= 0) {
+      return false;
+    }
+    // Don't show if layout isn't ready
+    if (!layout.isReady || !deckPosition) {
+      return false;
+    }
+    // Don't show if no trump card
+    if (!trumpCard) {
+      return false;
+    }
+    return true;
+  }, [
+    gamePhase,
+    isDealing,
+    deckCount,
+    layout.isReady,
+    deckPosition,
+    trumpCard,
+    postTrickDealingAnimating,
+    shouldFadeOutOverlay,
+  ]);
+
   return (
     <View
       style={[
@@ -147,6 +249,32 @@ export function GameTable({
       ]}
       onLayout={onTableLayout}
     >
+      {/* Card dealing animation overlay (shares same layout as table to avoid drift) */}
+      {(isDealing || shouldFadeOutOverlay) && (
+        <CardDealingAnimation
+          trumpCard={trumpCard as any}
+          playerCards={bottomPlayer.cards}
+          onComplete={() => {
+            // Trigger steady deck render immediately; overlay remains until fadeOut completes
+            onCompleteDealingAnimation?.();
+            // Wait a short moment to ensure DeckPile mounts, then crossfade overlay away
+            const fadeTimer = setTimeout(() => setShouldFadeOutOverlay(true), 120);
+            // Ensure we clean up if component unmounts
+            return () => clearTimeout(fadeTimer);
+          }}
+          playDealSound={playDealSound || (() => {})}
+          playTrumpRevealSound={playTrumpRevealSound || (() => {})}
+          playShuffleSound={playShuffleSound || (() => {})}
+          firstPlayerIndex={currentPlayerIndex}
+          fadeOut={shouldFadeOutOverlay}
+          onFadeOutComplete={() => {
+            setShouldFadeOutOverlay(false);
+            // Force a re-render to ensure deck shows properly after dealing
+            forceUpdate(n => n + 1);
+          }}
+        />
+      )}
+
       {/* Player Panels */}
       <MinimalPlayerPanel
         playerName={topPlayer.name}
@@ -297,7 +425,7 @@ export function GameTable({
             }, 100);
           }}
         >
-          {currentTrick.length > 0 && (
+          {currentTrick.length > 0 && !trickAnimating && (
             <View style={styles.trickCards}>
               {currentTrick.map((play, index) => {
                 const position = playerIdToPosition[play.playerId] ?? 0;
@@ -305,7 +433,7 @@ export function GameTable({
                   <SpanishCard
                     key={`trick-${index}`}
                     card={play.card}
-                    size="small"
+                    size="medium"
                     style={[
                       styles.trickCard,
                       getTrickCardPositionWithinBoard(position, layout.board),
@@ -322,7 +450,30 @@ export function GameTable({
       {trickAnimating && pendingTrickWinner && (
         <TrickCollectionAnimation
           cards={pendingTrickWinner.cards}
-          winnerPosition={getPlayerPosition(playerIdToPosition[pendingTrickWinner.playerId] ?? 0)}
+          winnerPosition={(() => {
+            // Determine team based on winner's player position
+            const winnerPos = playerIdToPosition[pendingTrickWinner.playerId];
+            const isTeam1 = winnerPos === 0 || winnerPos === 2; // Bottom or Top player
+            const measured = isTeam1 ? team1PileCenter : team2PileCenter;
+            if (measured) return measured;
+            // Fallback to dynamic computation based on current table layout
+            return computeTeamPileCenter(isTeam1 ? 'team1' : 'team2', layout.table);
+          })()}
+          startPositions={(currentTrick || []).map(play => {
+            const posStyle = getTrickCardPositionWithinBoard(
+              playerIdToPosition[play.playerId] ?? 0,
+              layout.board,
+            ) as any;
+            const left = typeof posStyle.left === 'number' ? posStyle.left : 0;
+            const top = typeof posStyle.top === 'number' ? posStyle.top : 0;
+            const boardOffsetX = layout.board?.x || 0;
+            const boardOffsetY = layout.board?.y || 0;
+            return { x: boardOffsetX + left, y: boardOffsetY + top };
+          })}
+          winningCardIndex={Math.max(
+            0,
+            (currentTrick || []).findIndex(p => p.playerId === pendingTrickWinner.playerId),
+          )}
           points={pendingTrickWinner.points}
           bonus={pendingTrickWinner.bonus}
           showLastTrickBonus={
@@ -330,6 +481,11 @@ export function GameTable({
           }
           onComplete={() => {
             onCompleteTrickAnimation?.();
+            // Defensive: if there are pending draws and dealing hasn't started, request it
+            if (postTrickDealingPending && !postTrickDealingAnimating) {
+              // Parent hook will flip this flag in its rescue effect; no direct state here
+              console.log('🔁 Requested post-trick dealing after animation');
+            }
           }}
           playSound={() => {
             // Add sound effect here if needed
@@ -367,21 +523,22 @@ export function GameTable({
         />
       )}
 
-      {/* Deck and Trump Display */}
-      {deckCount > 0 && trumpCard && !isDealing && layout.isReady && (
+      {/* Deck and Trump Display - controlled by shouldShowDeck */}
+      {shouldShowDeck && deckPosition && (
         <View
           style={[
             styles.deckPileContainer,
             {
-              left: getDeckPosition(layout.table.width, layout.table.height, layoutInfo).x,
-              top: getDeckPosition(layout.table.width, layout.table.height, layoutInfo).y,
+              left: deckPosition.x,
+              top: deckPosition.y,
             },
           ]}
+          pointerEvents="none"
         >
           <DeckPile
             cardsRemaining={deckCount}
             trumpCard={hideTrumpCard ? undefined : trumpCard}
-            showTrump={!hideTrumpCard}
+            showTrump={!hideTrumpCard && !isDealing}
           />
         </View>
       )}
@@ -396,27 +553,21 @@ export function GameTable({
         </View>
       )}
 
-      {/* Team Trick Piles (two stacks) */}
-      {(() => {
-        const getCount = (id: string) => collectedTricks.get(id)?.length || 0;
-        const team1Count = getCount(bottomPlayer.id) + getCount(topPlayer.id);
-        const team2Count = getCount(leftPlayer.id) + getCount(rightPlayer.id);
-
-        return (
-          <>
-            {team1Count > 0 && (
-              <View style={[styles.trickPile, styles.bottomTrickPile]}>
-                <SpanishCard faceDown size="small" />
-              </View>
-            )}
-            {team2Count > 0 && (
-              <View style={[styles.trickPile, styles.topTrickPile]}>
-                <SpanishCard faceDown size="small" />
-              </View>
-            )}
-          </>
-        );
-      })()}
+      {/* Team Trick Piles (two stacks) - Hidden during dealing phase */}
+      {!isDealing && (
+        <>
+          <TeamTrickPile
+            count={teamTrickCounts.team1}
+            anchor="bottomLeft"
+            onCenterLayout={setTeam1PileCenter}
+          />
+          <TeamTrickPile
+            count={teamTrickCounts.team2}
+            anchor="topRight"
+            onCenterLayout={setTeam2PileCenter}
+          />
+        </>
+      )}
 
       {/* Bottom Player Hand - Only render when not dealing */}
       {!isDealing && layout.isReady && (
@@ -440,7 +591,7 @@ export function GameTable({
               layoutInfo,
             );
             const cardDimensions = getCardDimensions();
-            const scaledCardWidth = cardDimensions.medium.width;
+            const scaledCardWidth = cardDimensions.large.width;
 
             return (
               <DraggableCard
@@ -457,7 +608,7 @@ export function GameTable({
                 dropZoneBounds={dropZoneBounds || undefined}
                 isEnabled={!isDealingBlocked && !!dropZoneBounds && isPlayerTurn && isValidCard}
                 isPlayerTurn={isPlayerTurn}
-                cardSize="medium" // match dealing size for consistency
+                cardSize="large" // larger size for better visibility
                 totalCards={bottomPlayer.cards.length}
                 cardWidth={scaledCardWidth}
                 style={[
@@ -649,7 +800,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tableGreen,
   },
   bottomPlayerHandLandscape: {
-    bottom: 10,
+    bottom: 0,
     // Centered positioning maintained from base style
   },
   handCardLandscape: {
@@ -690,31 +841,58 @@ const styles = StyleSheet.create({
   trickPile: {
     position: 'absolute',
     width: 70,
-    height: 100,
+    height: 110,
+    zIndex: 5,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  // Use bottom-left for Team 1 (bottom+top) and top-right for Team 2 (left+right)
-  bottomTrickPile: {
-    bottom: 12,
-    left: 12,
+  bottomLeftPile: {
+    bottom: 15,
+    left: 15,
   },
-  topTrickPile: {
-    top: 12,
-    right: 12,
+  topRightPile: {
+    top: 15,
+    right: 15,
   },
-  // removed trickPileCount styles (no counters)
+  pileStackContainer: {
+    position: 'relative',
+    width: 60,
+    height: 85,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  stackedPileCard: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  stackedPileCard1: {
+    transform: [{ translateX: 1 }, { translateY: 1 }],
+  },
+  stackedPileCard2: {
+    transform: [{ translateX: 2 }, { translateY: 2 }],
+  },
+  pileCountText: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });
 
-// Helper function to get player position for animation
-function getPlayerPosition(position: number): { x: number; y: number } {
-  // These are approximate positions for the animation target
-  // You may need to adjust based on your layout
-  const positions = [
-    { x: 200, y: 400 }, // Bottom player
-    { x: 50, y: 200 }, // Left player
-    { x: 200, y: 50 }, // Top player
-    { x: 350, y: 200 }, // Right player
-  ];
-  return positions[position] || positions[0];
+// Dynamic fallback using current table layout
+function computeTeamPileCenter(
+  teamId: 'team1' | 'team2',
+  table?: { x: number; y: number; width: number; height: number },
+): { x: number; y: number } {
+  const card = getCardDimensions().small;
+  const m = 15;
+  const w = table?.width || 400;
+  const h = table?.height || 250;
+  if (teamId === 'team1') {
+    return { x: m + card.width / 2 + 10, y: h - (m + card.height / 2) };
+  }
+  return { x: w - (m + card.width / 2), y: m + card.height / 2 };
 }

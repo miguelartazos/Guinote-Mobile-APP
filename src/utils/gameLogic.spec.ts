@@ -277,10 +277,10 @@ describe('isValidPlay', () => {
       { id: 'bastos_3' as CardId, suit: 'bastos', value: 3 },
     ];
 
-    // Valid: following suit
-    expect(isValidPlay(hand[0], hand, currentTrick, trumpSuit, 'arrastre')).toBe(true);
+    // Without gameState and playerId, should return false for safety
+    expect(isValidPlay(hand[0], hand, currentTrick, trumpSuit, 'arrastre')).toBe(false);
 
-    // Invalid: not following suit when able
+    // Without gameState and playerId, should return false for safety
     expect(isValidPlay(hand[1], hand, currentTrick, trumpSuit, 'arrastre')).toBe(false);
   });
 
@@ -296,14 +296,38 @@ describe('isValidPlay', () => {
       { id: 'bastos_3' as CardId, suit: 'bastos', value: 3 },
     ];
 
-    // Must still follow suit if possible, even in arrastre
-    expect(isValidPlay(hand[0], hand, currentTrick, trumpSuit, 'arrastre')).toBe(true);
+    // Without gameState and playerId, should return false for safety
+    expect(isValidPlay(hand[0], hand, currentTrick, trumpSuit, 'arrastre')).toBe(false);
     expect(isValidPlay(hand[1], hand, currentTrick, trumpSuit, 'arrastre')).toBe(false);
   });
 });
 
 describe('calculateTrickWinner', () => {
   const trumpSuit = 'oros';
+
+  test('Sota beats Caballo in Guiñote', () => {
+    // This is unique to Guiñote - Sota (10) beats Caballo (11)
+    const trick: TrickCard[] = [
+      {
+        playerId: 'p1' as PlayerId,
+        card: { id: 'espadas_10' as CardId, suit: 'espadas', value: 10 }, // Sota
+      },
+      {
+        playerId: 'p2' as PlayerId,
+        card: { id: 'espadas_11' as CardId, suit: 'espadas', value: 11 }, // Caballo
+      },
+      {
+        playerId: 'p3' as PlayerId,
+        card: { id: 'espadas_7' as CardId, suit: 'espadas', value: 7 },
+      },
+      {
+        playerId: 'p4' as PlayerId,
+        card: { id: 'espadas_6' as CardId, suit: 'espadas', value: 6 },
+      },
+    ];
+
+    expect(calculateTrickWinner(trick, trumpSuit)).toBe('p1');
+  });
 
   test('highest card of lead suit wins if no trumps', () => {
     const trick: TrickCard[] = [
@@ -376,6 +400,29 @@ describe('calculateTrickWinner', () => {
 });
 
 describe('calculateTrickPoints', () => {
+  test('Sota worth 3 points and Caballo worth 2 points', () => {
+    const trick: TrickCard[] = [
+      {
+        playerId: 'p1' as PlayerId,
+        card: { id: 'espadas_10' as CardId, suit: 'espadas', value: 10 },
+      }, // Sota = 3 points
+      {
+        playerId: 'p2' as PlayerId,
+        card: { id: 'oros_11' as CardId, suit: 'oros', value: 11 },
+      }, // Caballo = 2 points
+      {
+        playerId: 'p3' as PlayerId,
+        card: { id: 'bastos_7' as CardId, suit: 'bastos', value: 7 },
+      }, // 0 points
+      {
+        playerId: 'p4' as PlayerId,
+        card: { id: 'copas_6' as CardId, suit: 'copas', value: 6 },
+      }, // 0 points
+    ];
+
+    expect(calculateTrickPoints(trick)).toBe(5); // 3 + 2 + 0 + 0
+  });
+
   test('calculates correct points for a trick', () => {
     const trick: TrickCard[] = [
       {
@@ -469,7 +516,7 @@ describe('canCambiar7', () => {
 
 describe('getNextPlayerIndex', () => {
   test('cycles through players counter-clockwise', () => {
-    // Spanish card games go counter-clockwise
+    // Guiñote goes counter-clockwise
     expect(getNextPlayerIndex(0, 4)).toBe(3);
     expect(getNextPlayerIndex(3, 4)).toBe(2);
     expect(getNextPlayerIndex(2, 4)).toBe(1);

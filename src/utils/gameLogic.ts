@@ -21,6 +21,7 @@ import {
   dealCardsAfterTrick,
   applyLastTrickBonus,
   isLastTrick,
+  getArrastreFallbackCards,
 } from './gameEngineHelpers';
 
 // Export constants for reuse
@@ -117,9 +118,10 @@ export function isValidPlay(
 
   // In arrastre phase, additional rules apply
   if (gamePhase === 'arrastre') {
-    // If we don't have full game state info, just check basic rules
+    // If we don't have full game state info, deny the play for safety
     if (!currentPlayerId || !gameState) {
-      return true; // Allow the play if we can't validate properly
+      console.warn('⚠️ Arrastre validation: Missing player/game state, denying play');
+      return false; // Deny the play for safety
     }
 
     // Check if partner is currently winning the trick
@@ -128,27 +130,44 @@ export function isValidPlay(
       const currentWinnerId = calculateTrickWinner(currentTrick, trumpSuit);
       const currentPlayerTeam = findPlayerTeam(currentPlayerId, gameState);
       const winnerTeam = findPlayerTeam(currentWinnerId, gameState);
-      partnerIsWinning = currentPlayerTeam === winnerTeam && currentWinnerId !== currentPlayerId;
-    }
 
-    // RULE: Cannot "montarse" - can't beat partner's winning card
-    if (partnerIsWinning && card.suit === leadSuit) {
-      const canBeat = canBeatTrick(card, currentTrick, trumpSuit);
-      if (canBeat) return false; // Would beat partner - not allowed
+      // Handle team detection failures by denying play
+      if (!currentPlayerTeam || !winnerTeam) {
+        console.warn('⚠️ Arrastre validation: Team detection failed, denying play', {
+          currentPlayerId,
+          currentWinnerId,
+          currentPlayerTeam,
+          winnerTeam,
+        });
+        return false; // Deny play if team detection fails for safety
+      }
+
+      partnerIsWinning = currentPlayerTeam === winnerTeam && currentWinnerId !== currentPlayerId;
     }
 
     // If following suit, must beat if possible (unless partner is winning)
     if (card.suit === leadSuit && !partnerIsWinning) {
       const suitCards = hand.filter(c => c.suit === leadSuit);
-      const canBeat = suitCards.some(c => canBeatTrick(c, currentTrick, trumpSuit));
+      const beatingCards = suitCards.filter(c => canBeatTrick(c, currentTrick, trumpSuit));
 
-      if (canBeat && !canBeatTrick(card, currentTrick, trumpSuit)) {
+      // Only enforce "must beat" if we actually have cards that can beat
+      if (beatingCards.length > 0 && !canBeatTrick(card, currentTrick, trumpSuit)) {
         // Has a card that can beat but playing one that doesn't
         return false;
       }
+      // If no cards can beat, allow any card of the suit
+    }
+
+    // Special rule: 4th player with partner winning and no suit can play anything
+    const isFourthPlayer = currentTrick.length === 3;
+    const canDiscardAnything = isFourthPlayer && partnerIsWinning && !hasSuit;
+
+    if (canDiscardAnything) {
+      return true; // 4th player can discard ANY card when partner is winning and has no suit
     }
 
     // If can't follow suit, must trump if possible (unless partner is winning)
+    // Note: This now only applies to players 2 and 3, as player 4 is handled above
     if (!hasSuit && card.suit !== trumpSuit && !partnerIsWinning) {
       const hasTrump = hand.some(c => c.suit === trumpSuit);
       if (hasTrump) return false;
@@ -157,11 +176,13 @@ export function isValidPlay(
     // If trumping, must beat other trumps if possible (unless partner is winning)
     if (!hasSuit && card.suit === trumpSuit && !partnerIsWinning) {
       const trumpCards = hand.filter(c => c.suit === trumpSuit);
-      const canBeatWithTrump = trumpCards.some(c => canBeatTrick(c, currentTrick, trumpSuit));
+      const beatingTrumps = trumpCards.filter(c => canBeatTrick(c, currentTrick, trumpSuit));
 
-      if (canBeatWithTrump && !canBeatTrick(card, currentTrick, trumpSuit)) {
+      // Only enforce "must beat with trump" if we have trumps that can beat
+      if (beatingTrumps.length > 0 && !canBeatTrick(card, currentTrick, trumpSuit)) {
         return false;
       }
+      // If no trumps can beat, allow any trump
     }
 
     return true;
@@ -216,8 +237,8 @@ function getCardRank(card: Card): number {
     1: 10, // As (highest)
     3: 9, // Tres
     12: 8, // Rey
-    10: 7, // Sota (higher than Caballo in Guiñote)
-    11: 6, // Caballo (lower than Sota in Guiñote)
+    10: 7, // Sota (beats Caballo in Guiñote)
+    11: 6, // Caballo (loses to Sota in Guiñote)
     7: 5,
     6: 4,
     5: 3,
@@ -361,7 +382,7 @@ export function calculateFinalPoints(gameState: GameState): Map<TeamId, number> 
     // Add 10 points for last trick
     if (gameState.lastTrickWinner) {
       const winnerTeam = findPlayerTeam(gameState.lastTrickWinner, gameState);
-      if (winnerTeam === team.id) {
+      if (winnerTeam && winnerTeam === team.id) {
         points += 10;
       }
     }
@@ -401,26 +422,34 @@ export function getValidCards(
 
   // In arrastre phase, filter cards based on strict rules
   if (phase === 'arrastre') {
-    const validCards = hand.filter(card =>
-      isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState),
-    );
+    try {
+      const validCards = hand.filter(card =>
+        isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState),
+      );
 
-    // If no cards are valid (shouldn't happen with correct rules), log error and return all cards
-    if (validCards.length === 0 && hand.length > 0) {
-      console.error('⚠️ No valid cards in arrastre! This should not happen.', {
-        playerId,
-        handSize: hand.length,
-        trickSize: currentTrick.length,
-        phase,
-      });
-      // Return all cards as fallback to prevent game from getting stuck
+      // If no cards are valid, use fallback logic
+      if (validCards.length === 0 && hand.length > 0) {
+        console.warn('⚠️ No valid cards in arrastre! Using fallback logic.', {
+          playerId,
+          handSize: hand.length,
+          trickSize: currentTrick.length,
+          phase,
+          trumpSuit,
+        });
+
+        // Use the fallback helper from gameEngineHelpers
+        return getArrastreFallbackCards(hand, currentTrick, trumpSuit);
+      }
+
+      return validCards;
+    } catch (error) {
+      console.error('❌ Error in arrastre validation, returning all cards:', error);
       return [...hand];
     }
-
-    return validCards;
   }
 
-  // Default: return all cards
+  // Fallback for any other phase
+  console.warn('⚠️ Unexpected phase in getValidCards:', phase);
   return [...hand];
 }
 
@@ -828,7 +857,8 @@ export function declareCante(
 
   const lastWinnerTeam = findPlayerTeam(lastWinner, gameState);
   const playerTeam = findPlayerTeam(playerId, gameState);
-  if (lastWinnerTeam !== playerTeam) {
+  // Handle team detection failures
+  if (!lastWinnerTeam || !playerTeam || lastWinnerTeam !== playerTeam) {
     return null;
   }
 

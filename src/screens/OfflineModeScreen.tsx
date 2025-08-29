@@ -11,7 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { hasSavedGame, clearGameState } from '../utils/gameStatePersistence';
 import type { JugarStackScreenProps } from '../types/navigation';
 
-type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'expert';
+type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
 export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'OfflineMode'>) {
   const { settings } = useGameSettings();
@@ -26,7 +26,6 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
   }, [settings]);
 
   useEffect(() => {
-    // Check for saved game on mount
     hasSavedGame().then(setHasSaved);
   }, []);
 
@@ -36,20 +35,22 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
       title: 'Fácil',
       description: 'Perfecto para principiantes',
       icon: '🟢',
+      color: '#66BB6A',
     },
     {
       level: 'medium' as const,
       title: 'Medio',
       description: 'Para jugadores casuales',
       icon: '🟡',
+      color: '#FFA726',
     },
     {
       level: 'hard' as const,
       title: 'Difícil',
       description: 'Para jugadores experimentados',
-      icon: '🟠',
+      icon: '🔴',
+      color: '#EF5350',
     },
-    // Removed expert difficulty as it's not in the game types
   ];
 
   const selectedDiff = difficulties.find(d => d.level === selectedDifficulty);
@@ -75,7 +76,7 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
 
         {/* Difficulty Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dificultad</Text>
+          <Text style={styles.sectionTitle}>Selecciona la Dificultad</Text>
           <View style={styles.difficultySelector}>
             {difficulties.map(difficulty => (
               <TouchableOpacity
@@ -83,6 +84,7 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
                 style={[
                   styles.difficultyOption,
                   selectedDifficulty === difficulty.level && styles.difficultyOptionSelected,
+                  selectedDifficulty === difficulty.level && { borderColor: difficulty.color },
                 ]}
                 onPress={() => setSelectedDifficulty(difficulty.level)}
                 activeOpacity={0.7}
@@ -96,6 +98,14 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
                 >
                   {difficulty.title}
                 </Text>
+                <Text
+                  style={[
+                    styles.difficultyDescription,
+                    selectedDifficulty === difficulty.level && styles.difficultyDescriptionSelected,
+                  ]}
+                >
+                  {difficulty.description}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -103,11 +113,13 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
 
         {/* Difficulty Info Card */}
         {selectedDiff && (
-          <Card elevated style={styles.infoCard}>
+          <Card elevated style={[styles.infoCard, { borderColor: selectedDiff.color }]}>
             <View style={styles.infoHeader}>
               <Text style={styles.infoIcon}>{selectedDiff.icon}</Text>
               <View style={styles.infoContent}>
-                <Text style={styles.infoTitle}>{selectedDiff.title}</Text>
+                <Text style={[styles.infoTitle, { color: selectedDiff.color }]}>
+                  {selectedDiff.title}
+                </Text>
                 <Text style={styles.infoDescription}>{selectedDiff.description}</Text>
               </View>
             </View>
@@ -117,9 +129,8 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
           {hasSaved && (
-            <Button
-              variant="primary"
-              size="large"
+            <TouchableOpacity
+              style={[styles.mainButton, styles.continueButton]}
               onPress={() =>
                 navigation.navigate('Game', {
                   gameMode: 'offline',
@@ -128,16 +139,15 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
                   resumeGame: true,
                 })
               }
-              icon="▶️"
-              style={styles.mainButton}
+              activeOpacity={0.8}
             >
-              Continuar Partida Guardada
-            </Button>
+              <Text style={styles.buttonIcon}>▶️</Text>
+              <Text style={styles.mainButtonText}>Continuar Partida Guardada</Text>
+            </TouchableOpacity>
           )}
 
-          <Button
-            variant={hasSaved ? 'secondary' : 'primary'}
-            size="large"
+          <TouchableOpacity
+            style={[styles.mainButton, hasSaved ? styles.newGameButton : styles.startButton]}
             onPress={() => {
               if (hasSaved) {
                 Alert.alert(
@@ -168,13 +178,21 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
                 });
               }
             }}
-            icon="🎮"
-            style={!hasSaved ? styles.mainButton : undefined}
+            activeOpacity={0.8}
           >
-            {hasSaved ? 'Nueva Partida' : 'Comenzar Partida'}
-          </Button>
+            <Text style={styles.buttonIcon}>🎮</Text>
+            <Text style={styles.mainButtonText}>
+              {hasSaved ? 'Nueva Partida' : 'Comenzar Partida'}
+            </Text>
+          </TouchableOpacity>
 
-          <Button variant="secondary" onPress={() => navigation.goBack()} icon="⬅️">
+          <Button 
+            variant="secondary" 
+            onPress={() => navigation.goBack()} 
+            icon="⬅️"
+            size="large"
+            style={styles.backButton}
+          >
             Volver
           </Button>
         </View>
@@ -215,6 +233,8 @@ const styles = StyleSheet.create({
     paddingVertical: dimensions.spacing.sm,
     borderRadius: dimensions.borderRadius.lg,
     marginTop: dimensions.spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.accent,
   },
   playerIcon: {
     fontSize: 20,
@@ -233,6 +253,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: typography.fontWeight.bold,
     marginBottom: dimensions.spacing.md,
+    textAlign: 'center',
   },
   difficultySelector: {
     flexDirection: 'row',
@@ -249,32 +270,44 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   difficultyOptionSelected: {
-    borderColor: colors.accent,
     backgroundColor: colors.secondary,
+    borderWidth: 2,
   },
   difficultyIcon: {
     fontSize: 32,
     marginBottom: dimensions.spacing.xs,
   },
   difficultyText: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.md,
     color: colors.textSecondary,
     fontWeight: typography.fontWeight.medium,
+    marginBottom: dimensions.spacing.xs,
   },
   difficultyTextSelected: {
-    color: colors.accent,
+    color: colors.text,
     fontWeight: typography.fontWeight.bold,
+  },
+  difficultyDescription: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: dimensions.spacing.xs,
+  },
+  difficultyDescriptionSelected: {
+    color: colors.textSecondary,
   },
   infoCard: {
     marginVertical: dimensions.spacing.md,
+    borderWidth: 2,
+    backgroundColor: colors.surface,
   },
   infoHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: dimensions.spacing.md,
   },
   infoIcon: {
-    fontSize: 40,
+    fontSize: 48,
     marginRight: dimensions.spacing.md,
   },
   infoContent: {
@@ -282,7 +315,6 @@ const styles = StyleSheet.create({
   },
   infoTitle: {
     fontSize: typography.fontSize.xl,
-    color: colors.accent,
     fontWeight: typography.fontWeight.bold,
     marginBottom: dimensions.spacing.xs,
   },
@@ -295,6 +327,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: dimensions.spacing.sm,
   },
   mainButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: dimensions.spacing.lg,
+    paddingHorizontal: dimensions.spacing.xl,
+    borderRadius: dimensions.borderRadius.lg,
     marginBottom: dimensions.spacing.md,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  continueButton: {
+    backgroundColor: colors.success,
+    borderWidth: 1,
+    borderColor: '#66BB6A',
+  },
+  startButton: {
+    backgroundColor: colors.accent,
+  },
+  newGameButton: {
+    backgroundColor: colors.cambiarBlue,
+  },
+  buttonIcon: {
+    fontSize: 24,
+    marginRight: dimensions.spacing.sm,
+  },
+  mainButtonText: {
+    fontSize: typography.fontSize.lg,
+    color: colors.white,
+    fontWeight: typography.fontWeight.bold,
+  },
+  backButton: {
+    marginTop: dimensions.spacing.md,
   },
 });

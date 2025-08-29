@@ -8,7 +8,7 @@ import {
   isGameOver,
   shouldStartVueltas,
 } from './gameLogic';
-import { WINNING_SCORE, MINIMUM_CARD_POINTS } from '../types/game.types';
+import { WINNING_SCORE, MINIMUM_CARD_POINTS, CARD_POINTS } from '../types/game.types';
 import { validateGameState } from './gameStateValidator';
 
 /**
@@ -16,7 +16,7 @@ import { validateGameState } from './gameStateValidator';
  */
 interface TrickResult {
   winnerId: PlayerId;
-  winnerTeam: TeamId;
+  winnerTeam: TeamId | undefined;
   points: number;
   cards: TrickCard[];
 }
@@ -46,6 +46,13 @@ export function calculateTrickResult(
  */
 export function applyTrickScoring(gameState: GameState, trickResult: TrickResult): GameState {
   const newTeams = [...gameState.teams] as [Team, Team];
+
+  // Handle team detection failure
+  if (!trickResult.winnerTeam) {
+    console.warn('No team found for trick winner:', trickResult.winnerId);
+    return gameState;
+  }
+
   const teamIndex = newTeams.findIndex(t => t.id === trickResult.winnerTeam);
 
   if (teamIndex !== -1) {
@@ -135,7 +142,16 @@ export function dealCardsAfterTrick(
 /**
  * Handle the last trick bonus
  */
-export function applyLastTrickBonus(gameState: GameState, winnerTeam: TeamId): GameState {
+export function applyLastTrickBonus(
+  gameState: GameState,
+  winnerTeam: TeamId | undefined,
+): GameState {
+  // Handle team detection failure
+  if (!winnerTeam) {
+    console.warn('No team found for last trick winner');
+    return gameState;
+  }
+
   const newTeams = [...gameState.teams] as [Team, Team];
   const teamIdx = newTeams.findIndex(t => t.id === winnerTeam);
 
@@ -190,7 +206,43 @@ export function determineNextPhase(gameState: GameState, isLastTrick: boolean): 
  */
 export function isLastTrick(
   deck: ReadonlyArray<Card>,
-  hands: Map<PlayerId, ReadonlyArray<Card>>,
+  hands: ReadonlyMap<PlayerId, ReadonlyArray<Card>>,
 ): boolean {
   return deck.length === 0 && Array.from(hands.values()).every(hand => hand.length === 0);
+}
+
+/**
+ * Get fallback cards for arrastre phase when normal validation fails
+ * This should rarely be needed with proper validation
+ */
+export function getArrastreFallbackCards(
+  hand: readonly Card[],
+  currentTrick: readonly TrickCard[],
+  trumpSuit: SpanishSuit,
+): Card[] {
+  // If starting a trick, all cards should be valid
+  if (currentTrick.length === 0) {
+    console.warn('🔧 Arrastre fallback: Allowing all cards for trick start');
+    return [...hand];
+  }
+
+  // Following in trick - must follow suit if possible
+  const leadSuit = currentTrick[0].card.suit;
+  const suitCards = hand.filter(c => c.suit === leadSuit);
+
+  if (suitCards.length > 0) {
+    console.warn('🔧 Arrastre fallback: Must follow suit - returning all suit cards');
+    return suitCards;
+  }
+
+  // Can't follow suit - check for trumps
+  const trumpCards = hand.filter(c => c.suit === trumpSuit);
+  if (trumpCards.length > 0) {
+    console.warn('🔧 Arrastre fallback: Must trump - returning all trumps');
+    return trumpCards;
+  }
+
+  // No suit, no trumps - all cards are valid
+  console.warn('🔧 Arrastre fallback: No suit or trump - returning all cards');
+  return [...hand];
 }

@@ -20,7 +20,7 @@ describe('GameEndCelebration', () => {
       />,
     );
 
-    expect(getByText('¡VICTORIA!')).toBeTruthy();
+    expect(getByText('VICTORIA')).toBeTruthy();
   });
 
   test('renders game end message for loser', () => {
@@ -33,7 +33,7 @@ describe('GameEndCelebration', () => {
       />,
     );
 
-    expect(getByText('¡Fin del Juego!')).toBeTruthy();
+    expect(getByText('Fin del Juego')).toBeTruthy();
   });
 
   test('displays score labels', () => {
@@ -46,7 +46,7 @@ describe('GameEndCelebration', () => {
       />,
     );
 
-    expect(getByText('Tu puntuación')).toBeTruthy();
+    expect(getByText('Tú')).toBeTruthy();
     expect(getByText('Oponente')).toBeTruthy();
   });
 
@@ -70,10 +70,10 @@ describe('GameEndCelebration', () => {
     );
 
     // Winner should show victory text
-    expect(winnerScreen.getByText('¡Victoria!')).toBeTruthy();
+    expect(winnerScreen.getByText('VICTORIA')).toBeTruthy();
 
     // Loser should show defeat text
-    expect(loserScreen.getByText('Derrota')).toBeTruthy();
+    expect(loserScreen.getByText('Fin del Juego')).toBeTruthy();
   });
 
   test('calls playSound when animation starts', () => {
@@ -89,7 +89,7 @@ describe('GameEndCelebration', () => {
     expect(mockPlaySound).toHaveBeenCalledTimes(1);
   });
 
-  test('renders dancing cards emoji for winner', () => {
+  test('renders crown icon for winner', () => {
     const { getByText } = render(
       <GameEndCelebration
         isWinner={true}
@@ -99,7 +99,7 @@ describe('GameEndCelebration', () => {
       />,
     );
 
-    expect(getByText('🎴')).toBeTruthy();
+    expect(getByText('♔')).toBeTruthy();
 
     // Rerender as loser
     const { queryByText: loserQuery } = render(
@@ -111,6 +111,6 @@ describe('GameEndCelebration', () => {
       />,
     );
 
-    expect(loserQuery('🎴')).toBeFalsy();
+    expect(loserQuery('♔')).toBeFalsy();
   });
 });

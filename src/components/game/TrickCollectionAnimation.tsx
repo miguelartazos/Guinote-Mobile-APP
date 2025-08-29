@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Text } from 'react-native';
 import { SpanishCard } from './SpanishCard';
+import { getCardDimensions } from '../../utils/responsive';
 import type { SpanishSuit, CardValue } from '../../types/cardTypes';
 import {
   TRICK_SLIDE_DURATION,
@@ -8,10 +9,13 @@ import {
   SMOOTH_EASING,
   BOUNCE_EASING,
 } from '../../constants/animations';
+import { runAfterInteractions } from '../../utils/animationPerformance';
 
 type TrickCollectionAnimationProps = {
   cards: Array<{ suit: SpanishSuit; value: CardValue }>;
   winnerPosition: { x: number; y: number };
+  startPositions?: Array<{ x: number; y: number }>; // absolute positions where cards currently are
+  winningCardIndex?: number; // index of the winning card within cards array
   points: number;
   bonus?: number;
   showLastTrickBonus?: boolean;
@@ -22,6 +26,8 @@ type TrickCollectionAnimationProps = {
 export function TrickCollectionAnimation({
   cards,
   winnerPosition,
+  startPositions,
+  winningCardIndex = 0,
   points: _points,
   bonus,
   showLastTrickBonus,
@@ -49,54 +55,123 @@ export function TrickCollectionAnimation({
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    // Don't run if already completed (prevents double execution)
+    if (hasCompletedRef.current) return;
+
     const runAnimation = async () => {
       playSound?.();
 
-      // 1. Slide cards to winner
+      // Initialize starting positions so cards animate from the trick location
+      if (startPositions && startPositions.length === cardAnimations.length) {
+        startPositions.forEach((p, i) => {
+          cardAnimations[i].position.setValue({ x: p.x, y: p.y });
+        });
+      }
+
+      // 1. Gather cards to a tight pile in the middle (stack)
+      await gatherCardsToCenter();
+
+      // 2. Slide the stack to winner pile
       await animateCardsToWinner();
 
-      // 2. Show sparkle effect
+      // 3. Show sparkle effect
       await showSparkleEffect();
 
-      // Complete
+      // Complete with a small delay, using runAfterInteractions to avoid React state update conflicts
       animationTimeoutRef.current = setTimeout(() => {
         if (!hasCompletedRef.current) {
           hasCompletedRef.current = true;
-          onComplete?.();
+          // Defer state updates to avoid React internal errors
+          runAfterInteractions(() => {
+            onComplete?.();
+          });
         }
       }, 300);
     };
 
+    // Start animation immediately (no queueing!)
     runAnimation();
 
-    // CRITICAL: Cleanup function ensures onComplete is ALWAYS called
+    // Simple cleanup function ensures onComplete is ALWAYS called
     return () => {
       // Clear any pending timeout
       if (animationTimeoutRef.current) {
         clearTimeout(animationTimeoutRef.current);
+        animationTimeoutRef.current = null;
       }
 
       // Ensure onComplete is called if component unmounts before animation completes
       if (!hasCompletedRef.current) {
         hasCompletedRef.current = true;
-        console.log('⚠️ TrickCollectionAnimation cleanup: calling onComplete');
-        onComplete?.();
+        if (__DEV__) {
+          console.log('⚠️ TrickCollectionAnimation cleanup: calling onComplete');
+        }
+        // Use setTimeout with 0 delay to ensure we're completely out of React's commit phase
+        // This prevents the "Expected static flag was missing" error
+        setTimeout(() => {
+          onComplete?.();
+        }, 0);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const animateCardsToWinner = async () => {
+  const gatherCardsToCenter = async () => {
+    // Compute stack center: average of current card positions
+    let cx = 0;
+    let cy = 0;
+    const n = cardAnimations.length;
+    const positionsNow =
+      startPositions && startPositions.length === n
+        ? startPositions
+        : cards.map(() => ({ x: 0, y: 0 }));
+    positionsNow.forEach(p => {
+      cx += p.x;
+      cy += p.y;
+    });
+    cx = cx / n;
+    cy = cy / n;
+
     const animations = cardAnimations.map((anim, index) => {
-      // Stagger cards slightly
-      const offsetX = index * 3;
-      const offsetY = index * 3;
+      // Slight random offset for natural stacking
+      const jitterX = (index - 1.5) * 3;
+      const jitterY = (index - 1.5) * 3;
+
+      return Animated.parallel([
+        Animated.timing(anim.position, {
+          toValue: { x: cx + jitterX, y: cy + jitterY },
+          duration: Math.max(180, TRICK_SLIDE_DURATION * 0.5),
+          easing: SMOOTH_EASING,
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim.scale, {
+          toValue: 0.9,
+          duration: Math.max(160, TRICK_SLIDE_DURATION * 0.45),
+          useNativeDriver: true,
+        }),
+      ]);
+    });
+
+    await new Promise(resolve => {
+      Animated.stagger(60, animations).start(() => resolve(null));
+    });
+  };
+
+  const animateCardsToWinner = async () => {
+    const dims = getCardDimensions().small;
+    const targetX = winnerPosition.x - dims.width / 2;
+    const targetY = winnerPosition.y - dims.height / 2;
+
+    const animations = cardAnimations.map(anim => {
+      // Fly all cards to the exact center of the pile
+      const offsetX = 0;
+      const offsetY = 0;
 
       return Animated.parallel([
         Animated.timing(anim.position, {
           toValue: {
-            x: winnerPosition.x + offsetX,
-            y: winnerPosition.y + offsetY,
+            x: targetX + offsetX,
+            y: targetY + offsetY,
           },
           duration: TRICK_SLIDE_DURATION,
           easing: SMOOTH_EASING,
@@ -173,6 +248,7 @@ export function TrickCollectionAnimation({
                 },
               ],
               opacity: anim.opacity,
+              zIndex: index === winningCardIndex ? 999 : 2,
             },
           ]}
         >

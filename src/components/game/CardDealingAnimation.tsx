@@ -14,6 +14,7 @@ import {
   type LayoutInfo,
   computeBoardLayout,
 } from '../../utils/cardPositions';
+import { useTableLayout } from '../../hooks/useTableLayout';
 
 const CARDS_PER_ROUND = 3;
 const TRUMP_REVEAL_DURATION = 800;
@@ -26,6 +27,9 @@ type CardDealingAnimationProps = {
   playTrumpRevealSound: () => void;
   playShuffleSound: () => void;
   firstPlayerIndex: number;
+  // Crossfade handoff controls from parent (GameTable)
+  fadeOut?: boolean;
+  onFadeOutComplete?: () => void;
 };
 
 export function CardDealingAnimation({
@@ -36,18 +40,22 @@ export function CardDealingAnimation({
   playTrumpRevealSound,
   playShuffleSound,
   firstPlayerIndex,
+  fadeOut,
+  onFadeOutComplete,
 }: CardDealingAnimationProps) {
   const [dealingPhase, setDealingPhase] = useState<
     'shuffle' | 'deal1' | 'deal2' | 'trump' | 'complete'
   >('shuffle');
   const [showGameStart, setShowGameStart] = useState(false);
 
-  const screenDimensions = Dimensions.get('window');
-  const parentWidth = screenDimensions.width;
-  const parentHeight = screenDimensions.height;
+  // Use the same table layout logic as GameTable for pixel-perfect alignment
+  const { layout, onTableLayout } = useTableLayout();
+  const layoutReady = layout.isReady && layout.table.width > layout.table.height; // wait for landscape
+  const parentWidth = layout.table.width || Dimensions.get('window').width;
+  const parentHeight = layout.table.height || Dimensions.get('window').height;
   const layoutInfo: LayoutInfo = {
-    parentLayout: { x: 0, y: 0, width: parentWidth, height: parentHeight },
-    boardLayout: computeBoardLayout(parentWidth, parentHeight),
+    parentLayout: layout.table.width > 0 ? layout.table : { x: 0, y: 0, width: parentWidth, height: parentHeight },
+    boardLayout: layout.board.width > 0 ? layout.board : computeBoardLayout(parentWidth, parentHeight),
   };
 
   // Animation values for each card
@@ -69,6 +77,8 @@ export function CardDealingAnimation({
 
   // Initialize animations for 24 cards (6 per player)
   useEffect(() => {
+    if (!layoutReady) return;
+    if (cardAnimations.current.length > 0) return; // Initialize once after layout
     const deckPos = getDeckPosition(parentWidth, parentHeight, layoutInfo);
     for (let i = 0; i < 24; i++) {
       cardAnimations.current[i] = {
@@ -81,13 +91,16 @@ export function CardDealingAnimation({
         rotation: new Animated.Value(0),
       };
     }
-  }, [parentWidth, parentHeight]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutReady, parentWidth, parentHeight]);
 
   // Trump card animation values
   const trumpAnimation = useRef({
     rotation: new Animated.Value(0),
     scale: new Animated.Value(1),
     opacity: new Animated.Value(0),
+    translateX: new Animated.Value(0),
+    translateY: new Animated.Value(0),
   }).current;
 
   // Game start text animation
@@ -96,8 +109,12 @@ export function CardDealingAnimation({
     scale: new Animated.Value(0.8),
   }).current;
 
+  // Overlay crossfade opacity (deck + trump + dealt cards)
+  const overlayOpacity = useRef(new Animated.Value(1)).current;
+
   // Main animation sequence
   useEffect(() => {
+    if (!layoutReady) return;
     const runAnimationSequence = async () => {
       // 1. Shuffle phase with animation
       await performShuffleAnimation();
@@ -118,14 +135,14 @@ export function CardDealingAnimation({
       setShowGameStart(true);
       await showGameStartMessage();
 
-      // 6. Complete
+      // 6. Complete - keep overlay deck/trump visible until parent fades us out
       setDealingPhase('complete');
-      setTimeout(onComplete, 300);
+      onComplete();
     };
 
     runAnimationSequence();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [layoutReady]);
 
   const performShuffleAnimation = async () => {
     playShuffleSound();
@@ -188,19 +205,24 @@ export function CardDealingAnimation({
         const handIndex = round * 3 + cardNum; // index within this player's hand (0..5)
 
         // First move to dealing line position
-        // Deal from a deck placed slightly left of screen center (matches reference)
         const deckPos = getDeckPosition(parentWidth, parentHeight, layoutInfo);
-        const lineX = deckPos.x + 10 + cardNum * 6;
-        const lineY = deckPos.y + 10;
+        const lineX = Math.max(8, deckPos.x + 10 + cardNum * 6);
+        const lineY = Math.max(8, deckPos.y + 10);
 
-        // Get final position based on player and card layout
-        const pos = getPlayerCardPosition(
+        // Compute FINAL absolute position matching GameTable containers
+        const finalPos = getFinalAbsoluteCardPosition(
           playerIndex,
           handIndex,
           6,
-          playerIndex === 0 ? 'medium' : 'small',
           layoutInfo,
+          parentWidth,
         );
+
+        // Initialize relative offset at TOP-OF-DECK position (deck top is left:+10, top:0)
+        cardAnimations.current[cardIndexForPlayer].position.setValue({
+          x: deckPos.x + 10 - finalPos.x,
+          y: deckPos.y - finalPos.y,
+        });
 
         animations.push(
           Animated.sequence([
@@ -212,7 +234,7 @@ export function CardDealingAnimation({
                 useNativeDriver: true,
               }),
               Animated.timing(cardAnimations.current[cardIndexForPlayer].position, {
-                toValue: { x: lineX, y: lineY },
+                toValue: { x: lineX - finalPos.x, y: lineY - finalPos.y },
                 duration: CARD_DEAL_DURATION / 2,
                 easing: SMOOTH_EASING,
                 useNativeDriver: true,
@@ -226,7 +248,7 @@ export function CardDealingAnimation({
             // Then animate to final position
             Animated.parallel([
               Animated.timing(cardAnimations.current[cardIndexForPlayer].position, {
-                toValue: { x: pos.x, y: pos.y },
+                toValue: { x: 0, y: 0 },
                 duration: CARD_DEAL_DURATION / 2,
                 easing: SMOOTH_EASING,
                 useNativeDriver: true,
@@ -251,23 +273,47 @@ export function CardDealingAnimation({
 
   const revealTrumpCard = async () => {
     playTrumpRevealSound();
-    // Show trump with a subtle fade/scale only; avoid heavy rotations that can blur overlaying cards
+    // Flip: rotateY 180->0 while fading in and slight scale
     await new Promise(resolve => {
       Animated.parallel([
+        Animated.timing(trumpAnimation.rotation, {
+          toValue: 1, // 0->1 mapped to 0->180deg below, we'll invert for face-up effect
+          duration: 350,
+          useNativeDriver: true,
+        }),
         Animated.timing(trumpAnimation.opacity, {
           toValue: 1,
-          duration: 250,
+          duration: 240,
           useNativeDriver: true,
         }),
         Animated.spring(trumpAnimation.scale, {
-          toValue: 1.05,
-          speed: 16,
-          bounciness: 6,
+          toValue: 1.02,
+          speed: 20,
+          bounciness: 7,
           useNativeDriver: true,
         }),
       ]).start(() => resolve(null));
     });
-    await new Promise(resolve => setTimeout(resolve, 250));
+    // Settle scale and slide slightly under the deck top card
+    await new Promise(resolve => {
+      Animated.parallel([
+        Animated.timing(trumpAnimation.scale, {
+          toValue: 1,
+          duration: 160,
+          useNativeDriver: true,
+        }),
+        Animated.timing(trumpAnimation.translateX, {
+          toValue: -6,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+        Animated.timing(trumpAnimation.translateY, {
+          toValue: 2,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]).start(() => resolve(null));
+    });
   };
 
   const showGameStartMessage = async () => {
@@ -303,31 +349,114 @@ export function CardDealingAnimation({
     outputRange: ['0deg', '180deg'],
   });
 
+  // Fade-out handoff
+  useEffect(() => {
+    if (!fadeOut) return;
+    Animated.timing(overlayOpacity, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => onFadeOutComplete?.());
+  }, [fadeOut, overlayOpacity, onFadeOutComplete]);
+
+  // Compute GameTable-matching absolute coordinates for a card
+  function getFinalAbsoluteCardPosition(
+    playerIndex: number,
+    handIndex: number,
+    totalCards: number,
+    layoutInfo: LayoutInfo,
+    parentWidth: number,
+  ) {
+    // Start with the same helper used by GameTable
+    const pos = getPlayerCardPosition(
+      playerIndex,
+      handIndex,
+      totalCards,
+      playerIndex === 0 ? 'large' : 'small',
+      layoutInfo,
+    );
+
+    // For left/right we render inside their 120px containers; GameTable re-centers with rotated width.
+    if (playerIndex === 1 || playerIndex === 3) {
+      const dims = getCardDimensions().small;
+      const rotatedWidth = dims.height; // visual width after 90deg rotation
+      const containerWidth = 120;
+      const xWithinContainer = Math.max(0, (containerWidth - rotatedWidth) / 2);
+      // Left container sits at left:8, Right at right:8 (so x differs)
+      if (playerIndex === 1) {
+        return { x: 8 + xWithinContainer, y: pos.y };
+      } else {
+        // Right container: parentWidth - 8 - 120 + xWithinContainer
+        return { x: parentWidth - 8 - 120 + xWithinContainer, y: pos.y };
+      }
+    }
+
+    // Top and bottom are already absolute to the table root
+    return { x: pos.x, y: pos.y };
+  }
+
   return (
-    <View style={StyleSheet.absoluteFillObject}>
-      {/* Deck pile in center with shuffle animation */}
-      {dealingPhase !== 'complete' && (
-        <Animated.View
+    <Animated.View
+      style={[
+        StyleSheet.absoluteFillObject,
+        { opacity: overlayOpacity, zIndex: 50 },
+      ]}
+      pointerEvents="none"
+      onLayout={onTableLayout}
+    >
+      {/* Deck + trump container (match DeckPile geometry exactly to avoid jumps) */}
+      {layoutReady && (dealingPhase !== 'complete' || !!fadeOut) && (
+        <View
           style={[
-            styles.deckContainer,
+            styles.deckPileContainer,
             {
               top: getDeckPosition(parentWidth, parentHeight, layoutInfo).y,
               left: getDeckPosition(parentWidth, parentHeight, layoutInfo).x,
-              transform: [
-                {
-                  rotate: shuffleAnimation.rotation.interpolate({
-                    inputRange: [-1, 1],
-                    outputRange: ['-90deg', '90deg'],
-                  }),
-                },
-                { translateX: shuffleAnimation.translateX },
-                { translateY: shuffleAnimation.translateY },
-              ],
             },
           ]}
         >
-          <SpanishCard faceDown size="medium" />
-        </Animated.View>
+          {/* Trump card (revealed during 'trump' phase) */}
+          {(dealingPhase === 'trump' || fadeOut) && (
+            <Animated.View
+              style={[
+                styles.trumpCardInDeck,
+                {
+                  opacity: trumpAnimation.opacity,
+                  transform: [
+                    { rotate: '90deg' },
+                    { rotateY: interpolatedRotation },
+                    { scale: trumpAnimation.scale },
+                    { translateX: trumpAnimation.translateX },
+                    { translateY: trumpAnimation.translateY },
+                  ],
+                },
+              ]}
+            >
+              <SpanishCard card={trumpCard} size="medium" />
+            </Animated.View>
+          )}
+
+          {/* Deck pile on top (animated shuffle) */}
+          <Animated.View
+            style={[
+              styles.deckTopCardContainer,
+              {
+                transform: [
+                  {
+                    rotate: shuffleAnimation.rotation.interpolate({
+                      inputRange: [-1, 1],
+                      outputRange: ['-90deg', '90deg'],
+                    }),
+                  },
+                  { translateX: shuffleAnimation.translateX },
+                  { translateY: shuffleAnimation.translateY },
+                ],
+              },
+            ]}
+          >
+            <SpanishCard faceDown size="medium" />
+          </Animated.View>
+        </View>
       )}
 
       {/* Animated cards being dealt */}
@@ -342,50 +471,46 @@ export function CardDealingAnimation({
         // Determine static rotation so side players are 90° during dealing too
         const staticRotate = playerIndex === 1 ? '-90deg' : playerIndex === 3 ? '90deg' : '0deg';
 
+        // Compute ABSOLUTE final position to place the animated container
+        const finalPos = getFinalAbsoluteCardPosition(
+          playerIndex,
+          cardInHandIndex,
+          6,
+          layoutInfo,
+          parentWidth,
+        );
+
         return (
           <Animated.View
             key={`dealing-card-${index}`}
             style={[
               styles.animatedCard,
               {
+                left: finalPos.x,
+                top: finalPos.y,
+                opacity: anim.opacity,
                 transform: [
                   { translateX: anim.position.x },
                   { translateY: anim.position.y },
-                  { scale: anim.scale },
-                  { rotate: staticRotate },
                 ],
-                opacity: anim.opacity,
               },
             ]}
           >
-            {showCard ? (
-              <SpanishCard
-                card={playerCards[cardInHandIndex]}
-                size={playerIndex === 0 ? 'medium' : 'small'}
-              />
-            ) : (
-              <SpanishCard faceDown size={playerIndex === 0 ? 'medium' : 'small'} />
-            )}
+            <Animated.View style={{ transform: [{ rotate: staticRotate }, { scale: anim.scale }] }}>
+              {showCard ? (
+                <SpanishCard
+                  card={playerCards[cardInHandIndex]}
+                  size={playerIndex === 0 ? 'large' : 'small'}
+                />
+              ) : (
+                <SpanishCard faceDown size={playerIndex === 0 ? 'large' : 'small'} />
+              )}
+            </Animated.View>
           </Animated.View>
         );
       })}
 
-      {/* Trump card reveal */}
-      {dealingPhase === 'trump' && (
-        <Animated.View
-          style={[
-            styles.trumpCard,
-            {
-              top: getTrumpPosition(parentWidth, parentHeight, layoutInfo).y,
-              left: getTrumpPosition(parentWidth, parentHeight, layoutInfo).x,
-              transform: [{ rotateY: interpolatedRotation }, { scale: trumpAnimation.scale }],
-              opacity: trumpAnimation.opacity,
-            },
-          ]}
-        >
-          <SpanishCard card={trumpCard} size="medium" />
-        </Animated.View>
-      )}
+      {/* Trump card is rendered inside deckPileContainer above during 'trump' phase */}
 
       {/* Game start message */}
       {showGameStart && (
@@ -402,7 +527,7 @@ export function CardDealingAnimation({
           {firstPlayerIndex === 0 && <Text style={styles.turnIndicator}>Tu turno</Text>}
         </Animated.View>
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -489,17 +614,27 @@ function getCardFinalPosition(
 }
 
 const styles = StyleSheet.create({
-  deckContainer: {
+  deckPileContainer: {
     position: 'absolute',
     zIndex: 1,
+    width: 100, // match DeckPile.container
+    height: 140, // match DeckPile.container
+  },
+  deckTopCardContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 10, // match DeckPile.deckContainer.left
+    zIndex: 2,
   },
   animatedCard: {
     position: 'absolute',
-    zIndex: 2,
+    zIndex: 5, // ensure dealt cards are above the overlay deck top card
   },
-  trumpCard: {
+  trumpCardInDeck: {
     position: 'absolute',
-    zIndex: 3,
+    zIndex: 1, // under deck top cards
+    top: 15, // match DeckPile.trumpCardContainer.top (centered)
+    left: 55, // match DeckPile.trumpCardContainer.left
     shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -512,7 +647,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    zIndex: 10,
+    zIndex: 2, // keep text below trump/deck and dealt cards
   },
   gameStartText: {
     fontSize: typography.fontSize.xxxl,

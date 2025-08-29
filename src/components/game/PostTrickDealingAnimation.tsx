@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, StyleSheet, Animated, Dimensions, InteractionManager } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
 import type { Card, PlayerId } from '../../types/game.types';
 import { SMOOTH_EASING } from '../../constants/animations';
 import { getDeckPosition, getPlayerCardPosition, getTrumpPosition, type LayoutInfo } from '../../utils/cardPositions';
 import { getCardDimensions } from '../../utils/responsive';
+import { createAnimationCleanup, shouldDropFrames } from '../../utils/animationPerformance';
 
 type DrawSpec = {
   playerId: PlayerId | string;
@@ -45,18 +46,23 @@ export function PostTrickDealingAnimation({
 
   // Snapshot the planned draws ONCE to avoid restarts as parent updates state
   const plannedDrawsRef = useRef(draws);
+  
+  // Cleanup manager for timers
+  const cleanupManager = useRef(createAnimationCleanup()).current;
 
   // Animate next draw in sequence
   useEffect(() => {
     let cancelled = false;
 
-    const animateOne = (idx: number) => {
-      if (cancelled) return;
-      const planned = plannedDrawsRef.current;
-      if (idx >= planned.length) {
-        onComplete();
-        return;
-      }
+    // Run after interactions for better performance
+    const handle = InteractionManager.runAfterInteractions(() => {
+      const animateOne = (idx: number) => {
+        if (cancelled) return;
+        const planned = plannedDrawsRef.current;
+        if (idx >= planned.length) {
+          onComplete();
+          return;
+        }
 
       const draw = planned[idx];
       const playerIndex = playerPositions[draw.playerId] ?? 0;
@@ -92,44 +98,50 @@ export function PostTrickDealingAnimation({
       scale.setValue(1);
       rotation.setValue(0);
 
-      const durationPerCard = 520; // faster than 650ms
-      const interCardDelay = 80; // faster than 120ms
+        // Optimize animation duration based on performance
+        const durationPerCard = shouldDropFrames() ? 300 : 350; // Faster than before (was 440)
+        const interCardDelay = shouldDropFrames() ? 30 : 50; // Faster than before (was 60)
 
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 80, useNativeDriver: true }),
-        Animated.parallel([
-          Animated.timing(position, {
-            toValue: { x: targetPos.x, y: targetPos.y },
-            duration: durationPerCard,
-            easing: SMOOTH_EASING,
-            useNativeDriver: true,
-          }),
-          Animated.sequence([
-            Animated.timing(scale, { toValue: 1.08, duration: durationPerCard * 0.5, useNativeDriver: true }),
-            Animated.timing(scale, { toValue: 1, duration: durationPerCard * 0.5, useNativeDriver: true }),
+        Animated.sequence([
+          Animated.timing(opacity, { toValue: 1, duration: 60, useNativeDriver: true }),
+          Animated.parallel([
+            Animated.timing(position, {
+              toValue: { x: targetPos.x, y: targetPos.y },
+              duration: durationPerCard,
+              easing: SMOOTH_EASING,
+              useNativeDriver: true,
+            }),
+            Animated.sequence([
+              Animated.timing(scale, { toValue: 1.08, duration: durationPerCard * 0.5, useNativeDriver: true }),
+              Animated.timing(scale, { toValue: 1, duration: durationPerCard * 0.5, useNativeDriver: true }),
+            ]),
+            Animated.timing(rotation, { toValue: 0, duration: durationPerCard, useNativeDriver: true }),
           ]),
-          Animated.timing(rotation, { toValue: 0, duration: durationPerCard, useNativeDriver: true }),
-        ]),
-      ]).start(() => {
-        // Inform host to commit this card to hands/deck immediately
-        onCardLanded?.(draw);
-        // Small gap before next card
-        setTimeout(() => {
-          if (!cancelled) {
-            currentIndexRef.current = idx + 1;
-            // Trigger a lightweight re-render so face rules update
-            forceRerenderTick(t => t + 1);
-            animateOne(idx + 1);
-          }
-        }, interCardDelay);
-      });
-    };
+        ]).start(() => {
+          // Inform host to commit this card to hands/deck immediately
+          onCardLanded?.(draw);
+          // Small gap before next card
+          const timer = setTimeout(() => {
+            if (!cancelled) {
+              currentIndexRef.current = idx + 1;
+              // Trigger a lightweight re-render so face rules update
+              forceRerenderTick(t => t + 1);
+              animateOne(idx + 1);
+            }
+          }, interCardDelay);
+          cleanupManager.register(timer);
+        });
+      };
 
-    animateOne(0);
+      animateOne(0);
+    });
+
     return () => {
       cancelled = true;
+      handle.cancel();
+      cleanupManager.clearAll();
     };
-  // Run once on mount; the draws are snapshotted
+    // Run once on mount; the draws are snapshotted
   }, []);
 
   const planned = plannedDrawsRef.current;

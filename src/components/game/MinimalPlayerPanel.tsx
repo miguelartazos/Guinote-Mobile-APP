@@ -69,8 +69,14 @@ export function MinimalPlayerPanel({
   };
 
   const getPlayerDisplayName = (name: string) => {
-    if (name.length > 10) {
-      return name.substring(0, 8) + '...';
+    // Extract first name from bot names with titles (e.g., "Ana la Prudente" -> "Ana")
+    if (name.includes(' la ') || name.includes(' el ')) {
+      const firstName = name.split(' ')[0];
+      return firstName;
+    }
+    // For regular names, show up to 12 characters
+    if (name.length > 12) {
+      return `${name.substring(0, 10)}...`;
     }
     return name;
   };
@@ -96,10 +102,10 @@ export function MinimalPlayerPanel({
         styles[`${position}Panel`],
         {
           transform: [{ scale: pulseAnim }],
-          borderColor: borderColor,
+          borderColor,
           borderWidth: isCurrentPlayer ? 2 : 0,
           shadowColor: colors.gold,
-          shadowOpacity: shadowOpacity,
+          shadowOpacity,
           shadowRadius: isCurrentPlayer ? 15 : 0,
         },
       ]}
@@ -118,19 +124,22 @@ export function MinimalPlayerPanel({
 const styles = StyleSheet.create({
   panel: {
     position: 'absolute',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: dimensions.borderRadius.sm,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: dimensions.borderRadius.md,
     paddingHorizontal: 8,
     paddingVertical: 4,
     minWidth: 64,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  // Move titles to corners to avoid overlaps
+  // Corner positioning for visibility
   topPanel: {
     top: 8,
-    left: 56, // leave space for the hamburger/menu button
+    left: 8,
   },
   leftPanel: {
     bottom: 8,
@@ -148,6 +157,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
     color: colors.white,
+    textAlign: 'center',
   },
   teamIndicator: {
     width: 8,
@@ -157,5 +167,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
 });

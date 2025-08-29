@@ -182,8 +182,7 @@ export function continueFromScoring(gameState: GameState): GameState | null {
     ? gameState.teams.find(t => t.playerIds.includes(gameState.lastTrickWinner!))?.id
     : undefined;
 
-  // This would normally create a new shuffled deck and deal cards
-  // For now, just change phase back to dealing
+  // Clear hands and deck to trigger new dealing for vueltas
   return {
     ...gameState,
     phase: 'dealing',
@@ -194,6 +193,9 @@ export function continueFromScoring(gameState: GameState): GameState | null {
     trickCount: 0,
     trickWins: new Map(),
     collectedTricks: new Map(),
+    hands: new Map(), // Clear hands to trigger dealing
+    deck: [], // Clear deck for fresh shuffle
+    // Keep trumpCard - it will be replaced when new cards are dealt
     canCambiar7: true,
     canDeclareVictory: !!lastWinnerTeam,
     dealerIndex: (gameState.dealerIndex + 1) % 4,
