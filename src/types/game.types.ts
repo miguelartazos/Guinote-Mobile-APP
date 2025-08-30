@@ -131,6 +131,12 @@ export type GameState = Readonly<{
     source: 'deck' | 'trump';
   }>;
   matchScore?: MatchScore; // Track buenas/malas sets
+  // Card play animation state
+  cardPlayAnimation?: {
+    playerId: PlayerId;
+    card: Card;
+    cardIndex: number;
+  };
 }>;
 
 export type GameAction =

@@ -879,6 +879,18 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
               source: d.source as 'deck' | 'trump',
             });
           }}
+          cardPlayAnimation={
+            gameState.cardPlayAnimation
+              ? {
+                  playerId: gameState.cardPlayAnimation.playerId,
+                  card: {
+                    suit: gameState.cardPlayAnimation.card.suit,
+                    value: gameState.cardPlayAnimation.card.value,
+                  },
+                  cardIndex: gameState.cardPlayAnimation.cardIndex,
+                }
+              : undefined
+          }
         />
 
         {/* Cantes display removed - now shown as discrete animations */}

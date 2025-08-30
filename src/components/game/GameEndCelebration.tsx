@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,19 +8,14 @@ import {
   TouchableOpacity,
   Easing,
 } from 'react-native';
-import Svg, { Circle, Path, G, Rect } from 'react-native-svg';
+import Svg, { G, Rect } from 'react-native-svg';
 import { colors } from '../../constants/colors';
-import { typography } from '../../constants/typography';
-import { useOrientation } from '../../hooks/useOrientation';
-import {
-  CONFETTI_DURATION,
-  CARD_DANCE_DURATION,
-  SCORE_COUNT_DURATION,
-  BOUNCE_EASING,
-  ELASTIC_EASING,
-} from '../../constants/animations';
+import { useLandscapeStyles } from '../../hooks/useLandscapeStyles';
+import { GameEndCelebrationTitle } from './GameEndCelebrationTitle';
+import { GameEndCelebrationScore } from './GameEndCelebrationScore';
+import { GameEndCelebrationProgress } from './GameEndCelebrationProgress';
+import { SCORE_COUNT_DURATION, ELASTIC_EASING } from '../../constants/animations';
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedG = Animated.createAnimatedComponent(G);
 
 type CelebrationType = 'partida' | 'coto' | 'match';
@@ -58,8 +53,7 @@ export function GameEndCelebration({
   onContinue,
 }: GameEndCelebrationProps) {
   const screenDimensions = Dimensions.get('window');
-  const orientation = useOrientation();
-  const isLandscape = orientation === 'landscape';
+  const styles = useLandscapeStyles(portraitStyles, landscapeStyles);
 
   // Title animation
   const titleAnimation = useRef({
@@ -319,205 +313,37 @@ export function GameEndCelebration({
   };
 
   return (
-    <View style={[StyleSheet.absoluteFillObject, isLandscape && styles.landscapeContainer]}>
+    <View style={[StyleSheet.absoluteFillObject, styles.container]}>
       {/* Dark overlay for better contrast */}
       <Animated.View
         style={[StyleSheet.absoluteFillObject, styles.overlay, { opacity: overlayOpacity }]}
       />
 
       {/* Main content container - Traditional Spanish card game style */}
-      <View style={[styles.contentContainer, isLandscape && styles.landscapeContent]}>
+      <View style={styles.contentContainer}>
         {/* Title with traditional Spanish decorations */}
-        <Animated.View
-          style={[
-            styles.titleContainer,
-            isLandscape && styles.landscapeTitleContainer,
-            {
-              opacity: titleAnimation.opacity,
-              transform: [
-                { scale: titleAnimation.scale },
-                { translateY: titleAnimation.translateY },
-              ],
-            },
-          ]}
-        >
-          {/* Traditional Spanish card suit decorations */}
-          <View style={styles.suitDecoration}>
-            <Text style={[styles.suitIcon, styles.suitBlack]}>♠</Text>
-            <Text style={[styles.suitIcon, styles.suitRed]}>♥</Text>
-            <Text style={[styles.suitIcon, styles.suitBlack]}>♣</Text>
-            <Text style={[styles.suitIcon, styles.suitRed]}>♦</Text>
-          </View>
-
-          {isWinner && (
-            <Animated.View
-              style={[
-                styles.crownContainer,
-                {
-                  transform: [
-                    {
-                      rotate: titleAnimation.scale.interpolate({
-                        inputRange: [0.9, 1],
-                        outputRange: ['-5deg', '0deg'],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Text style={styles.crownIcon}>♔</Text>
-            </Animated.View>
-          )}
-
-          <View style={styles.titleBorder}>
-            <Text
-              style={[
-                styles.titleText,
-                isLandscape && styles.landscapeTitleText,
-                isWinner && styles.winnerText,
-              ]}
-            >
-              {celebrationType === 'partida'
-                ? isWinner
-                  ? 'PARTIDA GANADA'
-                  : 'PARTIDA PERDIDA'
-                : celebrationType === 'coto'
-                ? isWinner
-                  ? 'COTO GANADO'
-                  : 'COTO PERDIDO'
-                : isWinner
-                ? '¡VICTORIA FINAL!'
-                : 'FIN DEL JUEGO'}
-            </Text>
-          </View>
-
-          <View style={styles.decorativeContainer}>
-            <View style={[styles.decorativeLine, isLandscape && styles.landscapeDecorativeLine]} />
-            <Text style={styles.decorativeDot}>◆</Text>
-            <View style={[styles.decorativeLine, isLandscape && styles.landscapeDecorativeLine]} />
-          </View>
-        </Animated.View>
+        <GameEndCelebrationTitle
+          isWinner={isWinner}
+          celebrationType={celebrationType}
+          titleAnimation={titleAnimation}
+        />
 
         {/* Score cards - Traditional Spanish design */}
-        <Animated.View
-          style={[
-            styles.scoreContainer,
-            isLandscape && styles.landscapeScoreContainer,
-            {
-              opacity: scoreCardAnimation.opacity,
-              transform: [{ translateY: scoreCardAnimation.translateY }],
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.scoreCard,
-              isLandscape && styles.landscapeScoreCard,
-              isWinner && styles.winnerCard,
-            ]}
-          >
-            <View style={styles.playerHeaderContainer}>
-              <Text style={[styles.playerLabel, isWinner && styles.winnerLabel]}>NOSOTROS</Text>
-              {isWinner && <Text style={styles.winnerBadge}>GANADOR</Text>}
-            </View>
-            <View style={styles.scoreRow}>
-              <AnimatedText
-                value={playerScoreAnim}
-                style={[
-                  styles.scoreText,
-                  isLandscape && styles.landscapeScoreText,
-                  isWinner && styles.winnerScoreText,
-                ]}
-              />
-              <Text style={[styles.pointsLabel, isLandscape && styles.landscapePointsLabel]}>
-                PUNTOS
-              </Text>
-            </View>
-          </View>
-
-          <View style={[styles.scoreDivider, isLandscape && styles.landscapeScoreDivider]}>
-            <View style={styles.vsContainer}>
-              <View style={styles.vsLine} />
-              <Text style={[styles.versusText, isLandscape && styles.landscapeVersusText]}>VS</Text>
-              <View style={styles.vsLine} />
-            </View>
-          </View>
-
-          <View
-            style={[
-              styles.scoreCard,
-              isLandscape && styles.landscapeScoreCard,
-              !isWinner && styles.winnerCard,
-            ]}
-          >
-            <View style={styles.playerHeaderContainer}>
-              <Text style={[styles.playerLabel, !isWinner && styles.winnerLabel]}>ELLOS</Text>
-              {!isWinner && <Text style={styles.winnerBadge}>GANADOR</Text>}
-            </View>
-            <View style={styles.scoreRow}>
-              <AnimatedText
-                value={opponentScoreAnim}
-                style={[
-                  styles.scoreText,
-                  isLandscape && styles.landscapeScoreText,
-                  !isWinner && styles.winnerScoreText,
-                ]}
-              />
-              <Text style={[styles.pointsLabel, isLandscape && styles.landscapePointsLabel]}>
-                PUNTOS
-              </Text>
-            </View>
-          </View>
-        </Animated.View>
+        <GameEndCelebrationScore
+          playerScore={playerScoreAnim}
+          opponentScore={opponentScoreAnim}
+          isWinner={isWinner}
+          scoreCardAnimation={scoreCardAnimation}
+        />
 
         {/* Match progress - Animated score update */}
         {matchScore && celebrationType === 'partida' && (
-          <Animated.View
-            style={[
-              styles.matchProgressContainer,
-              isLandscape && styles.landscapeMatchProgress,
-              {
-                opacity: matchScoreOpacity,
-                transform: [
-                  { scale: matchScoreScale },
-                  { translateY: scoreCardAnimation.translateY },
-                ],
-              },
-            ]}
-          >
-            <Text style={styles.matchProgressTitle}>MARCADOR DEL COTO</Text>
-            <View style={styles.progressContent}>
-              <View style={styles.progressTeam}>
-                <Text style={styles.progressTeamLabel}>NOSOTROS</Text>
-                <View style={styles.progressScoreContainer}>
-                  <View style={styles.progressRow}>
-                    <Text style={styles.progressValue}>{displayMatchScore.team1Partidas}</Text>
-                    <Text style={styles.progressLabel}>Partidas</Text>
-                  </View>
-                  <View style={styles.progressRow}>
-                    <Text style={styles.progressValue}>{displayMatchScore.team1Cotos}</Text>
-                    <Text style={styles.progressLabel}>Cotos</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.progressDivider} />
-
-              <View style={styles.progressTeam}>
-                <Text style={styles.progressTeamLabel}>ELLOS</Text>
-                <View style={styles.progressScoreContainer}>
-                  <View style={styles.progressRow}>
-                    <Text style={styles.progressValue}>{displayMatchScore.team2Partidas}</Text>
-                    <Text style={styles.progressLabel}>Partidas</Text>
-                  </View>
-                  <View style={styles.progressRow}>
-                    <Text style={styles.progressValue}>{displayMatchScore.team2Cotos}</Text>
-                    <Text style={styles.progressLabel}>Cotos</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </Animated.View>
+          <GameEndCelebrationProgress
+            matchScore={displayMatchScore}
+            matchScoreOpacity={matchScoreOpacity}
+            matchScoreScale={matchScoreScale}
+            scoreCardAnimation={scoreCardAnimation}
+          />
         )}
 
         {/* Continue button - Traditional style */}
@@ -525,7 +351,6 @@ export function GameEndCelebration({
           <Animated.View
             style={[
               styles.buttonContainer,
-              isLandscape && styles.landscapeButtonContainer,
               {
                 opacity: buttonAnimation.opacity,
                 transform: [{ scale: buttonAnimation.scale }],
@@ -533,19 +358,12 @@ export function GameEndCelebration({
             ]}
           >
             <TouchableOpacity
-              style={[styles.continueButton, isLandscape && styles.landscapeContinueButton]}
+              style={styles.continueButton}
               onPress={onContinue}
               activeOpacity={0.85}
             >
               <View style={styles.buttonInner}>
-                <Text
-                  style={[
-                    styles.continueButtonText,
-                    isLandscape && styles.landscapeContinueButtonText,
-                  ]}
-                >
-                  CONTINUAR
-                </Text>
+                <Text style={styles.continueButtonText}>CONTINUAR</Text>
                 <Text style={styles.continueButtonSubtext}>
                   {celebrationType === 'partida'
                     ? 'Siguiente Partida'
@@ -584,29 +402,20 @@ export function GameEndCelebration({
   );
 }
 
-// Helper component for animated text
-function AnimatedText({ value, style }: { value: Animated.Value; style: any }) {
-  const [displayValue, setDisplayValue] = React.useState(0);
-
-  useEffect(() => {
-    const listener = value.addListener(({ value: v }) => {
-      setDisplayValue(Math.round(v));
-    });
-
-    return () => {
-      value.removeListener(listener);
-    };
-  }, [value]);
-
-  return <Text style={style}>{displayValue}</Text>;
+// Helper function for color with opacity
+function colorWithOpacity(color: string, opacity: number): string {
+  const hex = Math.round(opacity * 255)
+    .toString(16)
+    .padStart(2, '0');
+  return `${color}${hex}`;
 }
 
-const styles = StyleSheet.create({
-  landscapeContainer: {
-    flexDirection: 'row',
+const portraitStyles = StyleSheet.create({
+  container: {
+    flex: 1,
   },
   overlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.9)', // Darker for more drama
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
   },
   contentContainer: {
     flex: 1,
@@ -614,284 +423,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
-  landscapeContent: {
-    paddingHorizontal: 40, // Optimized for iPhone landscape
-    maxWidth: 700, // Better for iPhone screens
-  },
-  titleContainer: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  landscapeTitleContainer: {
-    marginBottom: 35,
-  },
-  suitDecoration: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 12,
-    opacity: 0.7,
-  },
-  suitIcon: {
-    fontSize: 22,
-    marginHorizontal: 10,
-  },
-  suitBlack: {
-    color: colors.primary,
-    textShadowColor: colors.gold,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 3,
-  },
-  suitRed: {
-    color: colors.error,
-    textShadowColor: colors.gold,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 3,
-  },
-  crownContainer: {
-    marginBottom: 10,
-  },
-  crownIcon: {
-    fontSize: 42,
-    color: colors.gold,
-    textShadowColor: 'rgba(255, 215, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
-  },
-  titleBorder: {
-    borderWidth: 2,
-    borderColor: colors.goldDark,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: colorWithOpacity(colors.primary, 0.8),
-  },
-  titleText: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: colors.text,
-    letterSpacing: 2.5,
-    textTransform: 'uppercase',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  landscapeTitleText: {
-    fontSize: 36,
-    letterSpacing: 3,
-  },
-  winnerText: {
-    color: colors.gold,
-  },
-  decorativeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  decorativeLine: {
-    width: 60,
-    height: 2,
-    backgroundColor: colors.goldDark,
-    opacity: 0.8,
-  },
-  landscapeDecorativeLine: {
-    width: 80,
-    height: 2,
-  },
-  decorativeDot: {
-    fontSize: 12,
-    color: colors.goldDark,
-    marginHorizontal: 8,
-    opacity: 0.8,
-  },
-  scoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    marginBottom: 24,
-  },
-  landscapeScoreContainer: {
-    justifyContent: 'space-between',
-    width: '100%',
-    maxWidth: 580,
-    marginBottom: 30,
-  },
-  scoreCard: {
-    backgroundColor: colors.primary,
-    paddingVertical: 20,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    minWidth: 140,
-    alignItems: 'center',
-  },
-  landscapeScoreCard: {
-    minWidth: 200,
-    paddingHorizontal: 36,
-    paddingVertical: 24,
-  },
-  winnerCard: {
-    borderColor: colors.gold,
-    borderWidth: 3,
-    backgroundColor: colorWithOpacity(colors.goldDark, 0.15),
-    shadowColor: colors.gold,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  playerHeaderContainer: {
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  playerLabel: {
-    fontSize: 16,
-    color: colors.accent,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    fontWeight: '700',
-  },
-  winnerLabel: {
-    color: colors.gold,
-  },
-  winnerBadge: {
-    fontSize: 10,
-    color: colors.gold,
-    backgroundColor: colorWithOpacity(colors.goldDark, 0.2),
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 4,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  scoreRow: {
-    alignItems: 'center',
-  },
-  scoreText: {
-    fontSize: 56,
-    fontWeight: '900',
-    color: colors.text,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  landscapeScoreText: {
-    fontSize: 64,
-  },
-  winnerScoreText: {
-    color: colors.gold,
-    textShadowColor: 'rgba(255, 215, 0, 0.3)',
-    textShadowRadius: 6,
-  },
-  pointsLabel: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 2,
-    letterSpacing: 1,
-    fontWeight: '600',
-  },
-  landscapePointsLabel: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  scoreDivider: {
-    marginHorizontal: 16,
-    justifyContent: 'center',
-  },
-  landscapeScoreDivider: {
-    marginHorizontal: 24,
-  },
-  vsContainer: {
-    alignItems: 'center',
-  },
-  vsLine: {
-    width: 1,
-    height: 30,
-    backgroundColor: colorWithOpacity(colors.goldDark, 0.3),
-  },
-  versusText: {
-    fontSize: 18,
-    color: colors.goldDark,
-    fontWeight: '700',
-    marginVertical: 8,
-    letterSpacing: 1,
-  },
-  landscapeVersusText: {
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  matchProgressContainer: {
-    backgroundColor: colors.primary,
-    paddingVertical: 20,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: colors.goldDark,
-    marginBottom: 24,
-    marginTop: 8,
-  },
-  landscapeMatchProgress: {
-    paddingVertical: 24,
-    paddingHorizontal: 40,
-    minWidth: 480,
-  },
-  matchProgressTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.gold,
-    textAlign: 'center',
-    marginBottom: 16,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
-  progressContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  progressTeam: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  progressTeamLabel: {
-    fontSize: 14,
-    color: colors.accent,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-  },
-  progressScoreContainer: {
-    alignItems: 'center',
-  },
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginVertical: 4,
-  },
-  progressValue: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: colors.gold,
-    marginRight: 8,
-  },
-  progressLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-    fontWeight: '600',
-    textTransform: 'lowercase',
-  },
-  progressDivider: {
-    width: 1,
-    height: 60,
-    backgroundColor: colorWithOpacity(colors.goldDark, 0.3),
-    marginHorizontal: 20,
-  },
   buttonContainer: {
     marginTop: 16,
-  },
-  landscapeButtonContainer: {
-    marginTop: 24,
   },
   continueButton: {
     backgroundColor: colors.gold,
@@ -906,11 +439,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
   },
-  landscapeContinueButton: {
-    paddingHorizontal: 56,
-    paddingVertical: 20,
-    borderRadius: 12,
-  },
   buttonInner: {
     alignItems: 'center',
   },
@@ -921,10 +449,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 2,
   },
-  landscapeContinueButtonText: {
-    fontSize: 20,
-    letterSpacing: 2.5,
-  },
   continueButtonSubtext: {
     fontSize: 12,
     color: colorWithOpacity(colors.primary, 0.8),
@@ -933,10 +457,24 @@ const styles = StyleSheet.create({
   },
 });
 
-// Helper function for color with opacity
-function colorWithOpacity(color: string, opacity: number): string {
-  const hex = Math.round(opacity * 255)
-    .toString(16)
-    .padStart(2, '0');
-  return `${color}${hex}`;
-}
+const landscapeStyles: Partial<typeof portraitStyles> = {
+  container: {
+    flexDirection: 'row',
+  },
+  contentContainer: {
+    paddingHorizontal: 40,
+    maxWidth: 700,
+  },
+  buttonContainer: {
+    marginTop: 24,
+  },
+  continueButton: {
+    paddingHorizontal: 56,
+    paddingVertical: 20,
+    borderRadius: 12,
+  },
+  continueButtonText: {
+    fontSize: 20,
+    letterSpacing: 2.5,
+  },
+};

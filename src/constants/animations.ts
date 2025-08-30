@@ -7,6 +7,9 @@ export const CARD_SHUFFLE_DURATION = 600;
 export const CARD_HOVER_SCALE = 1.05;
 export const CARD_DRAG_SCALE = 1.1;
 export const CARD_FLIP_DURATION = 400;
+export const CARD_PLAY_DURATION = 280; // Duration of card play animation
+export const CARD_PLAY_DELAY = 300; // Delay before actuallyPlayCard is called
+export const CARD_PLAY_INITIAL_OPACITY = 0.95; // Initial opacity for card animation
 
 // Trick collection
 export const TRICK_SLIDE_DURATION = 600;

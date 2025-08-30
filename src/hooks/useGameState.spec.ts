@@ -608,6 +608,193 @@ describe('useGameState', () => {
     });
   });
 
+  describe('Card Play Animation', () => {
+    test('should cleanup timeout on unmount', () => {
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      const { result, unmount } = renderHook(() => 
+        useGameState({ playerName: 'Test Player' })
+      );
+
+      // Set up a game state with a card to play
+      const testGameState: GameState = {
+        id: 'test-game' as any,
+        phase: 'playing',
+        currentPlayerIndex: 0,
+        players: [
+          { id: 'player1', name: 'Player 1' } as any,
+          { id: 'player2', name: 'Player 2' } as any,
+          { id: 'player3', name: 'Player 3' } as any,
+          { id: 'player4', name: 'Player 4' } as any,
+        ],
+        teams: [
+          { id: 'team1' as TeamId, playerIds: ['player1', 'player3'] as any, score: 0 } as any,
+          { id: 'team2' as TeamId, playerIds: ['player2', 'player4'] as any, score: 0 } as any,
+        ] as [Team, Team],
+        hands: new Map([
+          ['player1', [{ id: 'card1', suit: 'oros', value: 1 }]],
+        ]),
+        currentTrick: [],
+        deck: [],
+        trumpCard: null,
+        teamTrickPiles: new Map(),
+        lastTrick: null,
+        lastTrickWinner: null,
+        dealingSnapshot: null,
+        pendingCantes: [],
+        handNumber: 1,
+        trickStats: new Map(),
+        cardPlayAnimation: null,
+      } as GameState;
+
+      act(() => {
+        result.current.setGameState(testGameState);
+      });
+
+      // Trigger a card play which should set a timeout
+      act(() => {
+        result.current.playCard(0);
+      });
+
+      // Verify animation state is set
+      expect(result.current.gameState?.cardPlayAnimation).toBeTruthy();
+
+      // Unmount should cleanup the timeout
+      unmount();
+
+      // Check that clearTimeout was called
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+
+      clearTimeoutSpy.mockRestore();
+    });
+
+    test('should handle concurrent card plays by clearing previous timeout', () => {
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+      
+      const { result } = renderHook(() => 
+        useGameState({ playerName: 'Test Player' })
+      );
+
+      // Set up game state with multiple cards
+      const testGameState: GameState = {
+        id: 'test-game' as any,
+        phase: 'playing',
+        currentPlayerIndex: 0,
+        players: [
+          { id: 'player1', name: 'Player 1' } as any,
+          { id: 'player2', name: 'Player 2' } as any,
+          { id: 'player3', name: 'Player 3' } as any,
+          { id: 'player4', name: 'Player 4' } as any,
+        ],
+        teams: [
+          { id: 'team1' as TeamId, playerIds: ['player1', 'player3'] as any, score: 0 } as any,
+          { id: 'team2' as TeamId, playerIds: ['player2', 'player4'] as any, score: 0 } as any,
+        ] as [Team, Team],
+        hands: new Map([
+          ['player1', [
+            { id: 'card1', suit: 'oros', value: 1 },
+            { id: 'card2', suit: 'oros', value: 2 },
+          ]],
+        ]),
+        currentTrick: [],
+        deck: [],
+        trumpCard: null,
+        teamTrickPiles: new Map(),
+        lastTrick: null,
+        lastTrickWinner: null,
+        dealingSnapshot: null,
+        pendingCantes: [],
+        handNumber: 1,
+        trickStats: new Map(),
+        cardPlayAnimation: null,
+      } as GameState;
+      
+      act(() => {
+        result.current.setGameState(testGameState);
+      });
+
+      // Play first card
+      act(() => {
+        result.current.playCard(0);
+      });
+
+      const firstTimeoutId = setTimeoutSpy.mock.results[setTimeoutSpy.mock.results.length - 1]?.value;
+
+      // Play second card quickly (simulating rapid plays)
+      act(() => {
+        // Update state to simulate AI played, making it player's turn again
+        result.current.setGameState({
+          ...result.current.gameState!,
+          currentPlayerIndex: 0,
+        });
+        result.current.playCard(0); // Play remaining card
+      });
+
+      // Should have cleared the first timeout
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(firstTimeoutId);
+
+      clearTimeoutSpy.mockRestore();
+      setTimeoutSpy.mockRestore();
+    });
+
+    test('should clear animation state when card is placed', () => {
+      const { result } = renderHook(() => 
+        useGameState({ playerName: 'Test Player' })
+      );
+
+      // Set up game state
+      const testGameState: GameState = {
+        id: 'test-game' as any,
+        phase: 'playing',
+        currentPlayerIndex: 0,
+        players: [
+          { id: 'player1', name: 'Player 1' } as any,
+          { id: 'player2', name: 'Player 2' } as any,
+          { id: 'player3', name: 'Player 3' } as any,
+          { id: 'player4', name: 'Player 4' } as any,
+        ],
+        teams: [
+          { id: 'team1' as TeamId, playerIds: ['player1', 'player3'] as any, score: 0 } as any,
+          { id: 'team2' as TeamId, playerIds: ['player2', 'player4'] as any, score: 0 } as any,
+        ] as [Team, Team],
+        hands: new Map([
+          ['player1', [{ id: 'card1', suit: 'oros', value: 1 }]],
+        ]),
+        currentTrick: [],
+        deck: [],
+        trumpCard: null,
+        teamTrickPiles: new Map(),
+        lastTrick: null,
+        lastTrickWinner: null,
+        dealingSnapshot: null,
+        pendingCantes: [],
+        handNumber: 1,
+        trickStats: new Map(),
+        cardPlayAnimation: null,
+      } as GameState;
+
+      act(() => {
+        result.current.setGameState(testGameState);
+      });
+
+      // Play card
+      act(() => {
+        result.current.playCard(0);
+      });
+
+      // Animation should be set
+      expect(result.current.gameState?.cardPlayAnimation).toBeTruthy();
+
+      // Fast-forward to complete animation
+      act(() => {
+        jest.advanceTimersByTime(300);
+      });
+
+      // Animation state should be cleared after actuallyPlayCard runs
+      expect(result.current.gameState?.cardPlayAnimation).toBeNull();
+    });
+  });
+
   describe('reorderPlayerHand', () => {
     test('reorders cards within player hand correctly', () => {
       const { result } = renderHook(() => useGameState({ playerName: 'Test Player' }));

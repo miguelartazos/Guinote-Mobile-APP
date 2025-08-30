@@ -7,6 +7,7 @@ import { MinimalPlayerPanel } from './MinimalPlayerPanel';
 import { DeckPile } from './DeckPile';
 import { TrickCollectionAnimation } from './TrickCollectionAnimation';
 import { PostTrickDealingAnimation } from './PostTrickDealingAnimation';
+import { CardPlayAnimation } from './CardPlayAnimation';
 import { TeamTrickPile } from './TeamTrickPile';
 // import { CardCountBadge } from './CardCountBadge';
 import { CollapsibleGameMenu } from './CollapsibleGameMenu';
@@ -84,6 +85,12 @@ type GameTableProps = {
   playShuffleSound?: () => void;
   playDealSound?: () => void;
   playTrumpRevealSound?: () => void;
+  // Card play animation
+  cardPlayAnimation?: {
+    playerId: string;
+    card: SpanishCardData;
+    cardIndex: number;
+  };
 };
 
 export function GameTable({
@@ -119,6 +126,7 @@ export function GameTable({
   playShuffleSound,
   playDealSound,
   playTrumpRevealSound,
+  cardPlayAnimation,
 }: GameTableProps) {
   const [bottomPlayer, leftPlayer, topPlayer, rightPlayer] = players;
   const orientation = useOrientation();
@@ -199,24 +207,15 @@ export function GameTable({
 
   // Determine if deck should be visible - centralized logic to prevent bugs
   const shouldShowDeck = useMemo(() => {
-    // Never show during certain phases
-    if (
-      gamePhase === 'arrastre' ||
-      gamePhase === 'scoring' ||
-      gamePhase === 'gameOver' ||
-      gamePhase === 'finished'
-    ) {
+    // Never show during end game phases
+    if (gamePhase === 'scoring' || gamePhase === 'gameOver' || gamePhase === 'finished') {
       return false;
     }
-    // Never show during dealing animations
-    if (isDealing || postTrickDealingAnimating) {
+    // Never show during initial dealing animation
+    if (isDealing) {
       return false;
     }
-    // Never show during fadeout overlay
-    if (shouldFadeOutOverlay) {
-      return false;
-    }
-    // Only show if there are actually cards to draw
+    // Only show if there are actually cards in the deck
     if (deckCount <= 0) {
       return false;
     }
@@ -229,16 +228,7 @@ export function GameTable({
       return false;
     }
     return true;
-  }, [
-    gamePhase,
-    isDealing,
-    deckCount,
-    layout.isReady,
-    deckPosition,
-    trumpCard,
-    postTrickDealingAnimating,
-    shouldFadeOutOverlay,
-  ]);
+  }, [gamePhase, isDealing, deckCount, layout.isReady, deckPosition, trumpCard]);
 
   return (
     <View
@@ -309,6 +299,12 @@ export function GameTable({
       {!isDealing && layout.isReady && (
         <View style={styles.topPlayerCardsContainer}>
           {topPlayer.cards.map((_, index) => {
+            // Hide card during play animation
+            const isAnimating =
+              cardPlayAnimation?.playerId === topPlayer.id &&
+              cardPlayAnimation?.cardIndex === index;
+            if (isAnimating) return null;
+
             const position = getPlayerCardPosition(
               2,
               index,
@@ -341,6 +337,12 @@ export function GameTable({
       {!isDealing && layout.isReady && (
         <View style={styles.leftPlayerCards}>
           {leftPlayer.cards.map((_, index) => {
+            // Hide card during play animation
+            const isAnimating =
+              cardPlayAnimation?.playerId === leftPlayer.id &&
+              cardPlayAnimation?.cardIndex === index;
+            if (isAnimating) return null;
+
             const pos = getPlayerCardPosition(
               3,
               index,
@@ -377,6 +379,12 @@ export function GameTable({
       {!isDealing && layout.isReady && (
         <View style={styles.rightPlayerCards}>
           {rightPlayer.cards.map((_, index) => {
+            // Hide card during play animation
+            const isAnimating =
+              cardPlayAnimation?.playerId === rightPlayer.id &&
+              cardPlayAnimation?.cardIndex === index;
+            if (isAnimating) return null;
+
             const pos = getPlayerCardPosition(
               1,
               index,
@@ -523,6 +531,62 @@ export function GameTable({
         />
       )}
 
+      {/* Card Play Animation */}
+      {cardPlayAnimation && layout.isReady && (
+        <CardPlayAnimation
+          card={cardPlayAnimation.card}
+          fromPosition={(() => {
+            // Calculate the position of the card in the player's hand
+            const playerIndex = playerIdToHandPosition[cardPlayAnimation.playerId] ?? 0;
+            const player = [bottomPlayer, leftPlayer, topPlayer, rightPlayer].find(
+              p => p.id === cardPlayAnimation.playerId,
+            );
+            const totalCards = player?.cards.length || 0;
+            const size = playerIndex === 0 ? 'large' : 'small';
+
+            const cardPos = getPlayerCardPosition(
+              playerIndex,
+              cardPlayAnimation.cardIndex,
+              totalCards,
+              size,
+              layoutInfo,
+            );
+
+            return { x: cardPos.x, y: cardPos.y };
+          })()}
+          toPosition={(() => {
+            // Calculate the destination position on the table
+            const playerPos = playerIdToPosition[cardPlayAnimation.playerId] ?? 0;
+            const trickPos = getTrickCardPositionWithinBoard(playerPos, layout.board);
+            const boardOffsetX = layout.board?.x || 0;
+            const boardOffsetY = layout.board?.y || 0;
+
+            return {
+              x: boardOffsetX + (trickPos.left as number),
+              y: boardOffsetY + (trickPos.top as number),
+            };
+          })()}
+          playerPosition={(() => {
+            const pos = playerIdToPosition[cardPlayAnimation.playerId];
+            switch (pos) {
+              case 0:
+                return 'bottom';
+              case 1:
+                return 'left';
+              case 2:
+                return 'top';
+              case 3:
+                return 'right';
+              default:
+                return 'bottom';
+            }
+          })()}
+          playSound={() => {
+            // Card sound is played in GameScreen handleCardPlay
+          }}
+        />
+      )}
+
       {/* Deck and Trump Display - controlled by shouldShowDeck */}
       {shouldShowDeck && deckPosition && (
         <View
@@ -580,7 +644,12 @@ export function GameTable({
               card.suit === hideCardFromHand.suit &&
               card.value === hideCardFromHand.value;
 
-            if (shouldHide) return null;
+            // Hide card during play animation
+            const isAnimating =
+              cardPlayAnimation?.playerId === bottomPlayer.id &&
+              cardPlayAnimation?.cardIndex === index;
+
+            if (shouldHide || isAnimating) return null;
             const isValidCard = !validCardIndices || validCardIndices.includes(index);
             const isPlayerTurn = currentPlayerIndex === 0;
             const position = getPlayerCardPosition(

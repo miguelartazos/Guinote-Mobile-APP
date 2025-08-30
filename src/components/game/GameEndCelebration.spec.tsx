@@ -20,7 +20,7 @@ describe('GameEndCelebration', () => {
       />,
     );
 
-    expect(getByText('VICTORIA')).toBeTruthy();
+    expect(getByText('¡VICTORIA FINAL!')).toBeTruthy();
   });
 
   test('renders game end message for loser', () => {
@@ -33,7 +33,7 @@ describe('GameEndCelebration', () => {
       />,
     );
 
-    expect(getByText('Fin del Juego')).toBeTruthy();
+    expect(getByText('FIN DEL JUEGO')).toBeTruthy();
   });
 
   test('displays score labels', () => {
@@ -46,8 +46,8 @@ describe('GameEndCelebration', () => {
       />,
     );
 
-    expect(getByText('Tú')).toBeTruthy();
-    expect(getByText('Oponente')).toBeTruthy();
+    expect(getByText('NOSOTROS')).toBeTruthy();
+    expect(getByText('ELLOS')).toBeTruthy();
   });
 
   test('renders confetti only for winner', () => {
@@ -70,10 +70,10 @@ describe('GameEndCelebration', () => {
     );
 
     // Winner should show victory text
-    expect(winnerScreen.getByText('VICTORIA')).toBeTruthy();
+    expect(winnerScreen.getByText('¡VICTORIA FINAL!')).toBeTruthy();
 
     // Loser should show defeat text
-    expect(loserScreen.getByText('Fin del Juego')).toBeTruthy();
+    expect(loserScreen.getByText('FIN DEL JUEGO')).toBeTruthy();
   });
 
   test('calls playSound when animation starts', () => {

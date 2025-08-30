@@ -16,6 +16,7 @@ import { WINNING_SCORE, MINIMUM_CARD_POINTS } from '../types/game.types';
 import type { SpanishSuit, CardValue } from '../types/cardTypes';
 import { StateMutex } from '../utils/StateMutex';
 import { DeadlockDetector } from '../utils/DeadlockDetector';
+import { CARD_PLAY_DELAY } from '../constants/animations';
 import {
   createDeck,
   shuffleDeck,
@@ -95,6 +96,7 @@ export function useGameState({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const winnerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const doubleTapGuardRef = useRef<NodeJS.Timeout | null>(null);
+  const playCardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Deadlock detector to prevent freezes - DISABLED for now
   // The 3-second timeout is too aggressive for human players who need time to think
@@ -226,17 +228,33 @@ export function useGameState({
           isBot: index !== 0,
         }));
 
+        // Build teams dynamically from mock data players
+        const mockTeam1Players = players.filter(p => p.teamId === 'team1').map(p => p.id);
+        const mockTeam2Players = players.filter(p => p.teamId === 'team2').map(p => p.id);
+
+        // Validate mock data team sizes
+        if (mockTeam1Players.length !== 2 || mockTeam2Players.length !== 2) {
+          console.warn('Mock data has invalid team sizes, using fallback', {
+            team1: mockTeam1Players,
+            team2: mockTeam2Players,
+          });
+        }
+
         const teams: [Team, Team] = [
           {
             id: 'team1' as TeamId,
-            playerIds: ['player' as PlayerId, 'bot2' as PlayerId],
+            playerIds: (mockTeam1Players.length === 2
+              ? mockTeam1Players
+              : ['player' as PlayerId, 'bot2' as PlayerId]) as [PlayerId, PlayerId],
             score: 0,
             cardPoints: 0,
             cantes: [],
           },
           {
             id: 'team2' as TeamId,
-            playerIds: ['bot1' as PlayerId, 'bot3' as PlayerId],
+            playerIds: (mockTeam2Players.length === 2
+              ? mockTeam2Players
+              : ['bot1' as PlayerId, 'bot3' as PlayerId]) as [PlayerId, PlayerId],
             score: 0,
             cardPoints: 0,
             cantes: [],
@@ -384,17 +402,64 @@ export function useGameState({
         ];
       }
 
+      // Build teams dynamically from actual player IDs
+      const team1Players = players.filter(p => p.teamId === 'team1').map(p => p.id);
+      const team2Players = players.filter(p => p.teamId === 'team2').map(p => p.id);
+
+      // Validate team sizes - each team must have exactly 2 players
+      if (team1Players.length !== 2 || team2Players.length !== 2) {
+        console.error('Invalid team configuration', {
+          team1Count: team1Players.length,
+          team2Count: team2Players.length,
+          team1Players,
+          team2Players,
+          allPlayers: players.map(p => ({ id: p.id, teamId: p.teamId })),
+        });
+
+        // Fallback: ensure we have valid teams even if assignment failed
+        // This should never happen but prevents game from breaking
+        const fallbackTeam1 =
+          team1Players.length === 2
+            ? team1Players
+            : team1Players.length > 2
+            ? team1Players.slice(0, 2)
+            : [
+                ...team1Players,
+                players.find(p => !team1Players.includes(p.id) && !team2Players.includes(p.id))?.id,
+              ]
+                .filter(Boolean)
+                .slice(0, 2);
+
+        const fallbackTeam2 =
+          team2Players.length === 2
+            ? team2Players
+            : team2Players.length > 2
+            ? team2Players.slice(0, 2)
+            : [...team2Players, players.find(p => !fallbackTeam1.includes(p.id))?.id]
+                .filter(Boolean)
+                .slice(0, 2);
+
+        console.warn('Using fallback team configuration', {
+          team1: fallbackTeam1,
+          team2: fallbackTeam2,
+        });
+      }
+
       const teams: [Team, Team] = [
         {
           id: 'team1' as TeamId,
-          playerIds: ['player' as PlayerId, 'bot2' as PlayerId],
+          playerIds: (team1Players.length === 2
+            ? team1Players
+            : ['player' as PlayerId, 'bot2' as PlayerId]) as [PlayerId, PlayerId],
           score: 0,
           cardPoints: 0,
           cantes: [],
         },
         {
           id: 'team2' as TeamId,
-          playerIds: ['bot1' as PlayerId, 'bot3' as PlayerId],
+          playerIds: (team2Players.length === 2
+            ? team2Players
+            : ['bot1' as PlayerId, 'bot3' as PlayerId]) as [PlayerId, PlayerId],
           score: 0,
           cardPoints: 0,
           cantes: [],
@@ -449,6 +514,261 @@ export function useGameState({
     initializeGame();
   }, [playerName, gameId, mockData, difficulty, playerNames]);
 
+  // Internal function to actually play the card (after animation)
+  const actuallyPlayCard = useCallback(
+    (cardId: CardId | string) => {
+      setGameState(prevState => {
+        if (!prevState) return null;
+
+        const currentPlayer = prevState.players[prevState.currentPlayerIndex];
+        const playerHand = prevState.hands.get(currentPlayer.id);
+        if (!playerHand) return prevState;
+
+        const card = playerHand.find(c => c.id === cardId);
+        if (!card) return prevState;
+
+        // Remove card from player's hand
+        const newHands = new Map(prevState.hands);
+        const currentHand = [...(newHands.get(currentPlayer.id) || [])];
+        const cardIndex = currentHand.findIndex(c => c.id === cardId);
+        currentHand.splice(cardIndex, 1);
+        newHands.set(currentPlayer.id, currentHand);
+
+        // Add card to current trick
+        const newTrick = [...prevState.currentTrick, { playerId: currentPlayer.id, card }];
+
+        console.log('🃏 CARD PLAYED:', {
+          player: currentPlayer.name,
+          card: `${card.value} de ${card.suit}`,
+          trickPosition: newTrick.length,
+          isLastCard: newTrick.length === 4,
+        });
+
+        // Update AI memory for all played cards
+        setAIMemory(prev => {
+          const updated = updateMemory(prev, currentPlayer.id, card);
+          // Clear memory if it's getting too large to prevent memory leaks
+          if (shouldClearMemory(updated)) {
+            console.log('🧹 Clearing AI memory - too many cards tracked');
+            return clearMemory();
+          }
+          return updated;
+        });
+
+        // Clear animation state now that the card is placed
+        const clearedAnimationState = { ...prevState, cardPlayAnimation: undefined };
+
+        // Check if trick is complete
+        if (newTrick.length === 4) {
+          // Calculate winner and points
+          const winnerId = calculateTrickWinner(newTrick, prevState.trumpSuit);
+          const points = calculateTrickPoints(newTrick);
+          const winnerTeam = findPlayerTeam(winnerId, prevState);
+
+          // Handle team detection failure
+          if (!winnerTeam) {
+            console.warn('Team detection failed for trick winner:', winnerId);
+          }
+
+          console.log('🏆 TRICK COMPLETE:', {
+            winner: winnerId,
+            winnerName: prevState.players.find(p => p.id === winnerId)?.name,
+            points,
+            cards: newTrick.map(tc => ({
+              player: tc.playerId,
+              card: `${tc.card.value} de ${tc.card.suit}`,
+            })),
+          });
+
+          // Update scores
+          const newTeams = [...prevState.teams] as [Team, Team];
+          const teamIndex = newTeams.findIndex(t => t.id === winnerTeam);
+          if (teamIndex !== -1) {
+            newTeams[teamIndex] = {
+              ...newTeams[teamIndex],
+              score: newTeams[teamIndex].score + points,
+              cardPoints: newTeams[teamIndex].cardPoints + points, // Track card points separately
+            };
+          }
+
+          // Increment trick count and store collected trick
+          const newTrickCount = prevState.trickCount + 1;
+
+          // Update collected tricks for the winner
+          const newCollectedTricks = new Map(prevState.collectedTricks);
+          const winnerTricks = newCollectedTricks.get(winnerId) || [];
+          newCollectedTricks.set(winnerId, [...winnerTricks, newTrick]);
+
+          // Do NOT add to team trick piles yet – wait until the animation completes
+
+          // Prepare pending draws if deck has cards, but do NOT mutate hands/deck yet
+          const pendingDraws: Array<{
+            playerId: PlayerId;
+            card: Card;
+            source: 'deck' | 'trump';
+          }> = [];
+          const deckSnapshot = [...prevState.deck];
+          if (deckSnapshot.length > 0 && prevState.phase === 'playing') {
+            // Winner draws first, then counter-clockwise
+            const drawOrder = [winnerId];
+            let nextIndex = prevState.players.findIndex(p => p.id === winnerId);
+            for (let i = 0; i < 3; i++) {
+              nextIndex = getNextPlayerIndex(nextIndex, 4);
+              drawOrder.push(prevState.players[nextIndex].id);
+            }
+
+            console.log('📦 DRAWING ORDER (counter-clockwise from winner):', {
+              drawOrder: drawOrder.map(id => prevState.players.find(p => p.id === id)?.name),
+              deckSize: deckSnapshot.length,
+            });
+
+            const initialDeckCountForRound = deckSnapshot.length;
+            let trumpAwarded = false;
+
+            drawOrder.forEach(playerId => {
+              if (deckSnapshot.length > 0) {
+                const drawnCard = deckSnapshot.pop();
+                if (drawnCard) {
+                  pendingDraws.push({ playerId, card: drawnCard, source: 'deck' });
+                }
+              } else if (!trumpAwarded && initialDeckCountForRound < 4) {
+                // Award the face-up trump to complete the round of draws
+                pendingDraws.push({ playerId, card: prevState.trumpCard, source: 'trump' });
+                trumpAwarded = true;
+              }
+            });
+          }
+
+          // Winner starts next trick
+          const winnerIndex = prevState.players.findIndex(p => p.id === winnerId);
+
+          console.log('🎯 NEXT PLAYER:', {
+            winnerIndex,
+            nextPlayerName: prevState.players[winnerIndex]?.name,
+            nextPlayerId: prevState.players[winnerIndex]?.id,
+          });
+
+          // Check if this is the last trick of the game (deck already empty and hands empty before trick)
+          const isLastTrick =
+            prevState.deck.length === 0 &&
+            Array.from(newHands.values()).every(hand => hand.length === 0);
+
+          // Award last trick bonus if applicable
+          let lastTrickBonusApplied = false;
+          if (isLastTrick) {
+            const teamIdx = newTeams.findIndex(t => t.id === winnerTeam);
+            if (teamIdx !== -1) {
+              newTeams[teamIdx] = {
+                ...newTeams[teamIdx],
+                score: newTeams[teamIdx].score + 10, // diez de últimas
+              };
+              lastTrickBonusApplied = true;
+            }
+          }
+
+          const shouldVueltas = shouldStartVueltas({
+            ...prevState,
+            teams: newTeams,
+            // Deck/hands considered pre-draw for this decision; final phase updates happen after dealing
+            deck: prevState.deck,
+            hands: newHands,
+          });
+
+          // Determine if we will enter arrastre after dealing (computed but applied after dealing commits)
+          const willEnterArrastre = deckSnapshot.length === 0 && !prevState.isVueltas;
+          if (willEnterArrastre) {
+            console.log('🎴 PHASE TRANSITION PENDING: Will enter ARRASTRE after dealing');
+          }
+
+          // Don't clear the trick immediately - show animation first
+          const nextStateAfterTrick: GameState = {
+            ...clearedAnimationState,
+            hands: newHands,
+            // Keep deck unchanged until post-trick dealing animation commits
+            deck: prevState.deck,
+            currentTrick: newTrick, // Keep the full trick visible
+            currentPlayerIndex: winnerIndex,
+            teams: newTeams,
+            trickCount: newTrickCount,
+            collectedTricks: newCollectedTricks,
+            teamTrickPiles: prevState.teamTrickPiles,
+            lastTrickWinner: winnerId,
+            lastTrick: newTrick,
+            pendingPostTrickDraws: pendingDraws.length > 0 ? pendingDraws : undefined,
+            // Provide metadata for last trick overlay and points
+            pendingTrickWinner: {
+              playerId: winnerId,
+              points: points + (lastTrickBonusApplied ? 10 : 0),
+              cards: newTrick.map(tc => tc.card),
+              teamId: winnerTeam as TeamId,
+              isLastTrick,
+              bonus: lastTrickBonusApplied ? 10 : 0,
+            },
+            phase: (() => {
+              let phase: GamePhase;
+              // If a team reached 101 in first hand, go directly to scoring
+              const teamReached101FirstHand =
+                !prevState.isVueltas && (newTeams[0].score >= 101 || newTeams[1].score >= 101);
+
+              if (teamReached101FirstHand) {
+                phase = 'scoring';
+              } else if (isGameOver({ ...prevState, teams: newTeams })) {
+                phase = 'gameOver';
+              } else if (isLastTrick && !prevState.isVueltas) {
+                // Show scores before deciding on vueltas
+                phase = 'scoring';
+              } else if (isLastTrick && prevState.isVueltas) {
+                // Vueltas complete - go to scoring to determine winner
+                phase = 'scoring';
+              } else {
+                phase = prevState.phase;
+              }
+
+              // Clear AI memory on phase transitions
+              if (phase !== prevState.phase) {
+                setAIMemory(prev => clearMemoryOnPhaseChange(prev, phase));
+              }
+
+              return phase;
+            })(),
+            isVueltas: shouldVueltas ? true : prevState.isVueltas,
+            initialScores: shouldVueltas
+              ? new Map(newTeams.map(t => [t.id, t.score]))
+              : prevState.initialScores,
+            lastActionTimestamp: Date.now(),
+            trickAnimating: false,
+            // Keep cambiar7 until arrastre actually starts after dealing
+            canCambiar7: prevState.canCambiar7,
+          } as GameState;
+
+          // Start trick animation after a short delay so last card settles visually
+          if (winnerTimeoutRef.current) clearTimeout(winnerTimeoutRef.current);
+          winnerTimeoutRef.current = setTimeout(() => {
+            setGameState(p => (p ? { ...p, trickAnimating: true } : p));
+          }, 250);
+
+          return nextStateAfterTrick;
+        }
+
+        // Next player's turn
+        const nextPlayerIndex = getNextPlayerIndex(prevState.currentPlayerIndex, 4);
+        console.log('Advancing turn:', {
+          from: prevState.currentPlayerIndex,
+          to: nextPlayerIndex,
+          trickSize: newTrick.length,
+        });
+        return {
+          ...clearedAnimationState,
+          hands: newHands,
+          currentTrick: newTrick,
+          currentPlayerIndex: nextPlayerIndex,
+          lastActionTimestamp: Date.now(),
+        };
+      });
+    },
+    [setAIMemory],
+  );
+
   // Play a card
   const playCard = useCallback(
     (cardId: CardId | string) => {
@@ -457,7 +777,8 @@ export function useGameState({
       if (
         gameState.trickAnimating ||
         gameState.postTrickDealingAnimating ||
-        (gameState as any).postTrickDealingPending
+        (gameState as any).postTrickDealingPending ||
+        gameState.cardPlayAnimation
       ) {
         console.warn('⚠️ Blocked playCard: animations or dealing in progress');
         return;
@@ -481,6 +802,9 @@ export function useGameState({
         const card = playerHand.find(c => c.id === cardId);
         if (!card) return;
 
+        const cardIndex = playerHand.findIndex(c => c.id === cardId);
+        if (cardIndex === -1) return;
+
         // Validate play
         if (
           !isValidPlay(
@@ -501,250 +825,35 @@ export function useGameState({
           return;
         }
 
-        // Update game state
+        // First, trigger the animation
         setGameState(prevState => {
           if (!prevState) return null;
-
-          // Remove card from player's hand
-          const newHands = new Map(prevState.hands);
-          const currentHand = [...(newHands.get(currentPlayer.id) || [])];
-          const cardIndex = currentHand.findIndex(c => c.id === cardId);
-          currentHand.splice(cardIndex, 1);
-          newHands.set(currentPlayer.id, currentHand);
-
-          // Add card to current trick
-          const newTrick = [...prevState.currentTrick, { playerId: currentPlayer.id, card }];
-
-          console.log('🃏 CARD PLAYED:', {
-            player: currentPlayer.name,
-            card: `${card.value} de ${card.suit}`,
-            trickPosition: newTrick.length,
-            isLastCard: newTrick.length === 4,
-          });
-
-          // Update AI memory for all played cards
-          setAIMemory(prev => {
-            const updated = updateMemory(prev, currentPlayer.id, card);
-            // Clear memory if it's getting too large to prevent memory leaks
-            if (shouldClearMemory(updated)) {
-              console.log('🧹 Clearing AI memory - too many cards tracked');
-              return clearMemory();
-            }
-            return updated;
-          });
-
-          // Check if trick is complete
-          if (newTrick.length === 4) {
-            // Calculate winner and points
-            const winnerId = calculateTrickWinner(newTrick, prevState.trumpSuit);
-            const points = calculateTrickPoints(newTrick);
-            const winnerTeam = findPlayerTeam(winnerId, prevState);
-
-            // Handle team detection failure
-            if (!winnerTeam) {
-              console.warn('Team detection failed for trick winner:', winnerId);
-            }
-
-            console.log('🏆 TRICK COMPLETE:', {
-              winner: winnerId,
-              winnerName: prevState.players.find(p => p.id === winnerId)?.name,
-              points: points,
-              cards: newTrick.map(tc => ({
-                player: tc.playerId,
-                card: `${tc.card.value} de ${tc.card.suit}`,
-              })),
-            });
-
-            // Update scores
-            const newTeams = [...prevState.teams] as [Team, Team];
-            const teamIndex = newTeams.findIndex(t => t.id === winnerTeam);
-            if (teamIndex !== -1) {
-              newTeams[teamIndex] = {
-                ...newTeams[teamIndex],
-                score: newTeams[teamIndex].score + points,
-                cardPoints: newTeams[teamIndex].cardPoints + points, // Track card points separately
-              };
-            }
-
-            // Increment trick count and store collected trick
-            const newTrickCount = prevState.trickCount + 1;
-
-            // Update collected tricks for the winner
-            const newCollectedTricks = new Map(prevState.collectedTricks);
-            const winnerTricks = newCollectedTricks.get(winnerId) || [];
-            newCollectedTricks.set(winnerId, [...winnerTricks, newTrick]);
-
-            // Do NOT add to team trick piles yet – wait until the animation completes
-
-            // Prepare pending draws if deck has cards, but do NOT mutate hands/deck yet
-            const pendingDraws: Array<{
-              playerId: PlayerId;
-              card: Card;
-              source: 'deck' | 'trump';
-            }> = [];
-            const deckSnapshot = [...prevState.deck];
-            if (deckSnapshot.length > 0 && prevState.phase === 'playing') {
-              // Winner draws first, then counter-clockwise
-              const drawOrder = [winnerId];
-              let nextIndex = prevState.players.findIndex(p => p.id === winnerId);
-              for (let i = 0; i < 3; i++) {
-                nextIndex = getNextPlayerIndex(nextIndex, 4);
-                drawOrder.push(prevState.players[nextIndex].id);
-              }
-
-              console.log('📦 DRAWING ORDER (counter-clockwise from winner):', {
-                drawOrder: drawOrder.map(id => prevState.players.find(p => p.id === id)?.name),
-                deckSize: deckSnapshot.length,
-              });
-
-              const initialDeckCountForRound = deckSnapshot.length;
-              let trumpAwarded = false;
-
-              drawOrder.forEach(playerId => {
-                if (deckSnapshot.length > 0) {
-                  const drawnCard = deckSnapshot.pop();
-                  if (drawnCard) {
-                    pendingDraws.push({ playerId, card: drawnCard, source: 'deck' });
-                  }
-                } else if (!trumpAwarded && initialDeckCountForRound < 4) {
-                  // Award the face-up trump to complete the round of draws
-                  pendingDraws.push({ playerId, card: prevState.trumpCard, source: 'trump' });
-                  trumpAwarded = true;
-                }
-              });
-            }
-
-            // Winner starts next trick
-            const winnerIndex = prevState.players.findIndex(p => p.id === winnerId);
-
-            console.log('🎯 NEXT PLAYER:', {
-              winnerIndex: winnerIndex,
-              nextPlayerName: prevState.players[winnerIndex]?.name,
-              nextPlayerId: prevState.players[winnerIndex]?.id,
-            });
-
-            // Check if this is the last trick of the game (deck already empty and hands empty before trick)
-            const isLastTrick =
-              prevState.deck.length === 0 &&
-              Array.from(newHands.values()).every(hand => hand.length === 0);
-
-            // Award last trick bonus if applicable
-            let lastTrickBonusApplied = false;
-            if (isLastTrick) {
-              const teamIdx = newTeams.findIndex(t => t.id === winnerTeam);
-              if (teamIdx !== -1) {
-                newTeams[teamIdx] = {
-                  ...newTeams[teamIdx],
-                  score: newTeams[teamIdx].score + 10, // diez de últimas
-                };
-                lastTrickBonusApplied = true;
-              }
-            }
-
-            const shouldVueltas = shouldStartVueltas({
-              ...prevState,
-              teams: newTeams,
-              // Deck/hands considered pre-draw for this decision; final phase updates happen after dealing
-              deck: prevState.deck,
-              hands: newHands,
-            });
-
-            // Determine if we will enter arrastre after dealing (computed but applied after dealing commits)
-            const willEnterArrastre = deckSnapshot.length === 0 && !prevState.isVueltas;
-            if (willEnterArrastre) {
-              console.log('🎴 PHASE TRANSITION PENDING: Will enter ARRASTRE after dealing');
-            }
-
-            // Don't clear the trick immediately - show animation first
-            const nextStateAfterTrick: GameState = {
-              ...prevState,
-              hands: newHands,
-              // Keep deck unchanged until post-trick dealing animation commits
-              deck: prevState.deck,
-              currentTrick: newTrick, // Keep the full trick visible
-              currentPlayerIndex: winnerIndex,
-              teams: newTeams,
-              trickCount: newTrickCount,
-              collectedTricks: newCollectedTricks,
-              teamTrickPiles: prevState.teamTrickPiles,
-              lastTrickWinner: winnerId,
-              lastTrick: newTrick,
-              pendingPostTrickDraws: pendingDraws.length > 0 ? pendingDraws : undefined,
-              // Provide metadata for last trick overlay and points
-              pendingTrickWinner: {
-                playerId: winnerId,
-                points: points + (lastTrickBonusApplied ? 10 : 0),
-                cards: newTrick.map(tc => tc.card),
-                teamId: winnerTeam as TeamId,
-                isLastTrick,
-                bonus: lastTrickBonusApplied ? 10 : 0,
-              },
-              phase: (() => {
-                let phase: GamePhase;
-                // If a team reached 101 in first hand, go directly to scoring
-                const teamReached101FirstHand =
-                  !prevState.isVueltas && (newTeams[0].score >= 101 || newTeams[1].score >= 101);
-
-                if (teamReached101FirstHand) {
-                  phase = 'scoring';
-                } else if (isGameOver({ ...prevState, teams: newTeams })) {
-                  phase = 'gameOver';
-                } else if (isLastTrick && !prevState.isVueltas) {
-                  // Show scores before deciding on vueltas
-                  phase = 'scoring';
-                } else if (isLastTrick && prevState.isVueltas) {
-                  // Vueltas complete - go to scoring to determine winner
-                  phase = 'scoring';
-                } else {
-                  phase = prevState.phase;
-                }
-
-                // Clear AI memory on phase transitions
-                if (phase !== prevState.phase) {
-                  setAIMemory(prev => clearMemoryOnPhaseChange(prev, phase));
-                }
-
-                return phase;
-              })(),
-              isVueltas: shouldVueltas ? true : prevState.isVueltas,
-              initialScores: shouldVueltas
-                ? new Map(newTeams.map(t => [t.id, t.score]))
-                : prevState.initialScores,
-              lastActionTimestamp: Date.now(),
-              trickAnimating: false,
-              // Keep cambiar7 until arrastre actually starts after dealing
-              canCambiar7: prevState.canCambiar7,
-            } as GameState;
-
-            // Start trick animation after a short delay so last card settles visually
-            if (winnerTimeoutRef.current) clearTimeout(winnerTimeoutRef.current);
-            winnerTimeoutRef.current = setTimeout(() => {
-              setGameState(p => (p ? { ...p, trickAnimating: true } : p));
-            }, 250);
-
-            return nextStateAfterTrick;
-          }
-
-          // Next player's turn
-          const nextPlayerIndex = getNextPlayerIndex(prevState.currentPlayerIndex, 4);
-          console.log('Advancing turn:', {
-            from: prevState.currentPlayerIndex,
-            to: nextPlayerIndex,
-            trickSize: newTrick.length,
-          });
           return {
             ...prevState,
-            hands: newHands,
-            currentTrick: newTrick,
-            currentPlayerIndex: nextPlayerIndex,
-            lastActionTimestamp: Date.now(),
+            cardPlayAnimation: {
+              playerId: currentPlayer.id,
+              card,
+              cardIndex,
+            },
           };
         });
+
+        // Clear any existing timeout for previous card play
+        if (playCardTimeoutRef.current) {
+          clearTimeout(playCardTimeoutRef.current);
+          playCardTimeoutRef.current = null;
+        }
+
+        // Schedule the actual card play to happen after animation
+        playCardTimeoutRef.current = setTimeout(() => {
+          actuallyPlayCard(cardId);
+          playCardTimeoutRef.current = null;
+        }, CARD_PLAY_DELAY);
       } finally {
         isUpdatingRef.current = false;
       }
     },
-    [gameState],
+    [gameState, actuallyPlayCard],
   );
 
   // Cantar
@@ -966,6 +1075,9 @@ export function useGameState({
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+      if (playCardTimeoutRef.current) {
+        clearTimeout(playCardTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -1034,6 +1146,12 @@ export function useGameState({
       ...prev!,
       phase: 'playing' as GamePhase,
     }));
+  }, []);
+
+  // Complete card play animation
+  const completeCardPlayAnimation = useCallback(() => {
+    // Animation complete - card has already been played via actuallyPlayCard
+    // No additional action needed since actuallyPlayCard handles everything
   }, []);
 
   // Complete trick animation
@@ -1113,7 +1231,7 @@ export function useGameState({
 
       // Apply draws in order
       const newHands = new Map(prev.hands);
-      let newDeck = [...prev.deck];
+      const newDeck = [...prev.deck];
       let trumpConsumed = false;
       draws.forEach(d => {
         const newHand = [...(newHands.get(d.playerId) || [])];
@@ -1201,7 +1319,7 @@ export function useGameState({
           hand.push(draw.card);
           newHands.set(draw.playerId, hand);
 
-          let newDeck = [...prev.deck];
+          const newDeck = [...prev.deck];
           if (draw.source === 'deck') {
             newDeck.pop();
           }
@@ -1232,7 +1350,7 @@ export function useGameState({
         hand.push(draw.card);
         newHands.set(draw.playerId, hand);
 
-        let newDeck = [...prev.deck];
+        const newDeck = [...prev.deck];
         if (draw.source === 'deck') {
           const top = newDeck.pop();
           if (top && top.id !== draw.card.id) {
@@ -1756,6 +1874,7 @@ export function useGameState({
     isDealingComplete,
     completeDealingAnimation,
     completeTrickAnimation,
+    completeCardPlayAnimation,
     completePostTrickDealing,
     onPostTrickCardLanded,
     setGameState,
