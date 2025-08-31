@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
 import type { Card, PlayerId as CorePlayerId } from '../../types/game.types';
 import { DraggableCard } from './DraggableCard';
@@ -26,6 +26,7 @@ import {
 import { getTrickCardPositionWithinBoard } from '../../utils/trickCardPositions';
 import type { PlayerId } from '../../types/game.types';
 import { CardDealingAnimation } from './CardDealingAnimation';
+import { HAND_ANIMATION_DURATION, HAND_ANIMATION_STAGGER } from '../../constants/animations';
 
 type Player = {
   id: string;
@@ -197,6 +198,63 @@ export function GameTable({
   const isDealingBlocked =
     !!postTrickDealingAnimating || !!postTrickDealingPending || !!trickAnimating || !!isDealing;
 
+  // Animation refs for all players' hand cards
+  const bottomCardAnimations = useRef<Map<string, Animated.ValueXY>>(new Map()).current;
+  const bottomPreviousPositions = useRef<Map<string, Position>>(new Map()).current;
+  const leftCardAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
+  const leftPreviousPositions = useRef<Map<string, number>>(new Map()).current;
+  const topCardAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
+  const topPreviousPositions = useRef<Map<string, number>>(new Map()).current;
+  const rightCardAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
+  const rightPreviousPositions = useRef<Map<string, number>>(new Map()).current;
+
+  // Create unique keys for cards based on suit and value
+  const getCardKey = (card: SpanishCardData) => `${card.suit}_${card.value}`;
+
+  // Cleanup animations for bottom player
+  useEffect(() => {
+    const currentCardKeys = new Set(bottomPlayer.cards.map(getCardKey));
+    Array.from(bottomCardAnimations.keys()).forEach(key => {
+      if (!currentCardKeys.has(key)) {
+        bottomCardAnimations.delete(key);
+        bottomPreviousPositions.delete(key);
+      }
+    });
+  }, [bottomPlayer.cards, bottomCardAnimations, bottomPreviousPositions]);
+
+  // Cleanup animations for left player
+  useEffect(() => {
+    const currentCardKeys = new Set(leftPlayer.cards.map(getCardKey));
+    Array.from(leftCardAnimations.keys()).forEach(key => {
+      if (!currentCardKeys.has(key)) {
+        leftCardAnimations.delete(key);
+        leftPreviousPositions.delete(key);
+      }
+    });
+  }, [leftPlayer.cards, leftCardAnimations, leftPreviousPositions]);
+
+  // Cleanup animations for top player
+  useEffect(() => {
+    const currentCardKeys = new Set(topPlayer.cards.map(getCardKey));
+    Array.from(topCardAnimations.keys()).forEach(key => {
+      if (!currentCardKeys.has(key)) {
+        topCardAnimations.delete(key);
+        topPreviousPositions.delete(key);
+      }
+    });
+  }, [topPlayer.cards, topCardAnimations, topPreviousPositions]);
+
+  // Cleanup animations for right player
+  useEffect(() => {
+    const currentCardKeys = new Set(rightPlayer.cards.map(getCardKey));
+    Array.from(rightCardAnimations.keys()).forEach(key => {
+      if (!currentCardKeys.has(key)) {
+        rightCardAnimations.delete(key);
+        rightPreviousPositions.delete(key);
+      }
+    });
+  }, [rightPlayer.cards, rightCardAnimations, rightPreviousPositions]);
+
   // Measure pile centers so trick animation can land exactly on stacks
   const [team1PileCenter, setTeam1PileCenter] = useState<{ x: number; y: number } | null>(null);
   const [team2PileCenter, setTeam2PileCenter] = useState<{ x: number; y: number } | null>(null);
@@ -298,14 +356,28 @@ export function GameTable({
       {/* Top Player Cards (Teammate) */}
       {!isDealing && layout.isReady && (
         <View style={styles.topPlayerCardsContainer}>
-          {topPlayer.cards.map((_, index) => {
+          {topPlayer.cards.map((card, index) => {
             // Hide card during play animation
             const isAnimating =
               cardPlayAnimation?.playerId === topPlayer.id &&
               cardPlayAnimation?.cardIndex === index;
-            if (isAnimating) return null;
 
-            const position = getPlayerCardPosition(
+            // If card is animating to table, render invisible placeholder to maintain spacing
+            if (isAnimating) {
+              const cardDims = getCardDimensions();
+              return (
+                <View
+                  key={`top-${index}`}
+                  style={{
+                    width: cardDims.small.width,
+                    height: cardDims.small.height,
+                    opacity: 0,
+                  }}
+                />
+              );
+            }
+
+            const targetPosition = getPlayerCardPosition(
               2,
               index,
               topPlayer.cards.length,
@@ -313,21 +385,49 @@ export function GameTable({
               layoutInfo,
             );
 
+            // Get or create animation for this card
+            const cardKey = `${index}`; // Use index since cards are face down
+            if (!topCardAnimations.has(cardKey)) {
+              topCardAnimations.set(cardKey, new Animated.Value(targetPosition.x));
+              topPreviousPositions.set(cardKey, targetPosition.x);
+            }
+
+            const animatedX = topCardAnimations.get(cardKey)!;
+            const previousX = topPreviousPositions.get(cardKey);
+
+            // Animate to new position if it changed
+            if (previousX && Math.abs(previousX - targetPosition.x) > 1) {
+              const staggerDelay = index * HAND_ANIMATION_STAGGER;
+
+              Animated.timing(animatedX, {
+                toValue: targetPosition.x,
+                duration: HAND_ANIMATION_DURATION,
+                delay: staggerDelay,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: false,
+              }).start();
+
+              topPreviousPositions.set(cardKey, targetPosition.x);
+            } else if (!previousX) {
+              animatedX.setValue(targetPosition.x);
+              topPreviousPositions.set(cardKey, targetPosition.x);
+            }
+
             return (
-              <SpanishCard
+              <Animated.View
                 key={`top-${index}`}
-                faceDown
-                size="small"
                 style={[
                   styles.opponentCard,
                   {
-                    left: position.x,
-                    top: position.y,
-                    zIndex: position.zIndex,
-                    transform: [{ rotate: `${position.rotation}deg` }],
+                    left: animatedX,
+                    top: targetPosition.y,
+                    zIndex: targetPosition.zIndex,
+                    transform: [{ rotate: `${targetPosition.rotation}deg` }],
                   },
                 ]}
-              />
+              >
+                <SpanishCard faceDown size="small" />
+              </Animated.View>
             );
           })}
         </View>
@@ -336,14 +436,28 @@ export function GameTable({
       {/* Left Player Cards */}
       {!isDealing && layout.isReady && (
         <View style={styles.leftPlayerCards}>
-          {leftPlayer.cards.map((_, index) => {
+          {leftPlayer.cards.map((card, index) => {
             // Hide card during play animation
             const isAnimating =
               cardPlayAnimation?.playerId === leftPlayer.id &&
               cardPlayAnimation?.cardIndex === index;
-            if (isAnimating) return null;
 
-            const pos = getPlayerCardPosition(
+            // If card is animating to table, render invisible placeholder to maintain spacing
+            if (isAnimating) {
+              const dims = getCardDimensions().small;
+              return (
+                <View
+                  key={`left-${index}`}
+                  style={{
+                    width: dims.width,
+                    height: dims.height,
+                    opacity: 0,
+                  }}
+                />
+              );
+            }
+
+            const targetPosition = getPlayerCardPosition(
               3,
               index,
               leftPlayer.cards.length,
@@ -355,21 +469,49 @@ export function GameTable({
             const containerWidth = 120; // matches leftPlayerCards width
             const x = Math.max(0, (containerWidth - rotatedWidth) / 2);
 
+            // Get or create animation for this card
+            const cardKey = `${index}`; // Use index since cards are face down
+            if (!leftCardAnimations.has(cardKey)) {
+              leftCardAnimations.set(cardKey, new Animated.Value(targetPosition.y));
+              leftPreviousPositions.set(cardKey, targetPosition.y);
+            }
+
+            const animatedY = leftCardAnimations.get(cardKey)!;
+            const previousY = leftPreviousPositions.get(cardKey);
+
+            // Animate to new position if it changed
+            if (previousY && Math.abs(previousY - targetPosition.y) > 1) {
+              const staggerDelay = index * HAND_ANIMATION_STAGGER;
+
+              Animated.timing(animatedY, {
+                toValue: targetPosition.y,
+                duration: HAND_ANIMATION_DURATION,
+                delay: staggerDelay,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: false,
+              }).start();
+
+              leftPreviousPositions.set(cardKey, targetPosition.y);
+            } else if (!previousY) {
+              animatedY.setValue(targetPosition.y);
+              leftPreviousPositions.set(cardKey, targetPosition.y);
+            }
+
             return (
-              <SpanishCard
+              <Animated.View
                 key={`left-${index}`}
-                faceDown
-                size="small"
                 style={[
                   styles.opponentCard,
                   {
                     left: x,
-                    top: pos.y,
-                    zIndex: pos.zIndex,
-                    transform: [{ rotate: `${pos.rotation}deg` }],
+                    top: animatedY,
+                    zIndex: targetPosition.zIndex,
+                    transform: [{ rotate: `${targetPosition.rotation}deg` }],
                   },
                 ]}
-              />
+              >
+                <SpanishCard faceDown size="small" />
+              </Animated.View>
             );
           })}
         </View>
@@ -378,14 +520,28 @@ export function GameTable({
       {/* Right Player Cards */}
       {!isDealing && layout.isReady && (
         <View style={styles.rightPlayerCards}>
-          {rightPlayer.cards.map((_, index) => {
+          {rightPlayer.cards.map((card, index) => {
             // Hide card during play animation
             const isAnimating =
               cardPlayAnimation?.playerId === rightPlayer.id &&
               cardPlayAnimation?.cardIndex === index;
-            if (isAnimating) return null;
 
-            const pos = getPlayerCardPosition(
+            // If card is animating to table, render invisible placeholder to maintain spacing
+            if (isAnimating) {
+              const dims = getCardDimensions().small;
+              return (
+                <View
+                  key={`right-${index}`}
+                  style={{
+                    width: dims.width,
+                    height: dims.height,
+                    opacity: 0,
+                  }}
+                />
+              );
+            }
+
+            const targetPosition = getPlayerCardPosition(
               1,
               index,
               rightPlayer.cards.length,
@@ -397,21 +553,49 @@ export function GameTable({
             const containerWidth = 120; // matches rightPlayerCards width
             const x = Math.max(0, (containerWidth - rotatedWidth) / 2);
 
+            // Get or create animation for this card
+            const cardKey = `${index}`; // Use index since cards are face down
+            if (!rightCardAnimations.has(cardKey)) {
+              rightCardAnimations.set(cardKey, new Animated.Value(targetPosition.y));
+              rightPreviousPositions.set(cardKey, targetPosition.y);
+            }
+
+            const animatedY = rightCardAnimations.get(cardKey)!;
+            const previousY = rightPreviousPositions.get(cardKey);
+
+            // Animate to new position if it changed
+            if (previousY && Math.abs(previousY - targetPosition.y) > 1) {
+              const staggerDelay = index * HAND_ANIMATION_STAGGER;
+
+              Animated.timing(animatedY, {
+                toValue: targetPosition.y,
+                duration: HAND_ANIMATION_DURATION,
+                delay: staggerDelay,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: false,
+              }).start();
+
+              rightPreviousPositions.set(cardKey, targetPosition.y);
+            } else if (!previousY) {
+              animatedY.setValue(targetPosition.y);
+              rightPreviousPositions.set(cardKey, targetPosition.y);
+            }
+
             return (
-              <SpanishCard
+              <Animated.View
                 key={`right-${index}`}
-                faceDown
-                size="small"
                 style={[
                   styles.opponentCard,
                   {
                     left: x,
-                    top: pos.y,
-                    zIndex: pos.zIndex,
-                    transform: [{ rotate: `${pos.rotation}deg` }],
+                    top: animatedY,
+                    zIndex: targetPosition.zIndex,
+                    transform: [{ rotate: `${targetPosition.rotation}deg` }],
                   },
                 ]}
-              />
+              >
+                <SpanishCard faceDown size="small" />
+              </Animated.View>
             );
           })}
         </View>
@@ -637,6 +821,10 @@ export function GameTable({
       {!isDealing && layout.isReady && (
         <View style={[styles.bottomPlayerHand, landscape && styles.bottomPlayerHandLandscape]}>
           {bottomPlayer.cards.map((card, index) => {
+            // Get card key and dimensions first (needed for placeholder)
+            const cardKey = getCardKey(card);
+            const cardDimensions = getCardDimensions();
+            
             // Hide card if it matches the hideCardFromHand criteria
             const shouldHide =
               hideCardFromHand &&
@@ -649,49 +837,111 @@ export function GameTable({
               cardPlayAnimation?.playerId === bottomPlayer.id &&
               cardPlayAnimation?.cardIndex === index;
 
-            if (shouldHide || isAnimating) return null;
+            if (shouldHide) return null;
+
+            // If card is animating to table, render invisible placeholder to maintain spacing
+            if (isAnimating) {
+              return (
+                <View
+                  key={cardKey}
+                  style={{
+                    width: cardDimensions.large.width,
+                    height: cardDimensions.large.height,
+                    opacity: 0,
+                  }}
+                />
+              );
+            }
             const isValidCard = !validCardIndices || validCardIndices.includes(index);
             const isPlayerTurn = currentPlayerIndex === 0;
-            const position = getPlayerCardPosition(
+            const targetPosition = getPlayerCardPosition(
               0,
               index,
               bottomPlayer.cards.length,
               'large',
               layoutInfo,
             );
-            const cardDimensions = getCardDimensions();
             const scaledCardWidth = cardDimensions.large.width;
 
+            // Get or create animation for this card
+            if (!bottomCardAnimations.has(cardKey)) {
+              bottomCardAnimations.set(cardKey, new Animated.ValueXY(targetPosition));
+              bottomPreviousPositions.set(cardKey, targetPosition);
+            }
+
+            const animatedPosition = bottomCardAnimations.get(cardKey)!;
+            const previousPosition = bottomPreviousPositions.get(cardKey);
+
+            // Animate to new position if it changed
+            if (
+              previousPosition &&
+              (Math.abs(previousPosition.x - targetPosition.x) > 1 ||
+                Math.abs(previousPosition.y - targetPosition.y) > 1)
+            ) {
+              // Calculate stagger delay based on how many cards are moving
+              const movingCardsCount = bottomPlayer.cards.filter((_, i) => {
+                const pos = getPlayerCardPosition(
+                  0,
+                  i,
+                  bottomPlayer.cards.length,
+                  'large',
+                  layoutInfo,
+                );
+                const key = getCardKey(bottomPlayer.cards[i]);
+                const prev = bottomPreviousPositions.get(key);
+                return prev && Math.abs(prev.x - pos.x) > 1;
+              }).length;
+
+              const staggerDelay = movingCardsCount > 1 ? index * HAND_ANIMATION_STAGGER : 0;
+
+              Animated.timing(animatedPosition, {
+                toValue: targetPosition,
+                duration: HAND_ANIMATION_DURATION,
+                delay: staggerDelay,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: false,
+              }).start();
+
+              bottomPreviousPositions.set(cardKey, targetPosition);
+            } else if (!previousPosition) {
+              // First render - set position immediately
+              animatedPosition.setValue(targetPosition);
+              bottomPreviousPositions.set(cardKey, targetPosition);
+            }
+
             return (
-              <DraggableCard
-                key={`hand-${index}`}
-                card={card}
-                index={index}
-                onCardPlay={onCardPlay}
-                onReorder={
-                  onCardReorder
-                    ? (fromIndex, toIndex) =>
-                        onCardReorder(bottomPlayer.id as unknown as PlayerId, fromIndex, toIndex)
-                    : undefined
-                }
-                dropZoneBounds={dropZoneBounds || undefined}
-                isEnabled={!isDealingBlocked && !!dropZoneBounds && isPlayerTurn && isValidCard}
-                isPlayerTurn={isPlayerTurn}
-                cardSize="large" // larger size for better visibility
-                totalCards={bottomPlayer.cards.length}
-                cardWidth={scaledCardWidth}
+              <Animated.View
+                key={cardKey}
                 style={[
                   styles.handCardContainer,
                   {
-                    left: position.x,
-                    top: position.y,
-                    zIndex: position.zIndex,
+                    left: animatedPosition.x,
+                    top: animatedPosition.y,
+                    zIndex: targetPosition.zIndex,
                     opacity: isDealing ? 0 : 1,
                   },
                   styles.handCard,
                   landscape && styles.handCardLandscape,
                 ]}
-              />
+              >
+                <DraggableCard
+                  card={card}
+                  index={index}
+                  onCardPlay={onCardPlay}
+                  onReorder={
+                    onCardReorder
+                      ? (fromIndex, toIndex) =>
+                          onCardReorder(bottomPlayer.id as unknown as PlayerId, fromIndex, toIndex)
+                      : undefined
+                  }
+                  dropZoneBounds={dropZoneBounds || undefined}
+                  isEnabled={!isDealingBlocked && !!dropZoneBounds && isPlayerTurn && isValidCard}
+                  isPlayerTurn={isPlayerTurn}
+                  cardSize="large"
+                  totalCards={bottomPlayer.cards.length}
+                  cardWidth={scaledCardWidth}
+                />
+              </Animated.View>
             );
           })}
         </View>

@@ -7,7 +7,7 @@ export const CARD_SHUFFLE_DURATION = 600;
 export const CARD_HOVER_SCALE = 1.05;
 export const CARD_DRAG_SCALE = 1.1;
 export const CARD_FLIP_DURATION = 400;
-export const CARD_PLAY_DURATION = 280; // Duration of card play animation
+export const CARD_PLAY_DURATION = 180; // Duration of card play animation - faster drop
 export const CARD_PLAY_DELAY = 300; // Delay before actuallyPlayCard is called
 export const CARD_PLAY_INITIAL_OPACITY = 0.95; // Initial opacity for card animation
 
@@ -53,6 +53,10 @@ export const BOUNCE_CONFIG = {
 export const SMOOTH_EASING = Easing.bezier(0.25, 0.1, 0.25, 1);
 export const BOUNCE_EASING = Easing.bounce;
 export const ELASTIC_EASING = Easing.elastic(1.2);
+
+// Hand animation constants
+export const HAND_ANIMATION_DURATION = 350;
+export const HAND_ANIMATION_STAGGER = 30;
 
 // Animation presets
 export const FADE_IN = {

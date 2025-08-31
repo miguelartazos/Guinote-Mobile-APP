@@ -1,11 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Easing } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
-import {
-  SMOOTH_EASING,
-  CARD_PLAY_DURATION,
-  CARD_PLAY_INITIAL_OPACITY,
-} from '../../constants/animations';
+import { CARD_PLAY_DURATION } from '../../constants/animations';
 
 type CardPlayAnimationProps = {
   card: SpanishCardData;
@@ -25,8 +21,7 @@ export function CardPlayAnimation({
   // Animation values
   const position = useRef(new Animated.ValueXY(fromPosition)).current;
   const rotation = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(CARD_PLAY_INITIAL_OPACITY)).current; // Start slightly transparent for subtle effect
-  const scale = useRef(new Animated.Value(1)).current; // Add scale animation
+  const opacity = useRef(new Animated.Value(1)).current; // Start fully opaque
 
   // No need to track completion since we're not calling onComplete
 
@@ -38,11 +33,6 @@ export function CardPlayAnimation({
       const initialRotation = playerPosition === 'left' ? 90 : playerPosition === 'right' ? -90 : 0;
       rotation.setValue(initialRotation);
 
-      // Calculate target scale
-      // Cards from side/top players (small) need to scale up to match medium size on table
-      // Medium cards are ~1.4x larger than small cards based on dimensions
-      const targetScale = playerPosition === 'bottom' ? 1 : 1.4;
-
       // Animate card from hand to table
       await new Promise(resolve => {
         Animated.parallel([
@@ -50,27 +40,14 @@ export function CardPlayAnimation({
           Animated.timing(position, {
             toValue: toPosition,
             duration: CARD_PLAY_DURATION,
-            easing: Easing.linear, // Linear for no floating at the end
+            easing: Easing.linear, // Linear for direct path
             useNativeDriver: true,
           }),
           // Rotate to flat position on table
           Animated.timing(rotation, {
             toValue: 0,
             duration: CARD_PLAY_DURATION,
-            easing: SMOOTH_EASING, // Keep smooth for rotation
-            useNativeDriver: true,
-          }),
-          // Scale animation for non-bottom players
-          Animated.timing(scale, {
-            toValue: targetScale,
-            duration: CARD_PLAY_DURATION,
-            easing: SMOOTH_EASING, // Keep smooth for scale
-            useNativeDriver: true,
-          }),
-          // Subtle opacity animation
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 200,
+            easing: Easing.linear, // Linear for consistent motion
             useNativeDriver: true,
           }),
         ]).start(() => resolve(null));
@@ -87,8 +64,8 @@ export function CardPlayAnimation({
     // No cleanup needed since we're not using timers
   }, []);
 
-  // Determine card size based on player
-  const cardSize = playerPosition === 'bottom' ? 'large' : 'small';
+  // Always use medium size to match the table cards exactly
+  const cardSize = 'medium';
 
   return (
     <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
@@ -105,7 +82,6 @@ export function CardPlayAnimation({
                   outputRange: ['-90deg', '0deg', '90deg'],
                 }),
               },
-              { scale },
             ],
             opacity,
           },

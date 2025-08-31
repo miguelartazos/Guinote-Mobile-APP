@@ -25,6 +25,12 @@ const config = {
   transformer: {
     babelTransformerPath: require.resolve('react-native-svg-transformer'),
     unstable_allowRequireContext: true,
+    getTransformOptions: async () => ({
+      transform: {
+        experimentalImportSupport: false,
+        inlineRequires: true,
+      },
+    }),
   },
   resolver: {
     // Add react-dom as an alias to our shim for compatibility

@@ -11,6 +11,7 @@ import type {
   Player,
   DifficultyLevel,
   AIPersonality,
+  TrickCard,
 } from '../types/game.types';
 import { WINNING_SCORE, MINIMUM_CARD_POINTS } from '../types/game.types';
 import type { SpanishSuit, CardValue } from '../types/cardTypes';
@@ -229,8 +230,8 @@ export function useGameState({
         }));
 
         // Build teams dynamically from mock data players
-        const mockTeam1Players = players.filter(p => p.teamId === 'team1').map(p => p.id);
-        const mockTeam2Players = players.filter(p => p.teamId === 'team2').map(p => p.id);
+        let mockTeam1Players = players.filter(p => p.teamId === 'team1').map(p => p.id);
+        let mockTeam2Players = players.filter(p => p.teamId === 'team2').map(p => p.id);
 
         // Validate mock data team sizes
         if (mockTeam1Players.length !== 2 || mockTeam2Players.length !== 2) {
@@ -238,23 +239,29 @@ export function useGameState({
             team1: mockTeam1Players,
             team2: mockTeam2Players,
           });
+
+          // Use hardcoded fallback for mock data
+          mockTeam1Players =
+            mockTeam1Players.length === 2
+              ? mockTeam1Players
+              : ['player' as PlayerId, 'bot2' as PlayerId];
+          mockTeam2Players =
+            mockTeam2Players.length === 2
+              ? mockTeam2Players
+              : ['bot1' as PlayerId, 'bot3' as PlayerId];
         }
 
         const teams: [Team, Team] = [
           {
             id: 'team1' as TeamId,
-            playerIds: (mockTeam1Players.length === 2
-              ? mockTeam1Players
-              : ['player' as PlayerId, 'bot2' as PlayerId]) as [PlayerId, PlayerId],
+            playerIds: mockTeam1Players as [PlayerId, PlayerId],
             score: 0,
             cardPoints: 0,
             cantes: [],
           },
           {
             id: 'team2' as TeamId,
-            playerIds: (mockTeam2Players.length === 2
-              ? mockTeam2Players
-              : ['bot1' as PlayerId, 'bot3' as PlayerId]) as [PlayerId, PlayerId],
+            playerIds: mockTeam2Players as [PlayerId, PlayerId],
             score: 0,
             cardPoints: 0,
             cantes: [],
@@ -403,8 +410,8 @@ export function useGameState({
       }
 
       // Build teams dynamically from actual player IDs
-      const team1Players = players.filter(p => p.teamId === 'team1').map(p => p.id);
-      const team2Players = players.filter(p => p.teamId === 'team2').map(p => p.id);
+      let team1Players = players.filter(p => p.teamId === 'team1').map(p => p.id);
+      let team2Players = players.filter(p => p.teamId === 'team2').map(p => p.id);
 
       // Validate team sizes - each team must have exactly 2 players
       if (team1Players.length !== 2 || team2Players.length !== 2) {
@@ -416,50 +423,33 @@ export function useGameState({
           allPlayers: players.map(p => ({ id: p.id, teamId: p.teamId })),
         });
 
-        // Fallback: ensure we have valid teams even if assignment failed
-        // This should never happen but prevents game from breaking
-        const fallbackTeam1 =
-          team1Players.length === 2
-            ? team1Players
-            : team1Players.length > 2
-            ? team1Players.slice(0, 2)
-            : [
-                ...team1Players,
-                players.find(p => !team1Players.includes(p.id) && !team2Players.includes(p.id))?.id,
-              ]
-                .filter(Boolean)
-                .slice(0, 2);
+        // For offline mode, we can't throw - must provide fallback
+        // Use hardcoded fallback as last resort to prevent game breaking
+        const validTeam1 =
+          team1Players.length === 2 ? team1Players : ['player' as PlayerId, 'bot2' as PlayerId];
+        const validTeam2 =
+          team2Players.length === 2 ? team2Players : ['bot1' as PlayerId, 'bot3' as PlayerId];
 
-        const fallbackTeam2 =
-          team2Players.length === 2
-            ? team2Players
-            : team2Players.length > 2
-            ? team2Players.slice(0, 2)
-            : [...team2Players, players.find(p => !fallbackTeam1.includes(p.id))?.id]
-                .filter(Boolean)
-                .slice(0, 2);
+        team1Players = validTeam1;
+        team2Players = validTeam2;
 
-        console.warn('Using fallback team configuration', {
-          team1: fallbackTeam1,
-          team2: fallbackTeam2,
+        console.warn('Using hardcoded fallback teams to prevent game crash', {
+          team1: team1Players,
+          team2: team2Players,
         });
       }
 
       const teams: [Team, Team] = [
         {
           id: 'team1' as TeamId,
-          playerIds: (team1Players.length === 2
-            ? team1Players
-            : ['player' as PlayerId, 'bot2' as PlayerId]) as [PlayerId, PlayerId],
+          playerIds: team1Players as [PlayerId, PlayerId],
           score: 0,
           cardPoints: 0,
           cantes: [],
         },
         {
           id: 'team2' as TeamId,
-          playerIds: (team2Players.length === 2
-            ? team2Players
-            : ['bot1' as PlayerId, 'bot3' as PlayerId]) as [PlayerId, PlayerId],
+          playerIds: team2Players as [PlayerId, PlayerId],
           score: 0,
           cardPoints: 0,
           cantes: [],
@@ -1116,10 +1106,12 @@ export function useGameState({
     }
   }, [hasLoadedSavedGame, gameState, mockData]);
 
-  // Handle vueltas dealing
+  // Handle vueltas dealing - This should not be needed anymore as cards are created immediately
+  // Keeping as a safety fallback only
   useEffect(() => {
     if (gameState?.phase === 'dealing' && gameState.isVueltas && gameState.hands.size === 0) {
-      // Need to deal cards for vueltas
+      console.log('⚠️ Vueltas cards not initialized properly, fixing now');
+      // This should not happen anymore, but keeping as safety net
       const deck = shuffleDeck(createDeck());
       const { hands, remainingDeck } = dealInitialCards(
         deck,
@@ -1180,7 +1172,7 @@ export function useGameState({
           const lastKey = keyOf(prev.lastTrick);
           const already = arr.some((t: ReadonlyArray<TrickCard>) => keyOf(t) === lastKey);
           if (!already) {
-            arr.push(prev.lastTrick);
+            arr.push([...prev.lastTrick]);
             console.log('📦 Trick committed to team pile', {
               teamId: String(winnerTeamId),
               newCount: arr.length,
@@ -1590,16 +1582,83 @@ export function useGameState({
       return;
     }
 
-    // CASE 2: First hand complete, check if any team reached 101 points
+    // CASE 2: First hand complete, check if we need vueltas or immediate winner
     const team1Score = gameState.teams[0].score;
     const team2Score = gameState.teams[1].score;
     const hasWinner = team1Score >= WINNING_SCORE || team2Score >= WINNING_SCORE;
 
     if (hasWinner) {
-      console.log('🏆 Team reached 101 points in first hand');
+      // A team reached 101 points - start vueltas to continue playing
+      console.log('🎯 Team reached 101 points, starting vueltas phase', {
+        team1Score,
+        team2Score,
+      });
 
-      // Determine winning team
-      const winningTeamIndex = team1Score >= WINNING_SCORE ? 0 : 1;
+      setIsProcessingScoring(false);
+
+      // Start vueltas (continue playing until someone wins)
+      setGameState(prev => {
+        if (!prev) return null;
+
+        console.log('🔄 Transitioning to vueltas', {
+          team1Score: prev.teams[0].score,
+          team2Score: prev.teams[1].score,
+        });
+
+        // Store current scores
+        const initialScores = new Map(prev.teams.map(t => [t.id, t.score]));
+
+        // Determine last trick winner team
+        const lastWinner = prev.lastTrickWinner;
+        const lastWinnerTeam = lastWinner
+          ? prev.teams.find(t => t.playerIds.includes(lastWinner))?.id
+          : undefined;
+
+        // Create and shuffle deck for vueltas immediately
+        const deck = shuffleDeck(createDeck());
+        const { hands, remainingDeck } = dealInitialCards(
+          deck,
+          prev.players.map(p => p.id),
+        );
+        const trumpCard = remainingDeck[remainingDeck.length - 1];
+        const deckAfterTrump = remainingDeck.slice(0, -1);
+
+        return {
+          ...prev,
+          phase: 'dealing' as GamePhase, // Start with dealing phase to trigger animation
+          isVueltas: true,
+          initialScores,
+          lastTrickWinnerTeam: lastWinnerTeam,
+          canDeclareVictory: !!lastWinnerTeam,
+          matchScore: prev.matchScore, // Preserve match score through vueltas
+          deck: deckAfterTrump, // Deck with cards ready
+          hands, // Hands with cards ready for dealing animation
+          trumpCard, // Actual trump card
+          trumpSuit: trumpCard.suit, // Actual trump suit
+          currentTrick: [],
+          currentPlayerIndex: (prev.dealerIndex + 1) % 4,
+          dealerIndex: (prev.dealerIndex + 1) % 4,
+          trickCount: 0,
+          lastTrickWinner: undefined,
+          lastTrick: undefined,
+          canCambiar7: true,
+        };
+      });
+
+      // Reset dealing complete flag to trigger animation
+      setIsDealingComplete(false);
+
+      // Clear AI memory when starting vueltas
+      setAIMemory(clearMemory());
+    } else {
+      // CASE 3: No team reached 101 points - end partida immediately
+      console.log('🏁 No team reached 101 points, ending partida', {
+        team1Score,
+        team2Score,
+      });
+
+      // Determine winning team (higher score wins)
+      const winningTeamIndex = team1Score > team2Score ? 0 : 1;
       const currentMatchScore = gameState.matchScore || createInitialMatchScore();
 
       // Update match score and determine next phase
@@ -1632,63 +1691,6 @@ export function useGameState({
       setAIMemory(clearMemory());
 
       setIsProcessingScoring(false);
-      return;
-    }
-
-    // CASE 3: No winner in first hand - start vueltas
-    {
-      console.log('🎯 No winner found, starting vueltas phase');
-      setIsProcessingScoring(false);
-      // No winner - start vueltas (second hand)
-      setGameState(prev => {
-        if (!prev) return null;
-
-        console.log('🔄 Transitioning to vueltas', {
-          team1Score: prev.teams[0].score,
-          team2Score: prev.teams[1].score,
-          shouldPlayVueltas: shouldStartVueltas(prev),
-        });
-
-        // Store current scores
-        const initialScores = new Map(prev.teams.map(t => [t.id, t.score]));
-
-        // Determine last trick winner team
-        const lastWinner = prev.lastTrickWinner;
-        const lastWinnerTeam = lastWinner
-          ? prev.teams.find(t => t.playerIds.includes(lastWinner))?.id
-          : undefined;
-
-        return {
-          ...prev,
-          phase: 'dealing' as GamePhase, // Start with dealing phase to trigger animation
-          isVueltas: true,
-          initialScores,
-          lastTrickWinnerTeam: lastWinnerTeam,
-          canDeclareVictory: !!lastWinnerTeam,
-          matchScore: prev.matchScore, // Preserve match score through vueltas
-          deck: [], // Empty deck - will be created and shuffled in useEffect
-          hands: new Map(), // Empty hands - will be filled by useEffect at line 988
-          trumpCard: {
-            id: 'temp_trump' as CardId,
-            suit: 'oros' as SpanishSuit,
-            value: 1 as CardValue,
-          }, // Placeholder, will be updated by useEffect
-          trumpSuit: 'oros' as SpanishSuit, // Placeholder, will be updated by useEffect
-          currentTrick: [],
-          currentPlayerIndex: (prev.dealerIndex + 1) % 4,
-          dealerIndex: (prev.dealerIndex + 1) % 4,
-          trickCount: 0,
-          lastTrickWinner: undefined,
-          lastTrick: undefined,
-          canCambiar7: true,
-        };
-      });
-
-      // Reset dealing complete flag to trigger animation
-      setIsDealingComplete(false);
-
-      // Clear AI memory when starting vueltas
-      setAIMemory(clearMemory());
     }
   }, [gameState, isProcessingScoring]);
 

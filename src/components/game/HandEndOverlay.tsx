@@ -28,14 +28,9 @@ type HandEndOverlayProps = {
   isVueltas: boolean;
   shouldPlayVueltas: boolean;
   onAutoAdvance: () => void;
-  onManualContinue?: () => void; // Manual continue button
 };
 
 // Constants
-const DISPLAY_DURATION_FIN_DE_MANO = 8000; // 8 seconds as requested
-const DISPLAY_DURATION_VUELTAS = 8000; // 8 seconds for vueltas
-const DISPLAY_DURATION_VICTORY = 5000; // 5 seconds for victory
-const COUNTDOWN_START = 3; // Show countdown for last 3 seconds
 const ANIMATION_DURATIONS = {
   FADE_IN: 300,
   FADE_OUT: 200,
@@ -79,15 +74,12 @@ export function HandEndOverlay({
   isVueltas,
   shouldPlayVueltas,
   onAutoAdvance,
-  onManualContinue,
 }: HandEndOverlayProps) {
-  const [countdown, setCountdown] = useState<number | null>(null);
   const [showDetails, setShowDetails] = useState(true); // Show point breakdown initially
 
   // Animation values - using useRef to persist across renders
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
-  const progressAnim = useRef(new Animated.Value(1)).current;
 
   // Score counting animation
   const team1ScoreAnim = useRef(new Animated.Value(0)).current;
@@ -112,8 +104,6 @@ export function HandEndOverlay({
       // Reset animations
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.9);
-      progressAnim.setValue(1);
-      setCountdown(null);
 
       // Start entrance animation
       Animated.parallel([
@@ -144,11 +134,6 @@ export function HandEndOverlay({
         }),
       ]).start();
 
-      // Timer cleanup storage
-      let countdownInterval: NodeJS.Timeout | null = null;
-      let countdownTimer: NodeJS.Timeout | null = null;
-      let advanceTimer: NodeJS.Timeout | null = null;
-
       // Calculate actual hand points from tricks if available
       const calculatedTeam1Points =
         team1Tricks.length > 0 ? calculateHandPoints(team1Tricks) : team1HandPoints || 0;
@@ -158,109 +143,12 @@ export function HandEndOverlay({
       // Calculate 10 de últimas bonus
       const team1LastTrickBonus = team1Id ? getLastTrickBonus(lastTrickWinnerTeam, team1Id) : 0;
       const team2LastTrickBonus = team2Id ? getLastTrickBonus(lastTrickWinnerTeam, team2Id) : 0;
-
-      // Check if there's a winner (team reached 101+ points)
-      const hasWinner = team1Score >= 101 || team2Score >= 101;
-      const displayDuration = hasWinner
-        ? DISPLAY_DURATION_VICTORY
-        : showDetails
-        ? DISPLAY_DURATION_FIN_DE_MANO
-        : DISPLAY_DURATION_VUELTAS;
-
-      if (hasWinner) {
-        // Victory scenario - auto advance after 3 seconds
-        advanceTimer = setTimeout(() => {
-          Animated.parallel([
-            Animated.timing(fadeAnim, {
-              toValue: 0,
-              duration: ANIMATION_DURATIONS.FADE_OUT,
-              useNativeDriver: true,
-            }),
-            Animated.timing(scaleAnim, {
-              toValue: 0.9,
-              duration: ANIMATION_DURATIONS.FADE_OUT,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
-            onAutoAdvance();
-          });
-        }, displayDuration);
-      } else if (shouldPlayVueltas) {
-        // Going to vueltas - show progress and countdown
-        // Start progress bar animation
-        Animated.timing(progressAnim, {
-          toValue: 0,
-          duration: displayDuration,
-          useNativeDriver: false,
-        }).start();
-
-        // Start countdown for last 3 seconds
-        countdownTimer = setTimeout(() => {
-          let seconds = COUNTDOWN_START;
-          setCountdown(seconds);
-
-          countdownInterval = setInterval(() => {
-            seconds--;
-            if (seconds > 0) {
-              setCountdown(seconds);
-            } else {
-              if (countdownInterval) {
-                clearInterval(countdownInterval);
-              }
-              setCountdown(null);
-            }
-          }, 1000);
-        }, displayDuration - COUNTDOWN_START * 1000);
-
-        // Auto advance after 7 seconds
-        advanceTimer = setTimeout(() => {
-          // Fade out before advancing
-          Animated.parallel([
-            Animated.timing(fadeAnim, {
-              toValue: 0,
-              duration: ANIMATION_DURATIONS.FADE_OUT,
-              useNativeDriver: true,
-            }),
-            Animated.timing(scaleAnim, {
-              toValue: 0.9,
-              duration: ANIMATION_DURATIONS.FADE_OUT,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
-            onAutoAdvance();
-          });
-        }, displayDuration);
-      }
-
-      // CRITICAL FIX: Proper cleanup function at correct scope
-      return () => {
-        if (countdownInterval) {
-          clearInterval(countdownInterval);
-        }
-        if (countdownTimer) {
-          clearTimeout(countdownTimer);
-        }
-        if (advanceTimer) {
-          clearTimeout(advanceTimer);
-        }
-      };
     } else {
       // Reset when hidden
       team1ScoreAnim.setValue(0);
       team2ScoreAnim.setValue(0);
     }
-  }, [
-    visible,
-    shouldPlayVueltas,
-    team1Score,
-    team2Score,
-    fadeAnim,
-    scaleAnim,
-    progressAnim,
-    team1ScoreAnim,
-    team2ScoreAnim,
-    onAutoAdvance,
-  ]);
+  }, [visible, team1Score, team2Score, fadeAnim, scaleAnim, team1ScoreAnim, team2ScoreAnim]);
 
   if (!visible) return null;
 
@@ -270,6 +158,7 @@ export function HandEndOverlay({
       visible={visible}
       animationType="none"
       statusBarTranslucent
+      supportedOrientations={['landscape', 'landscape-left', 'landscape-right']}
       accessible={true}
     >
       <View
@@ -347,12 +236,12 @@ export function HandEndOverlay({
                 </Animated.Text>
                 <Text style={styles.puntosLabel}>PUNTOS</Text>
               </View>
-              {team1HandPoints !== undefined && team1HandPoints > 0 && (
+              {team1Tricks.length > 0 && (
                 <View style={styles.handPointsContainer}>
                   <Text
                     style={[styles.handPointsInfo, isSmallScreen && styles.handPointsInfoSmall]}
                   >
-                    +{team1HandPoints}
+                    +{calculateHandPoints(team1Tricks) + (team1Id === lastTrickWinnerTeam ? 10 : 0)}
                   </Text>
                   <Text style={styles.handPointsLabel}>esta mano</Text>
                 </View>
@@ -400,12 +289,12 @@ export function HandEndOverlay({
                 </Animated.Text>
                 <Text style={styles.puntosLabel}>PUNTOS</Text>
               </View>
-              {team2HandPoints !== undefined && team2HandPoints > 0 && (
+              {team2Tricks.length > 0 && (
                 <View style={styles.handPointsContainer}>
                   <Text
                     style={[styles.handPointsInfo, isSmallScreen && styles.handPointsInfoSmall]}
                   >
-                    +{team2HandPoints}
+                    +{calculateHandPoints(team2Tricks) + (team2Id === lastTrickWinnerTeam ? 10 : 0)}
                   </Text>
                   <Text style={styles.handPointsLabel}>esta mano</Text>
                 </View>
@@ -437,63 +326,34 @@ export function HandEndOverlay({
             ) : shouldPlayVueltas ? (
               <View style={styles.vueltasMessage}>
                 <Text style={styles.messageText}>Ningún equipo alcanzó 101 puntos</Text>
-                {countdown !== null ? (
-                  <Animated.Text
-                    style={[
-                      styles.countdownText,
-                      {
-                        transform: [
-                          {
-                            scale: fadeAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.8, 1],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                    accessibilityRole="timer"
-                    accessibilityLiveRegion="polite"
-                    accessibilityLabel={`Vueltas en ${countdown} segundos`}
-                  >
-                    Vueltas en {countdown}...
-                  </Animated.Text>
-                ) : (
-                  <Text style={styles.vueltasStarting}>¡Comenzando vueltas!</Text>
-                )}
+                <Text style={styles.vueltasStarting}>¡Comenzando vueltas!</Text>
               </View>
             ) : null}
 
-            {/* Progress Bar - only show for vueltas, not victory */}
-            {shouldPlayVueltas && team1Score < 101 && team2Score < 101 && (
-              <View style={styles.progressBarContainer} accessibilityElementsHidden={true}>
-                <Animated.View
-                  style={[
-                    styles.progressBar,
-                    {
-                      width: progressAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0%', '100%'],
-                      }),
-                    },
-                  ]}
-                />
-              </View>
-            )}
-
-            {/* Manual Continue Button */}
-            {onManualContinue && (
-              <TouchableOpacity
-                style={styles.continueButton}
-                onPress={onManualContinue}
-                activeOpacity={0.8}
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel="Continuar al siguiente paso"
-              >
-                <Text style={styles.continueButtonText}>CONTINUAR</Text>
-              </TouchableOpacity>
-            )}
+            {/* Continue Button */}
+            <TouchableOpacity
+              style={styles.continueButton}
+              onPress={() => {
+                // Fade out before advancing
+                Animated.parallel([
+                  Animated.timing(fadeAnim, {
+                    toValue: 0,
+                    duration: ANIMATION_DURATIONS.FADE_OUT,
+                    useNativeDriver: true,
+                  }),
+                  Animated.timing(scaleAnim, {
+                    toValue: 0.9,
+                    duration: ANIMATION_DURATIONS.FADE_OUT,
+                    useNativeDriver: true,
+                  }),
+                ]).start(() => {
+                  onAutoAdvance();
+                });
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.continueButtonText}>CONTINUAR</Text>
+            </TouchableOpacity>
           </View>
         </Animated.View>
       </View>
@@ -714,12 +574,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
-  countdownText: {
-    fontSize: 20,
-    color: colors.accent,
-    fontWeight: '700',
-    marginTop: 4,
-  },
   vueltasStarting: {
     fontSize: 16,
     color: colors.gold,
@@ -739,21 +593,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textTransform: 'uppercase',
     marginTop: 8,
-  },
-  progressBarContainer: {
-    width: '100%',
-    height: 6,
-    backgroundColor: colorWithOpacity(colors.primary, 0.3),
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: colorWithOpacity(colors.goldDark, 0.2),
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: colors.gold,
-    borderRadius: 2,
   },
   // New styles for point breakdown
   breakdownSection: {

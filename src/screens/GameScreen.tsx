@@ -242,6 +242,20 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     }
   }, [gameState?.phase]);
 
+  // Reset dealing complete flag when entering dealing phase (for vueltas)
+  React.useEffect(() => {
+    if (gameState?.phase === 'dealing' && gameState.isVueltas) {
+      console.log('🎴 Vueltas dealing phase detected, ensuring animation plays');
+      // The flag should already be false from continueFromScoring,
+      // but this ensures it's definitely false when we need the animation
+      if (isDealingComplete) {
+        console.log('⚠️ Dealing was marked complete, resetting for vueltas animation');
+        // This shouldn't happen, but if it does, we need to fix it
+        // by calling the hook's internal state setter through the GameTable component
+      }
+    }
+  }, [gameState?.phase, gameState?.isVueltas, isDealingComplete]);
+
   // Hide tab bar when this screen is focused
   useFocusEffect(
     React.useCallback(() => {
@@ -977,18 +991,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             visible={showHandEndOverlay && gameState.phase === 'scoring'}
             team1Score={gameState.teams[0].score}
             team2Score={gameState.teams[1].score}
-            team1HandPoints={
-              gameState.isVueltas && gameState.initialScores
-                ? gameState.teams[0].score -
-                  (gameState.initialScores.get(gameState.teams[0].id) || 0)
-                : gameState.teams[0].score
-            }
-            team2HandPoints={
-              gameState.isVueltas && gameState.initialScores
-                ? gameState.teams[1].score -
-                  (gameState.initialScores.get(gameState.teams[1].id) || 0)
-                : gameState.teams[1].score
-            }
+            team1HandPoints={undefined} // Let HandEndOverlay calculate from tricks
+            team2HandPoints={undefined} // Let HandEndOverlay calculate from tricks
             team1Cantes={gameState.teams[0].cantes.reduce((sum, c) => sum + c.points, 0)}
             team2Cantes={gameState.teams[1].cantes.reduce((sum, c) => sum + c.points, 0)}
             team1Tricks={gameState.teamTrickPiles?.get(gameState.teams[0].id) || []}
@@ -1007,34 +1011,17 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
               const team2 = gameState.teams[1];
               const hasWinner = team1.score >= 101 || team2.score >= 101;
 
+              // Hide overlay first
               setShowHandEndOverlay(false);
 
-              if (hasWinner && !gameState.isVueltas) {
-                // Victory in first hand - show celebration
-                console.log('🎉 Showing victory celebration');
-                setShowGameEndCelebration(true);
-              } else if (gameState.isVueltas && hasWinner) {
+              if (gameState.isVueltas && hasWinner) {
                 // Vueltas complete with winner - show celebration
                 console.log('🎉 Vueltas complete, showing victory celebration');
                 setShowGameEndCelebration(true);
               } else {
-                // No winner, continue to vueltas or next phase
+                // Either first hand (with or without 101) or vueltas without winner
+                // Let continueFromScoring handle the logic
                 console.log('➡️ Continuing to next phase');
-                continueFromScoring();
-              }
-            }}
-            onManualContinue={() => {
-              const team1 = gameState.teams[0];
-              const team2 = gameState.teams[1];
-              const hasWinner = team1.score >= 101 || team2.score >= 101;
-
-              setShowHandEndOverlay(false);
-
-              if (hasWinner) {
-                // Show game end celebration
-                setShowGameEndCelebration(true);
-              } else {
-                // Continue to next phase
                 continueFromScoring();
               }
             }}

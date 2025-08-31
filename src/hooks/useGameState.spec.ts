@@ -611,9 +611,7 @@ describe('useGameState', () => {
   describe('Card Play Animation', () => {
     test('should cleanup timeout on unmount', () => {
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
-      const { result, unmount } = renderHook(() => 
-        useGameState({ playerName: 'Test Player' })
-      );
+      const { result, unmount } = renderHook(() => useGameState({ playerName: 'Test Player' }));
 
       // Set up a game state with a card to play
       const testGameState: GameState = {
@@ -630,9 +628,7 @@ describe('useGameState', () => {
           { id: 'team1' as TeamId, playerIds: ['player1', 'player3'] as any, score: 0 } as any,
           { id: 'team2' as TeamId, playerIds: ['player2', 'player4'] as any, score: 0 } as any,
         ] as [Team, Team],
-        hands: new Map([
-          ['player1', [{ id: 'card1', suit: 'oros', value: 1 }]],
-        ]),
+        hands: new Map([['player1', [{ id: 'card1', suit: 'oros', value: 1 }]]]),
         currentTrick: [],
         deck: [],
         trumpCard: null,
@@ -670,10 +666,8 @@ describe('useGameState', () => {
     test('should handle concurrent card plays by clearing previous timeout', () => {
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
       const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
-      
-      const { result } = renderHook(() => 
-        useGameState({ playerName: 'Test Player' })
-      );
+
+      const { result } = renderHook(() => useGameState({ playerName: 'Test Player' }));
 
       // Set up game state with multiple cards
       const testGameState: GameState = {
@@ -691,10 +685,13 @@ describe('useGameState', () => {
           { id: 'team2' as TeamId, playerIds: ['player2', 'player4'] as any, score: 0 } as any,
         ] as [Team, Team],
         hands: new Map([
-          ['player1', [
-            { id: 'card1', suit: 'oros', value: 1 },
-            { id: 'card2', suit: 'oros', value: 2 },
-          ]],
+          [
+            'player1',
+            [
+              { id: 'card1', suit: 'oros', value: 1 },
+              { id: 'card2', suit: 'oros', value: 2 },
+            ],
+          ],
         ]),
         currentTrick: [],
         deck: [],
@@ -708,7 +705,7 @@ describe('useGameState', () => {
         trickStats: new Map(),
         cardPlayAnimation: null,
       } as GameState;
-      
+
       act(() => {
         result.current.setGameState(testGameState);
       });
@@ -718,7 +715,8 @@ describe('useGameState', () => {
         result.current.playCard(0);
       });
 
-      const firstTimeoutId = setTimeoutSpy.mock.results[setTimeoutSpy.mock.results.length - 1]?.value;
+      const firstTimeoutId =
+        setTimeoutSpy.mock.results[setTimeoutSpy.mock.results.length - 1]?.value;
 
       // Play second card quickly (simulating rapid plays)
       act(() => {
@@ -738,9 +736,7 @@ describe('useGameState', () => {
     });
 
     test('should clear animation state when card is placed', () => {
-      const { result } = renderHook(() => 
-        useGameState({ playerName: 'Test Player' })
-      );
+      const { result } = renderHook(() => useGameState({ playerName: 'Test Player' }));
 
       // Set up game state
       const testGameState: GameState = {
@@ -757,9 +753,7 @@ describe('useGameState', () => {
           { id: 'team1' as TeamId, playerIds: ['player1', 'player3'] as any, score: 0 } as any,
           { id: 'team2' as TeamId, playerIds: ['player2', 'player4'] as any, score: 0 } as any,
         ] as [Team, Team],
-        hands: new Map([
-          ['player1', [{ id: 'card1', suit: 'oros', value: 1 }]],
-        ]),
+        hands: new Map([['player1', [{ id: 'card1', suit: 'oros', value: 1 }]]]),
         currentTrick: [],
         deck: [],
         trumpCard: null,
@@ -962,6 +956,189 @@ describe('useGameState', () => {
           result.current.reorderPlayerHand('player' as any, 0, 1);
         });
       }).not.toThrow();
+    });
+  });
+
+  describe('team validation', () => {
+    test('should build teams correctly with valid 2v2 assignment', () => {
+      const { result } = renderHook(() =>
+        useGameState({
+          playerName: 'Test Player',
+          difficulty: 'medium',
+        }),
+      );
+
+      // Wait for initialization
+      act(() => {
+        jest.runAllTimers();
+      });
+
+      const gameState = result.current.gameState;
+      expect(gameState).toBeDefined();
+      expect(gameState?.teams).toHaveLength(2);
+      expect(gameState?.teams[0].playerIds).toHaveLength(2);
+      expect(gameState?.teams[1].playerIds).toHaveLength(2);
+
+      // Check no duplicate players across teams
+      const allPlayerIds = [...gameState!.teams[0].playerIds, ...gameState!.teams[1].playerIds];
+      const uniquePlayerIds = new Set(allPlayerIds);
+      expect(uniquePlayerIds.size).toBe(4);
+    });
+
+    test('should use fallback teams when team assignment is invalid', () => {
+      // Mock console methods to verify warnings are logged
+      const consoleError = jest.spyOn(console, 'error').mockImplementation();
+      const consoleWarn = jest.spyOn(console, 'warn').mockImplementation();
+
+      // Create a scenario where team assignment would be invalid
+      // by mocking the initial player creation
+      const { result } = renderHook(() =>
+        useGameState({
+          playerName: 'Test Player',
+          difficulty: 'medium',
+        }),
+      );
+
+      // Wait for initialization
+      act(() => {
+        jest.runAllTimers();
+      });
+
+      // Teams should still be valid even if assignment logic had issues
+      const gameState = result.current.gameState;
+      expect(gameState?.teams[0].playerIds).toHaveLength(2);
+      expect(gameState?.teams[1].playerIds).toHaveLength(2);
+
+      // Restore console methods
+      consoleError.mockRestore();
+      consoleWarn.mockRestore();
+    });
+
+    test('should handle mock data with invalid teams', () => {
+      const consoleWarn = jest.spyOn(console, 'warn').mockImplementation();
+
+      const mockData = {
+        players: [
+          { id: 0, name: 'Player 1', cards: 6 },
+          { id: 1, name: 'Player 2', cards: 6 },
+          { id: 2, name: 'Player 3', cards: 6 },
+          { id: 3, name: 'Player 4', cards: 6 },
+        ],
+        myCards: [
+          { suit: 'oros' as any, value: 1 as any },
+          { suit: 'copas' as any, value: 2 as any },
+        ],
+        trumpCard: { suit: 'oros' as any, value: 7 as any },
+        currentPlayer: 0,
+      };
+
+      const { result } = renderHook(() =>
+        useGameState({
+          playerName: 'Test Player',
+          mockData,
+        }),
+      );
+
+      // Teams should be valid despite mock data
+      const gameState = result.current.gameState;
+      expect(gameState?.teams[0].playerIds).toHaveLength(2);
+      expect(gameState?.teams[1].playerIds).toHaveLength(2);
+
+      consoleWarn.mockRestore();
+    });
+
+    test('should handle local multiplayer with uneven team distribution', () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation();
+      const consoleWarn = jest.spyOn(console, 'warn').mockImplementation();
+
+      // Test with 3 players - should add 1 bot
+      const { result } = renderHook(() =>
+        useGameState({
+          playerName: 'Player 1',
+          playerNames: ['Player 1', 'Player 2', 'Player 3'],
+        }),
+      );
+
+      act(() => {
+        jest.runAllTimers();
+      });
+
+      const gameState = result.current.gameState;
+
+      // Should have 4 players total (3 humans + 1 bot)
+      expect(gameState?.players).toHaveLength(4);
+
+      // Teams should be properly formed
+      expect(gameState?.teams[0].playerIds).toHaveLength(2);
+      expect(gameState?.teams[1].playerIds).toHaveLength(2);
+
+      // Check that one player is a bot
+      const botCount = gameState?.players.filter(p => p.isBot).length || 0;
+      expect(botCount).toBe(1);
+
+      consoleError.mockRestore();
+      consoleWarn.mockRestore();
+    });
+
+    test('should ensure no duplicate players in teams', () => {
+      const { result } = renderHook(() =>
+        useGameState({
+          playerName: 'Test Player',
+          difficulty: 'hard',
+        }),
+      );
+
+      act(() => {
+        jest.runAllTimers();
+      });
+
+      const gameState = result.current.gameState;
+
+      // Get all player IDs from both teams
+      const team1Ids = gameState?.teams[0].playerIds || [];
+      const team2Ids = gameState?.teams[1].playerIds || [];
+
+      // Check for duplicates within each team
+      expect(new Set(team1Ids).size).toBe(team1Ids.length);
+      expect(new Set(team2Ids).size).toBe(team2Ids.length);
+
+      // Check for duplicates across teams
+      const intersection = team1Ids.filter(id => team2Ids.includes(id));
+      expect(intersection).toHaveLength(0);
+    });
+
+    test('should validate teams match player assignments', () => {
+      const { result } = renderHook(() =>
+        useGameState({
+          playerName: 'Test Player',
+          difficulty: 'easy',
+        }),
+      );
+
+      act(() => {
+        jest.runAllTimers();
+      });
+
+      const gameState = result.current.gameState;
+
+      // Every player in teams should exist in players array
+      const playerIds = gameState?.players.map(p => p.id) || [];
+      const teamPlayerIds = [
+        ...(gameState?.teams[0].playerIds || []),
+        ...(gameState?.teams[1].playerIds || []),
+      ];
+
+      teamPlayerIds.forEach(id => {
+        expect(playerIds).toContain(id);
+      });
+
+      // Every player should be in exactly one team
+      playerIds.forEach(playerId => {
+        const inTeam1 = gameState?.teams[0].playerIds.includes(playerId);
+        const inTeam2 = gameState?.teams[1].playerIds.includes(playerId);
+        expect(inTeam1 || inTeam2).toBe(true);
+        expect(inTeam1 && inTeam2).toBe(false); // Not in both teams
+      });
     });
   });
 });

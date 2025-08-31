@@ -715,21 +715,24 @@ function processTrickCompletion(gameState: GameState): GameState {
     newState = applyLastTrickBonus(newState, trickResult.winnerTeam);
   }
 
-  // Determine phase
-  let newPhase = newState.phase;
+  // Determine phase transitions
+  let newPhase = newState.phase; // Default: preserve current phase
+
   if (isGameOver(newState)) {
-    // Only when match is fully complete
+    // Match is complete (2 cotos won)
     newPhase = 'gameOver';
   } else if (
-    // Auto-stop Vueltas as soon as any team reaches 101 combined points
+    // Stop vueltas when any team reaches 101 combined points
     newState.isVueltas &&
     newState.initialScores &&
     newState.teams.some(team => (newState.initialScores!.get(team.id) || 0) + team.score >= 101)
   ) {
     newPhase = 'scoring';
   } else if (lastTrick) {
+    // All cards played - end of hand (works for both normal and arrastre)
     newPhase = 'scoring';
   }
+  // Otherwise keep current phase (including 'arrastre' from dealCardsAfterTrick)
 
   // Clear trick and set next player
   const winnerIndex = newState.players.findIndex(p => p.id === trickResult.winnerId);

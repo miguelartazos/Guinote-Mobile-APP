@@ -730,29 +730,39 @@ describe('Partida de Vueltas', () => {
   });
 });
 
-describe('isGameOver with 30 malas rule', () => {
-  test('game over when team reaches 101 with 30+ card points', () => {
+describe('isGameOver checks match completion', () => {
+  test('game NOT over when team reaches 101 points but match not complete', () => {
     const mockGameState = {
       teams: [{ score: 101, cardPoints: 35 } as Team, { score: 85, cardPoints: 40 } as Team],
+      matchScore: {
+        team1Cotos: 1,
+        team2Cotos: 0,
+        cotosPerMatch: 2,
+      } as MatchScore,
     } as GameState;
 
-    expect(isGameOver(mockGameState)).toBe(true);
+    expect(isGameOver(mockGameState)).toBe(false); // Only 1 coto, need 2
   });
 
-  test('game NOT over when team has 101 but less than 30 card points', () => {
+  test('game over when team wins 2 cotos', () => {
     const mockGameState = {
-      teams: [{ score: 101, cardPoints: 25 } as Team, { score: 85, cardPoints: 40 } as Team],
+      teams: [{ score: 0, cardPoints: 0 } as Team, { score: 0, cardPoints: 0 } as Team],
+      matchScore: {
+        team1Cotos: 2,
+        team2Cotos: 0,
+        cotosPerMatch: 2,
+      } as MatchScore,
     } as GameState;
 
-    expect(isGameOver(mockGameState)).toBe(false);
+    expect(isGameOver(mockGameState)).toBe(true); // 2 cotos = match complete
   });
 
-  test('game over when team reaches exactly 30 card points with 101+ score', () => {
+  test('game NOT over without matchScore', () => {
     const mockGameState = {
       teams: [{ score: 105, cardPoints: 30 } as Team, { score: 80, cardPoints: 45 } as Team],
     } as GameState;
 
-    expect(isGameOver(mockGameState)).toBe(true);
+    expect(isGameOver(mockGameState)).toBe(false); // No matchScore = not over
   });
 });
 
