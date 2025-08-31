@@ -277,7 +277,7 @@ export function CardDealingAnimation({
     await new Promise(resolve => {
       Animated.parallel([
         Animated.timing(trumpAnimation.rotation, {
-          toValue: 1, // 0->1 mapped to 0->180deg below, we'll invert for face-up effect
+          toValue: 1, // 0->1 mapped to 180->0deg in interpolation for face-up effect
           duration: 350,
           useNativeDriver: true,
         }),
@@ -346,7 +346,7 @@ export function CardDealingAnimation({
 
   const interpolatedRotation = trumpAnimation.rotation.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
+    outputRange: ['180deg', '0deg'], // Start face-down (180deg), animate to face-up (0deg)
   });
 
   // Fade-out handoff
