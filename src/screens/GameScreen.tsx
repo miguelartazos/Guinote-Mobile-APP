@@ -83,6 +83,31 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         roomId,
         userId: user?.id,
         autoConnect: true,
+        onGameAction: (payload: any) => {
+          // Apply remote actions to local state engine
+          if (!payload || !gameState) return;
+          try {
+            switch (payload.type) {
+              case 'play_card':
+                if (payload.cardId) {
+                  playCard(payload.cardId);
+                }
+                break;
+              case 'cambiar_7':
+                cambiar7();
+                break;
+              case 'declare_cante':
+                if (payload.suit) {
+                  cantar(payload.suit as SpanishSuit);
+                }
+                break;
+              default:
+                break;
+            }
+          } catch (e) {
+            console.error('[GameScreen] Failed to apply remote action:', e);
+          }
+        },
       })
     : null;
 
@@ -263,8 +288,13 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       const hasWinner = hasWinnerIdas || hasWinnerVueltas;
 
       // Set up 8-second auto-advance timer for non-online games with a winner
+      // Auto-advance after IDAS if team has 101+, or after VUELTAS if there's a winner
       if (hasWinner && !isOnline) {
-        console.log('🏆 Winner detected, setting up auto-advance timer');
+        console.log('🏆 Winner detected, setting up auto-advance timer', {
+          isVueltas: gameState.isVueltas,
+          hasWinnerIdas,
+          hasWinnerVueltas,
+        });
         // Clear any existing timer
         if (autoAdvanceTimerRef.current) {
           clearTimeout(autoAdvanceTimerRef.current);
@@ -277,7 +307,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           autoAdvanceTimerRef.current = null;
         }, 8000);
       } else if (!hasWinner) {
-        console.log('🔄 No winner yet - should play vueltas');
+        console.log('🔄 No winner yet - user must click Continuar to play vueltas');
       }
     } else {
       // Hide overlay when phase changes
@@ -382,7 +412,19 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             if (isPlayerTurn()) {
               const validCards = getValidCardsForCurrentPlayer();
               if (validCards.length > 0) {
-                playCard(validCards[0].id);
+                const cardId = validCards[0].id;
+                playCard(cardId);
+                // Broadcast to peers if online
+                if (multiplayerGame?.isMultiplayerEnabled) {
+                  multiplayerGame
+                    .sendGameAction({
+                      type: 'play_card',
+                      cardId,
+                      timestamp: Date.now(),
+                      playerId: user?.id || 'anonymous',
+                    } as any)
+                    .catch(() => {});
+                }
               }
             }
             return 30;
@@ -518,7 +560,10 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   // In local multiplayer, rotate players so current player is always at bottom
   const getRotatedPlayers = () => {
     const allPlayers = gameState.players.map((player, index) => {
-      const hand = gameState.hands.get(player.id) || [];
+      // During dealing phase, use pendingHands if available, otherwise use regular hands
+      const hand = gameState.phase === 'dealing' && gameState.pendingHands
+        ? (gameState.pendingHands.get(player.id) || [])
+        : (gameState.hands.get(player.id) || []);
 
       // In local multiplayer, only show cards for the current player
       const showCards = isLocalMultiplayer
@@ -593,6 +638,18 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     playCard(cardToPlay.id);
     playCardSound();
 
+    // Broadcast to peers if online
+    if (isOnline && multiplayerGame?.isMultiplayerEnabled) {
+      multiplayerGame
+        .sendGameAction({
+          type: 'play_card',
+          cardId: cardToPlay.id,
+          timestamp: Date.now(),
+          playerId: user?.id || 'anonymous',
+        } as any)
+        .catch(() => {});
+    }
+
     // Reset lock after a short delay to allow state to update
     setTimeout(() => {
       isProcessingCardPlay.current = false;
@@ -646,7 +703,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   const handleCantar = () => {
     if (!isDealingComplete) return;
 
-    // CANTAR: Any player from winning team can cantar after their team wins a trick
+    // CANTAR: Can be done at start of game or after winning a trick
     const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
     if (!currentPlayer) return;
 
@@ -656,13 +713,24 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     const playerTeam = gameState.teams.find(t => t.playerIds.includes(currentPlayer.id));
     if (!playerTeam) return;
 
-    // Check if player's team won the last trick
+    // Check if it's the right time to cantar:
+    // 1. At the start of the game (no tricks played yet, current player is mano)
+    // 2. After your team won the last trick
     const lastWinner = gameState?.lastTrickWinner;
-    if (!lastWinner) return; // No tricks won yet
+    const isGameStart = !lastWinner && gameState.trickCount === 0;
+    const isFirstPlayer = gameState.currentPlayerIndex === (gameState.dealerIndex - 1 + 4) % 4;
 
-    const lastWinnerTeam = gameState.teams.find(t => t.playerIds.includes(lastWinner));
-    if (!lastWinnerTeam || playerTeam.id !== lastWinnerTeam.id) {
-      return; // Player's team didn't win the last trick
+    if (!isGameStart) {
+      // Not game start, so check if team won last trick
+      if (!lastWinner) return;
+
+      const lastWinnerTeam = gameState.teams.find(t => t.playerIds.includes(lastWinner));
+      if (!lastWinnerTeam || playerTeam.id !== lastWinnerTeam.id) {
+        return; // Player's team didn't win the last trick
+      }
+    } else if (!isFirstPlayer) {
+      // At game start, only mano (first player) can cantar
+      return;
     }
 
     // Check if trick hasn't started yet
@@ -700,6 +768,17 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       // Declare the cante after a short delay
       setTimeout(() => {
         cantar(suit);
+        // Broadcast cantar to peers
+        if (isOnline && multiplayerGame?.isMultiplayerEnabled) {
+          multiplayerGame
+            .sendGameAction({
+              type: 'declare_cante',
+              suit,
+              timestamp: Date.now(),
+              playerId: user?.id || 'anonymous',
+            } as any)
+            .catch(() => {});
+        }
       }, 100);
     }
   };
@@ -743,6 +822,16 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     // Animation breakdown: message (500ms + 1000ms wait) + card swap (1000ms + 600ms wait) = 2500ms total
     setTimeout(() => {
       cambiar7();
+      // Broadcast cambiar 7
+      if (isOnline && multiplayerGame?.isMultiplayerEnabled) {
+        multiplayerGame
+          .sendGameAction({
+            type: 'cambiar_7',
+            timestamp: Date.now(),
+            playerId: user?.id || 'anonymous',
+          } as any)
+          .catch(() => {});
+      }
     }, 2100);
   };
 
@@ -784,7 +873,6 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   // Show game over screen
   if (gameState.phase === 'gameOver') {
     console.log('🎮 GameScreen: gameOver phase', {
-      pendingVueltas: gameState.pendingVueltas,
       showGameEndCelebration,
       team1Score: gameState.teams[0].score,
       team2Score: gameState.teams[1].score,
@@ -812,7 +900,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         matchScore.team2Cotos >= matchScore.cotosPerMatch);
 
     // Always show celebration for game endings, except if match is complete and celebration was already shown
-    if (gameState.pendingVueltas || showGameEndCelebration || !isMatchReallyComplete) {
+    if (showGameEndCelebration || !isMatchReallyComplete) {
       // Determine celebration type based on actual match state
       let celebrationType: 'partida' | 'coto' | 'match' = 'partida';
 
@@ -828,7 +916,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       }
 
       // For pending vueltas, always show the celebration with custom handling
-      const isVueltasTransition = gameState.pendingVueltas;
+      const isVueltasTransition = false; // pendingVueltas no longer used
 
       return (
         <ScreenContainer orientation="landscape" style={styles.gameContainer}>
@@ -868,13 +956,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             }
             celebrationType={isVueltasTransition ? 'partida' : celebrationType}
             matchScore={matchScore}
-            onContinue={
-              isVueltasTransition
-                ? startVueltas
-                : !isMatchReallyComplete
-                ? continueToNextPartida
-                : undefined // Only no continue button when match is truly complete
-            }
+            onContinue={!isMatchReallyComplete ? continueToNextPartida : undefined}
             isVueltasTransition={isVueltasTransition}
           />
         </ScreenContainer>
@@ -1067,8 +1149,16 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           }
           canDeclareVictory={gameState.canDeclareVictory}
           teamScores={{
-            team1: gameState.teams[0].score,
-            team2: gameState.teams[1].score,
+            team1:
+              gameState.isVueltas && gameState.initialScores
+                ? (gameState.initialScores.get(gameState.teams[0].id) || 0) +
+                  gameState.teams[0].score
+                : gameState.teams[0].score,
+            team2:
+              gameState.isVueltas && gameState.initialScores
+                ? (gameState.initialScores.get(gameState.teams[1].id) || 0) +
+                  gameState.teams[1].score
+                : gameState.teams[1].score,
           }}
           hideTrumpCard={cambiar7Animation?.active}
           hideCardFromHand={
@@ -1216,8 +1306,18 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         {gameState && (
           <HandEndOverlay
             visible={showHandEndOverlay && gameState.phase === 'scoring'}
-            team1Score={gameState.teams[0].score}
-            team2Score={gameState.teams[1].score}
+            team1Score={
+              gameState.isVueltas && gameState.initialScores
+                ? (gameState.initialScores.get(gameState.teams[0].id) || 0) +
+                  gameState.teams[0].score
+                : gameState.teams[0].score
+            }
+            team2Score={
+              gameState.isVueltas && gameState.initialScores
+                ? (gameState.initialScores.get(gameState.teams[1].id) || 0) +
+                  gameState.teams[1].score
+                : gameState.teams[1].score
+            }
             team1HandPoints={undefined} // Let HandEndOverlay calculate from tricks
             team2HandPoints={undefined} // Let HandEndOverlay calculate from tricks
             team1Cantes={gameState.teams[0].cantes.reduce((sum, c) => sum + c.points, 0)}

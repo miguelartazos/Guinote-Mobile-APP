@@ -32,8 +32,15 @@ export function FriendsLobbyScreen() {
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
 
+  // Sign in state
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
   // Auth hooks
-  const { user, isAuthenticated } = useUnifiedAuth();
+  const { user, isAuthenticated, signIn, signUp } = useUnifiedAuth();
   const profile = user;
   const userId = user?.id || user?._id;
 
@@ -56,7 +63,7 @@ export function FriendsLobbyScreen() {
       const room = await rooms.createFriendsRoom(userId);
 
       navigation.navigate('GameRoom', {
-        roomId: room.roomId,
+        roomId: (room as any).id || (room as any).roomId,
         roomCode: room.code,
       });
     } catch (error) {
@@ -86,8 +93,8 @@ export function FriendsLobbyScreen() {
       const result = await rooms.joinRoomByCode(roomCode.toUpperCase(), userId);
 
       navigation.navigate('GameRoom', {
-        roomId: result.roomId,
-        roomCode: roomCode.toUpperCase(),
+        roomId: (result as any).id || (result as any).roomId,
+        roomCode: (result as any).code || roomCode.toUpperCase(),
       });
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'No se pudo unir a la sala');
@@ -99,6 +106,90 @@ export function FriendsLobbyScreen() {
   const handleCopyCode = (code: string) => {
     Clipboard.setString(code);
     Alert.alert('Copiado', 'Código copiado al portapapeles');
+  };
+
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Por favor completa todos los campos');
+      return;
+    }
+
+    setIsSigningIn(true);
+    try {
+      await signIn(email, password);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'No se pudo iniciar sesión');
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleSignUp = async () => {
+    if (!email || !password || !username) {
+      Alert.alert('Error', 'Por favor completa todos los campos');
+      return;
+    }
+
+    setIsSigningIn(true);
+    try {
+      await signUp(email, password, username);
+      Alert.alert('Éxito', 'Cuenta creada exitosamente');
+    } catch (error: any) {
+      // If signup fails due to database error, try to sign in instead
+      if (error.message?.includes('Database error')) {
+        Alert.alert(
+          'Aviso',
+          'El registro está temporalmente deshabilitado. Por favor, usa una cuenta existente o el botón de prueba rápida.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', error.message || 'No se pudo crear la cuenta');
+      }
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleQuickSignIn = async () => {
+    setIsSigningIn(true);
+    try {
+      // Try to use a known test account first
+      const knownTestAccounts = [
+        { email: 'test@guinote.app', password: 'TestGuinote123!' },
+        { email: 'demo@guinote.app', password: 'DemoGuinote123!' },
+      ];
+
+      let signedIn = false;
+      
+      // Try known accounts
+      for (const account of knownTestAccounts) {
+        try {
+          await signIn(account.email, account.password);
+          signedIn = true;
+          break;
+        } catch (e) {
+          // Try next account
+        }
+      }
+
+      if (!signedIn) {
+        // If no known accounts work, create a temporary offline session
+        Alert.alert(
+          'Modo de Prueba',
+          'No se pudo conectar con el servidor. Usando modo offline temporal.',
+          [{ text: 'OK' }]
+        );
+        // The offline auth will be handled by useAuth fallback
+      }
+    } catch (error: any) {
+      Alert.alert(
+        'Modo Offline',
+        'Usando modo offline para pruebas. Las salas multijugador no estarán disponibles.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsSigningIn(false);
+    }
   };
 
   const renderOnlineFriends = () => {
@@ -178,79 +269,163 @@ export function FriendsLobbyScreen() {
           )}
         </View>
 
-        {/* Create Room Section */}
-        <Card elevated style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardIcon}>🎮</Text>
-            <View style={styles.cardTitleContainer}>
-              <Text style={styles.cardTitle}>Crear Nueva Sala</Text>
-              <Text style={styles.cardDescription}>Invita hasta 3 amigos a jugar</Text>
+        {/* Show sign-in form if not authenticated */}
+        {!isAuthenticated || !user ? (
+          <Card elevated style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardIcon}>🔐</Text>
+              <View style={styles.cardTitleContainer}>
+                <Text style={styles.cardTitle}>{isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}</Text>
+                <Text style={styles.cardDescription}>
+                  Necesitas una cuenta para jugar con amigos
+                </Text>
+              </View>
             </View>
-          </View>
-          <Button
-            variant="primary"
-            size="large"
-            onPress={handleCreateRoom}
-            loading={isCreating}
-            disabled={isCreating}
-            icon="➕"
-            style={styles.mainButton}
-          >
-            Crear Sala
-          </Button>
-          <Text style={styles.hint}>📍 Se generará un código único para compartir</Text>
-        </Card>
 
-        <Divider text="o" spacing="medium" />
+            {isSignUp && (
+              <InputField
+                icon="👤"
+                value={username}
+                onChangeText={setUsername}
+                placeholder="Nombre de usuario"
+                autoCapitalize="none"
+                editable={!isSigningIn}
+                style={styles.authInput}
+              />
+            )}
 
-        {/* Join Room Section */}
-        <Card elevated style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardIcon}>🔑</Text>
-            <View style={styles.cardTitleContainer}>
-              <Text style={styles.cardTitle}>Unirse a Sala</Text>
-              <Text style={styles.cardDescription}>Ingresa el código de invitación</Text>
-            </View>
-          </View>
+            <InputField
+              icon="📧"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              editable={!isSigningIn}
+              style={styles.authInput}
+            />
 
-          <InputField
-            icon="🎯"
-            value={roomCode}
-            onChangeText={text => setRoomCode(text.toUpperCase())}
-            placeholder="ABC123"
-            maxLength={6}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            style={styles.codeInput}
-            validation={{
-              isValid: roomCode.length === 6,
-              message: roomCode.length > 0 ? `${roomCode.length}/6 caracteres` : undefined,
-            }}
-          />
+            <InputField
+              icon="🔑"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Contraseña"
+              secureTextEntry
+              editable={!isSigningIn}
+              style={styles.authInput}
+            />
 
-          <View style={styles.buttonRow}>
             <Button
-              variant={roomCode.length === 6 ? 'primary' : 'secondary'}
-              onPress={handleJoinRoom}
-              loading={isJoining}
-              disabled={isJoining || roomCode.length !== 6}
-              icon="🚪"
-              style={styles.joinButton}
+              variant="primary"
+              size="large"
+              onPress={isSignUp ? handleSignUp : handleSignIn}
+              loading={isSigningIn}
+              disabled={isSigningIn}
+              style={styles.mainButton}
             >
-              Unirse
+              {isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}
             </Button>
-            {roomCode.length === 6 && (
+
+            <TouchableOpacity
+              onPress={() => setIsSignUp(!isSignUp)}
+              disabled={isSigningIn}
+              style={styles.switchAuthMode}
+            >
+              <Text style={styles.switchAuthText}>
+                {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+              </Text>
+            </TouchableOpacity>
+
+            {__DEV__ && (
               <Button
                 variant="secondary"
                 size="small"
-                onPress={() => handleCopyCode(roomCode)}
-                icon="📋"
+                onPress={handleQuickSignIn}
+                disabled={isSigningIn}
+                style={styles.devButton}
+                icon="🚀"
               >
-                Copiar
+                Quick Test Sign In (Dev)
               </Button>
             )}
-          </View>
-        </Card>
+          </Card>
+        ) : (
+          <>
+            {/* Create Room Section */}
+            <Card elevated style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardIcon}>🎮</Text>
+                <View style={styles.cardTitleContainer}>
+                  <Text style={styles.cardTitle}>Crear Nueva Sala</Text>
+                  <Text style={styles.cardDescription}>Invita hasta 3 amigos a jugar</Text>
+                </View>
+              </View>
+              <Button
+                variant="primary"
+                size="large"
+                onPress={handleCreateRoom}
+                loading={isCreating}
+                disabled={isCreating}
+                icon="➕"
+                style={styles.mainButton}
+              >
+                Crear Sala
+              </Button>
+              <Text style={styles.hint}>📍 Se generará un código único para compartir</Text>
+            </Card>
+
+            <Divider text="o" spacing="medium" />
+
+            {/* Join Room Section */}
+            <Card elevated style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardIcon}>🔑</Text>
+                <View style={styles.cardTitleContainer}>
+                  <Text style={styles.cardTitle}>Unirse a Sala</Text>
+                  <Text style={styles.cardDescription}>Ingresa el código de invitación</Text>
+                </View>
+              </View>
+
+              <InputField
+                icon="🎯"
+                value={roomCode}
+                onChangeText={text => setRoomCode(text.toUpperCase())}
+                placeholder="ABC123"
+                maxLength={6}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                style={styles.codeInput}
+                validation={{
+                  isValid: roomCode.length === 6,
+                  message: roomCode.length > 0 ? `${roomCode.length}/6 caracteres` : undefined,
+                }}
+              />
+
+              <View style={styles.buttonRow}>
+                <Button
+                  variant={roomCode.length === 6 ? 'primary' : 'secondary'}
+                  onPress={handleJoinRoom}
+                  loading={isJoining}
+                  disabled={isJoining || roomCode.length !== 6}
+                  icon="🚪"
+                  style={styles.joinButton}
+                >
+                  Unirse
+                </Button>
+                {roomCode.length === 6 && (
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    onPress={() => handleCopyCode(roomCode)}
+                    icon="📋"
+                  >
+                    Copiar
+                  </Button>
+                )}
+              </View>
+            </Card>
+          </>
+        )}
 
         {/* Friends List Section */}
         <Card style={styles.friendsSection}>
@@ -458,5 +633,20 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.cantarGreen,
     fontWeight: typography.fontWeight.medium,
+  },
+  authInput: {
+    marginBottom: dimensions.spacing.md,
+  },
+  switchAuthMode: {
+    marginTop: dimensions.spacing.lg,
+    alignItems: 'center',
+  },
+  switchAuthText: {
+    color: colors.accent,
+    fontSize: typography.fontSize.md,
+  },
+  devButton: {
+    marginTop: dimensions.spacing.lg,
+    opacity: 0.7,
   },
 });

@@ -86,91 +86,56 @@ export function useUnifiedRooms(): RoomState & RoomActions {
 
       switch (action.type) {
         case 'CREATE_ROOM': {
-          const { data, error } = await client
-            .from('rooms')
-            .insert({
-              code: action.payload.code as string,
-              host_id: action.payload.hostId as string,
-              game_mode: 'friend',
-              max_players: 4,
-              current_players: 1,
-              is_public: false,
-            })
-            .select()
-            .single();
-
+          // Use RPC to create room with server-side constraints
+          const { data, error } = await (client as any).rpc('create_room', {
+            p_game_mode: 'friend',
+            p_is_public: false,
+          });
           if (error) throw error;
-          return data;
+          return data; // { success, room_id, code }
         }
 
         case 'JOIN_ROOM': {
-          const { data: room, error: roomError } = await client
-            .from('rooms')
-            .select('*')
-            .eq('code', action.payload.code as string)
-            .single();
-
-          if (roomError) throw roomError;
-
-          const { error: joinError } = await client.from('room_players').insert({
-            room_id: room.id,
-            player_id: action.payload.userId as string,
-            position: (action.payload.position as number) || 0,
-            is_ready: false,
-            is_bot: false,
+          const code = action.payload.code as string;
+          const { data, error } = await (client as any).rpc('join_room', {
+            p_room_code: code,
           });
-
-          if (joinError) throw joinError;
-          return room;
+          if (error) throw error;
+          return data; // { success, room_id, ... }
         }
 
         case 'LEAVE_ROOM': {
-          const { error } = await client
-            .from('room_players')
-            .update({ left_at: new Date().toISOString() })
-            .eq('room_id', action.payload.roomId as string)
-            .eq('player_id', action.payload.playerId as string);
-
+          const { error } = await (client as any).rpc('leave_room', {
+            p_room_id: action.payload.roomId as string,
+          });
           if (error) throw error;
           return;
         }
 
         case 'ADD_AI_PLAYER': {
           const config = action.payload.config as AIConfig;
-          const { error } = await client.from('room_players').insert({
-            room_id: action.payload.roomId as string,
-            player_id: `ai_${Date.now()}`,
-            position: (action.payload.position as number) || 0,
-            is_ready: true,
-            is_bot: true,
-            bot_difficulty: config.difficulty,
-            bot_personality: config.personality,
+          const { error } = await (client as any).rpc('add_ai_player', {
+            p_room_id: action.payload.roomId as string,
+            p_difficulty: config.difficulty,
+            p_personality: config.personality,
           });
-
           if (error) throw error;
           return;
         }
 
         case 'UPDATE_READY_STATUS': {
-          const { error } = await client
-            .from('room_players')
-            .update({ is_ready: action.payload.isReady as boolean })
-            .eq('room_id', action.payload.roomId as string)
-            .eq('player_id', action.payload.playerId as string);
-
+          // Server will toggle ready for the current auth user in the given room
+          const { error } = await (client as any).rpc('toggle_ready', {
+            p_room_id: action.payload.roomId as string,
+          });
           if (error) throw error;
           return;
         }
 
         case 'START_GAME': {
-          const { error } = await client
-            .from('rooms')
-            .update({
-              status: 'playing',
-              started_at: new Date().toISOString(),
-            })
-            .eq('id', action.payload.roomId as string);
-
+          const { error } = await (client as any).rpc('start_game', {
+            p_room_id: action.payload.roomId as string,
+          });
           if (error) throw error;
           return;
         }
@@ -233,7 +198,7 @@ export function useUnifiedRooms(): RoomState & RoomActions {
           last_activity_at: new Date().toISOString(),
         };
 
-        const { result, queued } = await connectionService.queueAction<Room>(
+        const { result, queued } = await connectionService.queueAction<any>(
           'CREATE_ROOM',
           { code, hostId },
           optimisticRoom,
@@ -241,13 +206,32 @@ export function useUnifiedRooms(): RoomState & RoomActions {
         );
 
         if (result) {
+          // If RPC returned JSON with room_id/code, convert to Room shape for local state
+          const normalized: Room = (result && result.room_id)
+            ? {
+                id: result.room_id as string,
+                code: (result.code as string) || code,
+                host_id: hostId,
+                game_state: null,
+                status: 'waiting',
+                game_mode: 'friend',
+                max_players: 4,
+                current_players: 1,
+                is_public: false,
+                created_at: new Date().toISOString(),
+                started_at: null,
+                finished_at: null,
+                last_activity_at: new Date().toISOString(),
+              }
+            : (result as Room);
+
           setState(prev => ({
             ...prev,
-            room: result,
+            room: normalized,
             isLoading: false,
             queuedActions: queued ? prev.queuedActions + 1 : prev.queuedActions,
           }));
-          return result;
+          return normalized;
         }
 
         throw new Error('Failed to create room');
@@ -289,7 +273,7 @@ export function useUnifiedRooms(): RoomState & RoomActions {
           last_activity_at: new Date().toISOString(),
         };
 
-        const { result, queued } = await connectionService.queueAction<Room>(
+        const { result, queued } = await connectionService.queueAction<any>(
           'JOIN_ROOM',
           { code, userId },
           optimisticRoom,
@@ -297,13 +281,31 @@ export function useUnifiedRooms(): RoomState & RoomActions {
         );
 
         if (result) {
+          const normalized: Room = (result && result.room_id)
+            ? {
+                id: result.room_id as string,
+                code,
+                host_id: null,
+                game_state: null,
+                status: 'waiting',
+                game_mode: 'friend',
+                max_players: 4,
+                current_players: 2,
+                is_public: false,
+                created_at: new Date().toISOString(),
+                started_at: null,
+                finished_at: null,
+                last_activity_at: new Date().toISOString(),
+              }
+            : (result as Room);
+
           setState(prev => ({
             ...prev,
-            room: result,
+            room: normalized,
             isLoading: false,
             queuedActions: queued ? prev.queuedActions + 1 : prev.queuedActions,
           }));
-          return result;
+          return normalized;
         }
 
         throw new Error('Failed to join room');
@@ -328,7 +330,7 @@ export function useUnifiedRooms(): RoomState & RoomActions {
       try {
         await connectionService.queueAction(
           'LEAVE_ROOM',
-          { roomId, playerId: 'current_user' }, // TODO: Get actual player ID
+          { roomId },
           undefined,
           isOnline,
         );
@@ -482,28 +484,26 @@ export function useUnifiedRooms(): RoomState & RoomActions {
 
         const { data, error } = await client
           .from('room_players')
-          .select('*, profiles:player_id(username, display_name)')
-          .eq('room_id', roomId)
-          .is('left_at', null);
+          .select('*, users:user_id(username, display_name)')
+          .eq('room_id', roomId);
 
         if (error) throw error;
 
         const players: Player[] = data.map((p: any) => ({
-          id: p.player_id,
-          name: p.is_bot
-            ? `AI Player ${p.position}`
-            : p.profiles?.display_name || p.profiles?.username || 'Unknown',
+          id: p.user_id,
+          name: p.is_ai ? `AI Player ${p.position}` : p.users?.display_name || p.users?.username || 'Jugador',
           position: p.position,
-          teamId: p.team_id,
+          teamId:
+            p.team === null || p.team === undefined ? null : p.team % 2 === 0 ? 'team1' : 'team2',
           isReady: p.is_ready,
-          isBot: p.is_bot,
-          botConfig: p.is_bot
+          isBot: p.is_ai,
+          botConfig: p.is_ai
             ? {
-                difficulty: p.bot_difficulty || 'medium',
-                personality: p.bot_personality || 'balanced',
+                difficulty: p.ai_difficulty || 'medium',
+                personality: p.ai_personality || 'balanced',
               }
             : undefined,
-          connectionStatus: p.connection_status,
+          connectionStatus: p.connection_status || 'connected',
         }));
 
         setState(prev => ({ ...prev, players }));

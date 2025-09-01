@@ -51,9 +51,9 @@ async function initializeClient(): Promise<SupabaseClient | null> {
 
     // Lazy import Supabase ONLY when multiplayer is enabled
     // This is the ONLY place where Supabase is imported for realtime features
-    const { supabase } = await import('../lib/supabase');
+    const { getSupabaseClient } = await import('../lib/supabase');
 
-    realtimeClient = supabase;
+    realtimeClient = await getSupabaseClient();
 
     if (__DEV__) {
       console.log('[RealtimeClient] Supabase client loaded successfully');

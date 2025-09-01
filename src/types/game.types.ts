@@ -92,6 +92,7 @@ export type GameState = Readonly<{
   teams: [Team, Team];
   deck: ReadonlyArray<Card>;
   hands: ReadonlyMap<PlayerId, ReadonlyArray<Card>>;
+  pendingHands?: ReadonlyMap<PlayerId, ReadonlyArray<Card>>; // Cards to be dealt during animation
   trumpSuit: SpanishSuit;
   trumpCard: Card;
   currentTrick: ReadonlyArray<TrickCard>;

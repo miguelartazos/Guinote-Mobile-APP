@@ -255,30 +255,20 @@ export class MultiplayerGameService {
         throw new Error('Failed to create client for validation');
       }
 
-      // Get the Supabase URL from the client's auth URL
-      const supabaseUrl = (client as any).supabaseUrl || (client as any).restUrl || '';
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/validate-move`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(client as any).supabaseKey || ''}`,
-        },
-        body: JSON.stringify({
+      // Use Supabase Functions client for invocation
+      const { data, error } = await (client as any).functions.invoke('validate-move', {
+        body: {
           gameState: this.currentState,
           move: action,
           playerId: this.playerId,
-        }),
+        },
       });
-
-      if (!response.ok) {
-        throw new Error(`Validation request failed: ${response.status}`);
+      if (error) {
+        throw error;
       }
-
-      const result = await response.json();
       return {
-        valid: result.valid,
-        reason: result.reason,
+        valid: data?.valid,
+        reason: data?.reason,
       };
     } catch (error) {
       console.error('[MultiplayerGameService] Failed to validate move on server:', error);

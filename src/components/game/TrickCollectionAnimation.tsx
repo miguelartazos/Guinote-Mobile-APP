@@ -125,8 +125,17 @@ export function TrickCollectionAnimation({
       return;
     }
 
-    // Wait a moment to let players see the trick
-    await new Promise(resolve => setTimeout(resolve, WINNER_HIGHLIGHT_DELAY));
+    // Shorter wait for snappier feel
+    await new Promise(resolve => setTimeout(resolve, Math.max(100, WINNER_HIGHLIGHT_DELAY - 100)));
+
+    // Stabilize all cards before animation to prevent jumps
+    cardAnimations.forEach((anim, i) => {
+      // Ensure all cards start at scale 1
+      anim.scale.setValue(1);
+      // Stop any in-flight rotation animations
+      anim.rotation.stopAnimation();
+      anim.rotation.setValue(0);
+    });
 
     // Animate the winning card scale up
     await new Promise(resolve => {
@@ -181,7 +190,8 @@ export function TrickCollectionAnimation({
     });
 
     await new Promise(resolve => {
-      Animated.stagger(100, animations).start(() => resolve(null));
+      // Reduced stagger for faster collection
+      Animated.stagger(50, animations).start(() => resolve(null));
     });
   };
 

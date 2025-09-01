@@ -38,15 +38,15 @@ const DEFAULT_FLAGS: FeatureFlags = {
 
 // Keep all features OFF by default - enable one at a time for testing
 const DEVELOPMENT_FLAGS: FeatureFlags = {
-  // CRITICAL: Keep OFF for Hermes safety - no Supabase imports at startup
-  enableMultiplayer: false,
+  // Enable multiplayer for development testing
+  enableMultiplayer: true,
 
   // Individual Supabase features (ignored if enableMultiplayer is false)
-  useSupabaseAuth: false, // Enable when ready to test auth
-  useSupabaseRooms: false, // Enable when ready to test rooms
+  useSupabaseAuth: true, // Enabled - required for friends lobby
+  useSupabaseRooms: true, // Enabled - required for creating/joining rooms
   useSupabaseGame: false, // Enable when ready to test game
   useSupabaseMatchmaking: false, // Enable when ready to test matchmaking
-  useSupabaseFriends: false, // Enable when ready to test friends
+  useSupabaseFriends: true, // Enabled - required for friends list
   useSupabaseVoice: false, // Enable when ready to test voice
   useSupabaseStatistics: false, // Enable when ready to test stats
 

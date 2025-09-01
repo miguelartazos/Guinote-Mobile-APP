@@ -635,25 +635,70 @@ export function updateMatchScoreAndDeterminePhase(
 }
 
 export function startNewPartida(previousState: GameState, matchScore: MatchScore): GameState {
-  // Create initial scores map from match score
-  const initialScores = new Map<TeamId, number>();
-  initialScores.set('team1' as TeamId, 0);
-  initialScores.set('team2' as TeamId, 0);
+  // Create and shuffle new deck
+  const deck = shuffleDeck(createDeck());
 
-  // Use the existing vueltas reset function to start a new partida
-  const resetState = resetGameStateForVueltas(previousState, initialScores);
+  // Deal initial cards
+  const { hands, remainingDeck } = dealInitialCards(
+    deck,
+    previousState.players.map(p => p.id),
+  );
 
-  // Return a new immutable state object with scores reset to 0
+  // Trump card is the next card in deck (bottom of draw pile)
+  const trumpCard = remainingDeck[remainingDeck.length - 1];
+  const deckAfterTrump = remainingDeck.slice(0, -1);
+
+  // Reset teams but maintain their IDs and player assignments
+  const teams: [Team, Team] = [
+    {
+      ...previousState.teams[0],
+      score: 0,
+      cardPoints: 0,
+      cantes: [],
+    },
+    {
+      ...previousState.teams[1],
+      score: 0,
+      cardPoints: 0,
+      cantes: [],
+    },
+  ];
+
+  // CRITICAL: Rotate dealer between partidas (not between hands of same partida)
+  const newDealerIndex = (previousState.dealerIndex + 1) % 4;
+  const firstPlayerIndex = (newDealerIndex - 1 + 4) % 4; // Mano is to dealer's right
+
+  // Return completely fresh state for new partida
   return {
-    ...resetState,
+    ...previousState,
     phase: 'dealing' as GamePhase,
+    teams,
+    deck: deckAfterTrump,
+    hands: new Map(), // Start with empty hands for animation
+    pendingHands: hands, // Store dealt cards to be animated
+    trumpSuit: trumpCard.suit,
+    trumpCard,
+    currentTrick: [],
+    currentPlayerIndex: firstPlayerIndex,
+    dealerIndex: newDealerIndex,
+    trickCount: 0,
+    trickWins: new Map(),
+    collectedTricks: new Map(),
+    teamTrickPiles: new Map([
+      [teams[0].id, []],
+      [teams[1].id, []],
+    ]),
+    lastTrickWinner: undefined,
+    lastTrick: undefined,
+    canCambiar7: true,
+    gameHistory: [],
     isVueltas: false,
     initialScores: undefined,
-    matchScore, // Preserve the match score
-    teams: resetState.teams.map(team => ({
-      ...team,
-      score: 0, // Reset score for new partida
-    })) as GameState['teams'],
+    canDeclareVictory: false,
+    lastTrickWinnerTeam: undefined,
+    matchScore,
+    pendingVueltas: undefined,
+    lastActionTimestamp: Date.now(),
   };
 }
 
@@ -751,7 +796,6 @@ export function initializeVueltasState(state: GameState): GameState {
     lastTrickWinnerTeam: lastWinnerTeam,
     canDeclareVictory: !!lastWinnerTeam,
     matchScore: state.matchScore || createInitialMatchScore(),
-    pendingVueltas: false,
   };
 }
 
@@ -846,16 +890,26 @@ function processTrickCompletion(gameState: GameState): GameState {
   if (isGameOver(newState)) {
     // Match is complete (2 cotos won)
     newPhase = 'gameOver';
+  } else if (lastTrick) {
+    // All cards played - end of hand
+    if (newState.isVueltas) {
+      // In vueltas, only go to scoring when the hand is complete (all cards played)
+      // This happens when lastTrick is true
+      newPhase = 'scoring';
+    } else {
+      // Normal play - go to scoring at end of hand
+      newPhase = 'scoring';
+    }
   } else if (
-    // Stop vueltas when any team reaches 101 combined points
+    // During vueltas, check if any team reached 101 but DON'T transition yet
+    // We'll check this condition when the hand ends (lastTrick = true)
     newState.isVueltas &&
     newState.initialScores &&
     newState.teams.some(team => (newState.initialScores!.get(team.id) || 0) + team.score >= 101)
   ) {
-    newPhase = 'scoring';
-  } else if (lastTrick) {
-    // All cards played - end of hand (works for both normal and arrastre)
-    newPhase = 'scoring';
+    // Keep playing until all cards are played
+    // The scoring phase will be triggered when lastTrick is true
+    // This prevents the fin mano screen from showing after each trick
   }
   // Otherwise keep current phase (including 'arrastre' from dealCardsAfterTrick)
 

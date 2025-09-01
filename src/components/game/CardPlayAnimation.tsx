@@ -36,7 +36,7 @@ export function CardPlayAnimation({
       // Animate card from hand to table
       await new Promise(resolve => {
         Animated.parallel([
-          // Move to table position - using linear easing for immediate stop
+          // Move to table position
           Animated.timing(position, {
             toValue: toPosition,
             duration: CARD_PLAY_DURATION,
@@ -50,7 +50,12 @@ export function CardPlayAnimation({
             easing: STANDARD_EASING,
             useNativeDriver: true,
           }),
-        ]).start(() => resolve(null));
+        ]).start(() => {
+          // Ensure final position is exactly at target to prevent any drift
+          position.setValue(toPosition);
+          rotation.setValue(0);
+          resolve(null);
+        });
       });
 
       // Don't call onComplete immediately - let the animation stay visible

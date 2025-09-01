@@ -139,11 +139,15 @@ export const GameTable = React.memo(function GameTable({
   cardPlayAnimation,
 }: GameTableProps) {
   const [bottomPlayer, leftPlayer, topPlayer, rightPlayer] = players;
-  
+
   // Create stable callback refs for memoization
   const onCardPlayRef = useRef(onCardPlay);
   const onCardReorderRef = useRef(onCardReorder);
   const bottomPlayerIdRef = useRef(bottomPlayer.id);
+
+  // Stable deck position with smart caching
+  const deckPositionRef = useRef<Position | null>(null);
+  const lastLayoutDimensions = useRef({ width: 0, height: 0 });
 
   // Update refs on each render
   useEffect(() => {
@@ -183,34 +187,43 @@ export const GameTable = React.memo(function GameTable({
     boardLayout: layout.board,
   };
 
-  // Store deck position in a ref to prevent jumps
-  const deckPositionRef = useRef<Position | null>(null);
-
-  // Only update deck position when layout becomes ready or dimensions change significantly
+  // Calculate deck position with stability mechanism
   const deckPosition = useMemo(() => {
-    if (!layout.isReady) return deckPositionRef.current;
+    // Return cached position when layout isn't ready
+    if (!layout.isReady) {
+      return deckPositionRef.current;
+    }
+
+    const { width, height } = layout.table;
+
+    // Only recalculate if dimensions changed significantly (3px threshold)
+    const widthDiff = Math.abs(width - lastLayoutDimensions.current.width);
+    const heightDiff = Math.abs(height - lastLayoutDimensions.current.height);
+
+    if (deckPositionRef.current && widthDiff < 3 && heightDiff < 3) {
+      // Return cached position for micro-movements
+      return deckPositionRef.current;
+    }
+
+    // Update cached dimensions
+    lastLayoutDimensions.current = { width, height };
 
     const currentLayoutInfo: LayoutInfo = {
       parentLayout: layout.table,
       boardLayout: layout.board,
     };
 
-    const newPosition = getDeckPosition(layout.table.width, layout.table.height, currentLayoutInfo);
+    const newPosition = getDeckPosition(width, height, currentLayoutInfo);
 
-    // Only update if position changed significantly (more than 10 pixels to reduce vibration)
-    if (
-      !deckPositionRef.current ||
-      Math.abs(deckPositionRef.current.x - newPosition.x) > 10 ||
-      Math.abs(deckPositionRef.current.y - newPosition.y) > 10
-    ) {
-      deckPositionRef.current = newPosition;
-    }
+    // Cache the new position
+    deckPositionRef.current = newPosition;
 
-    return deckPositionRef.current;
+    return newPosition;
   }, [
-    // Only recalculate on major dimension changes - use consistent threshold with position check
-    Math.floor(layout.table.width / 50) * 50,
-    Math.floor(layout.table.height / 50) * 50,
+    layout.table.width,
+    layout.table.height,
+    layout.board.width,
+    layout.board.height,
     layout.isReady,
   ]);
 
@@ -344,7 +357,13 @@ export const GameTable = React.memo(function GameTable({
 
   // Manage overlay fade-out after dealing completes to avoid deck blink
   const [shouldFadeOutOverlay, setShouldFadeOutOverlay] = useState(false);
-  const [, forceUpdate] = useState(0);
+  const [dealingAnimationComplete, setDealingAnimationComplete] = useState(false);
+  // Log when dealing overlay should mount
+  useEffect(() => {
+    if (isDealing) {
+      console.log('🎬 GameTable: dealing overlay mounting (phase dealing)');
+    }
+  }, [isDealing]);
 
   // Determine if deck should be visible - centralized logic to prevent bugs
   const shouldShowDeck = useMemo(() => {
@@ -405,12 +424,13 @@ export const GameTable = React.memo(function GameTable({
           trumpCard={trumpCard as any}
           playerCards={bottomPlayer.cards}
           onComplete={() => {
-            // Trigger steady deck render immediately; overlay remains until fadeOut completes
-            onCompleteDealingAnimation?.();
-            // Wait a short moment to ensure DeckPile mounts, then crossfade overlay away
-            const fadeTimer = setTimeout(() => setShouldFadeOutOverlay(true), 120);
-            // Ensure we clean up if component unmounts
-            return () => clearTimeout(fadeTimer);
+            // Mark animation as complete first
+            setDealingAnimationComplete(true);
+            // Small delay to ensure cards are rendered before fade
+            setTimeout(() => {
+              onCompleteDealingAnimation?.();
+              setShouldFadeOutOverlay(true);
+            }, 150);
           }}
           playDealSound={playDealSound || (() => {})}
           playTrumpRevealSound={playTrumpRevealSound || (() => {})}
@@ -419,8 +439,7 @@ export const GameTable = React.memo(function GameTable({
           fadeOut={shouldFadeOutOverlay}
           onFadeOutComplete={() => {
             setShouldFadeOutOverlay(false);
-            // Force a re-render to ensure deck shows properly after dealing
-            forceUpdate(n => n + 1);
+            setDealingAnimationComplete(false);
           }}
         />
       )}
@@ -446,8 +465,6 @@ export const GameTable = React.memo(function GameTable({
         isCurrentPlayer={currentPlayerIndex === playerIdToPosition[rightPlayer.id]}
         teamId="team2"
         isThinking={thinkingPlayerId === rightPlayer.id}
-        teamScores={teamScores}
-        isVueltas={isVueltas}
       />
       <MinimalPlayerPanel
         playerName={bottomPlayer.name}
@@ -458,15 +475,16 @@ export const GameTable = React.memo(function GameTable({
       />
 
       {/* Top Player Cards (Teammate) */}
-      {!isDealing && layout.isReady && (
+      {(!isDealing || dealingAnimationComplete) && layout.isReady && (
         <View style={styles.topPlayerCardsContainer}>
           {topPlayer.cards.map((card, index) => {
             // Hide card during play animation
             // For hidden hands (no id), match by index to avoid hiding all identical dummy cards
             const isAnimating =
               cardPlayAnimation?.playerId === topPlayer.id &&
-              ((('id' in cardPlayAnimation.card && 'id' in card &&
-                (cardPlayAnimation.card as any).id === (card as any).id)) ||
+              (('id' in cardPlayAnimation.card &&
+                'id' in card &&
+                (cardPlayAnimation.card as any).id === (card as any).id) ||
                 index === cardPlayAnimation.cardIndex);
 
             // If card is animating to table, render invisible placeholder to maintain spacing
@@ -541,7 +559,9 @@ export const GameTable = React.memo(function GameTable({
                 topAnimating.current = true;
               } else {
                 // First render or existing card - start at target
+                // Initialize directly at target to prevent teleporting
                 animatedX = new Animated.Value(targetPosition.x);
+                topPreviousPositions.set(cardKey, targetPosition.x);
               }
               topCardAnimations.set(cardKey, animatedX);
             } else {
@@ -558,8 +578,10 @@ export const GameTable = React.memo(function GameTable({
               currentX = sourcePosition.x;
             }
 
-            // Always animate if position differs from target
-            if (Math.abs(currentX - targetPosition.x) > 1) {
+            // Only animate if position differs from target AND not during initial render
+            const shouldAnimate =
+              Math.abs(currentX - targetPosition.x) > 1 && previousX !== undefined;
+            if (shouldAnimate) {
               const staggerDelay = cardsRemoved || cardsAdded ? index * HAND_ANIMATION_STAGGER : 0;
 
               // Track this animation
@@ -616,15 +638,16 @@ export const GameTable = React.memo(function GameTable({
       )}
 
       {/* Left Player Cards */}
-      {!isDealing && layout.isReady && (
+      {(!isDealing || dealingAnimationComplete) && layout.isReady && (
         <View style={styles.leftPlayerCards}>
           {leftPlayer.cards.map((card, index) => {
             const currentCard = card; // Use currentCard to avoid unused variable warning
             // Hide card during play animation - for hidden hands, match by index
             const isAnimating =
               cardPlayAnimation?.playerId === leftPlayer.id &&
-              ((('id' in cardPlayAnimation.card && 'id' in card &&
-                (cardPlayAnimation.card as any).id === (card as any).id)) ||
+              (('id' in cardPlayAnimation.card &&
+                'id' in card &&
+                (cardPlayAnimation.card as any).id === (card as any).id) ||
                 index === cardPlayAnimation.cardIndex);
 
             // If card is animating to table, render invisible placeholder to maintain spacing
@@ -705,7 +728,9 @@ export const GameTable = React.memo(function GameTable({
                 leftAnimating.current = true;
               } else {
                 // First render or existing card - start at target
+                // Initialize directly at target to prevent teleporting
                 animatedY = new Animated.Value(targetPosition.y);
+                leftPreviousPositions.set(cardKey, targetPosition.y);
               }
               leftCardAnimations.set(cardKey, animatedY);
             } else {
@@ -722,8 +747,10 @@ export const GameTable = React.memo(function GameTable({
               currentY = sourcePosition.y;
             }
 
-            // Always animate if position differs from target
-            if (Math.abs(currentY - targetPosition.y) > 1) {
+            // Only animate if position differs from target AND not during initial render
+            const shouldAnimateLeft =
+              Math.abs(currentY - targetPosition.y) > 1 && previousY !== undefined;
+            if (shouldAnimateLeft) {
               const staggerDelay = cardsRemoved || cardsAdded ? index * HAND_ANIMATION_STAGGER : 0;
 
               // Track this animation
@@ -780,15 +807,16 @@ export const GameTable = React.memo(function GameTable({
       )}
 
       {/* Right Player Cards */}
-      {!isDealing && layout.isReady && (
+      {(!isDealing || dealingAnimationComplete) && layout.isReady && (
         <View style={styles.rightPlayerCards}>
           {rightPlayer.cards.map((card, index) => {
             const currentCard = card; // Use currentCard to avoid unused variable warning
             // Hide card during play animation - for hidden hands, match by index
             const isAnimating =
               cardPlayAnimation?.playerId === rightPlayer.id &&
-              ((('id' in cardPlayAnimation.card && 'id' in card &&
-                (cardPlayAnimation.card as any).id === (card as any).id)) ||
+              (('id' in cardPlayAnimation.card &&
+                'id' in card &&
+                (cardPlayAnimation.card as any).id === (card as any).id) ||
                 index === cardPlayAnimation.cardIndex);
 
             // If card is animating to table, render invisible placeholder to maintain spacing
@@ -869,7 +897,9 @@ export const GameTable = React.memo(function GameTable({
                 rightAnimating.current = true;
               } else {
                 // First render or existing card - start at target
+                // Initialize directly at target to prevent teleporting
                 animatedY = new Animated.Value(targetPosition.y);
+                rightPreviousPositions.set(cardKey, targetPosition.y);
               }
               rightCardAnimations.set(cardKey, animatedY);
             } else {
@@ -886,8 +916,10 @@ export const GameTable = React.memo(function GameTable({
               currentY = sourcePosition.y;
             }
 
-            // Always animate if position differs from target
-            if (Math.abs(currentY - targetPosition.y) > 1) {
+            // Only animate if position differs from target AND not during initial render
+            const shouldAnimateRight =
+              Math.abs(currentY - targetPosition.y) > 1 && previousY !== undefined;
+            if (shouldAnimateRight) {
               const staggerDelay = cardsRemoved || cardsAdded ? index * HAND_ANIMATION_STAGGER : 0;
 
               // Track this animation
@@ -1133,15 +1165,14 @@ export const GameTable = React.memo(function GameTable({
         </View>
       )}
 
-      {/* Vueltas Indicator */}
-      {isVueltas && (
+      {/* Vueltas Indicator with Points Remaining */}
+      {isVueltas && teamScores && (
         <View style={styles.vueltasIndicator}>
           <Text style={styles.vueltasText}>VUELTAS</Text>
-          {vueltasInitialScores && (
-            <Text style={styles.vueltasScoreText}>
-              Idas: {vueltasInitialScores.team1} – {vueltasInitialScores.team2}
-            </Text>
-          )}
+          <Text style={styles.vueltasPointsText}>
+            Faltan - N: {Math.max(0, 101 - (teamScores?.team1 || 0))} | E:{' '}
+            {Math.max(0, 101 - (teamScores?.team2 || 0))}
+          </Text>
         </View>
       )}
 
@@ -1162,7 +1193,7 @@ export const GameTable = React.memo(function GameTable({
       )}
 
       {/* Bottom Player Hand - Only render when not dealing */}
-      {!isDealing && layout.isReady && (
+      {(!isDealing || dealingAnimationComplete) && layout.isReady && (
         <View style={[styles.bottomPlayerHand, landscape && styles.bottomPlayerHandLandscape]}>
           {bottomPlayer.cards.map((card, index) => {
             // Get card key and dimensions first (needed for placeholder)
@@ -1179,11 +1210,11 @@ export const GameTable = React.memo(function GameTable({
             // Hide card during play animation - prefer ID comparison
             const isAnimating =
               cardPlayAnimation?.playerId === bottomPlayer.id &&
-              ((('id' in cardPlayAnimation.card &&
+              (('id' in cardPlayAnimation.card &&
                 'id' in card &&
                 cardPlayAnimation.card.id === card.id) ||
                 (cardPlayAnimation.card.suit === card.suit &&
-                  cardPlayAnimation.card.value === card.value)) ||
+                  cardPlayAnimation.card.value === card.value) ||
                 index === cardPlayAnimation.cardIndex);
 
             if (shouldHide) return null;
@@ -1214,19 +1245,24 @@ export const GameTable = React.memo(function GameTable({
 
             // Get or create animation for this card
             if (!bottomCardAnimations.has(cardKey)) {
-              bottomCardAnimations.set(cardKey, new Animated.ValueXY(targetPosition));
-              bottomPreviousPositions.set(cardKey, targetPosition);
+              // Initialize at exact target position to prevent teleporting
+              const initialPos = bottomPreviousPositions.get(cardKey) || targetPosition;
+              bottomCardAnimations.set(cardKey, new Animated.ValueXY(initialPos));
+              if (!bottomPreviousPositions.has(cardKey)) {
+                bottomPreviousPositions.set(cardKey, targetPosition);
+              }
             }
 
             const animatedPosition = bottomCardAnimations.get(cardKey)!;
             const previousPosition = bottomPreviousPositions.get(cardKey);
 
-            // Animate to new position if it changed
-            if (
+            // Only animate if position changed AND this is not the initial render
+            const shouldAnimateBottom =
               previousPosition &&
               (Math.abs(previousPosition.x - targetPosition.x) > 1 ||
-                Math.abs(previousPosition.y - targetPosition.y) > 1)
-            ) {
+                Math.abs(previousPosition.y - targetPosition.y) > 1);
+
+            if (shouldAnimateBottom) {
               // Calculate stagger delay based on how many cards are moving
               const movingCardsCount = bottomPlayer.cards.filter((_, i) => {
                 const pos = getPlayerCardPosition(
@@ -1253,7 +1289,8 @@ export const GameTable = React.memo(function GameTable({
 
               bottomPreviousPositions.set(cardKey, targetPosition);
             } else if (!previousPosition) {
-              // First render - set position immediately
+              // First render - set position immediately without animation
+              animatedPosition.stopAnimation();
               animatedPosition.setValue(targetPosition);
               bottomPreviousPositions.set(cardKey, targetPosition);
             }
@@ -1496,11 +1533,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1,
   },
-  vueltasScoreText: {
+  vueltasPointsText: {
     color: colors.white,
     fontSize: 14,
     marginTop: 4,
-    opacity: 0.9,
+    opacity: 0.95,
   },
   declareText: {
     color: colors.white,

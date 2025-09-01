@@ -39,6 +39,7 @@ interface UseMultiplayerGameOptions {
   roomId?: string;
   userId?: string;
   autoConnect?: boolean;
+  onGameAction?: (action: any) => void;
 }
 
 /**
@@ -46,7 +47,7 @@ interface UseMultiplayerGameOptions {
  * Returns offline-safe defaults when multiplayer is disabled
  */
 export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
-  const { roomId, userId, autoConnect = true } = options;
+  const { roomId, userId, autoConnect = true, onGameAction } = options;
   const enableMultiplayer = useFeatureFlag('enableMultiplayer');
   const channelRef = useRef<RealtimeChannel | null>(null);
 
@@ -109,6 +110,17 @@ export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
               console.log('[useMultiplayerGame] Game state update:', payload);
             }
             setState(prev => ({ ...prev, gameState: payload }));
+          })
+          .on('broadcast', { event: 'game_action' }, ({ payload }) => {
+            if (__DEV__) {
+              console.log('[useMultiplayerGame] Game action received:', payload);
+            }
+            // Forward to consumer if provided
+            try {
+              onGameAction && onGameAction(payload);
+            } catch (e) {
+              console.error('[useMultiplayerGame] onGameAction handler error:', e);
+            }
           })
           .on('broadcast', { event: 'player_ready' }, ({ payload }) => {
             if (__DEV__) {

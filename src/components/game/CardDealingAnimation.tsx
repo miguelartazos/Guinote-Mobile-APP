@@ -120,8 +120,14 @@ export function CardDealingAnimation({
   useEffect(() => {
     if (!layoutReady) return;
     const runAnimationSequence = async () => {
+      console.log('▶️ CardDealingAnimation: starting sequence');
       // 1. Shuffle phase with animation
       await performShuffleAnimation();
+
+      // Reset shuffle values immediately after shuffle completes
+      shuffleAnimation.rotation.setValue(0);
+      shuffleAnimation.translateX.setValue(0);
+      shuffleAnimation.translateY.setValue(0);
 
       // 2. First deal round (3 cards each)
       setDealingPhase('deal1');
@@ -148,8 +154,29 @@ export function CardDealingAnimation({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layoutReady]);
 
+  // Diagnostics: track layout readiness
+  useEffect(() => {
+    if (layoutReady) {
+      console.log('🃏 Dealing layout ready:', {
+        table: layout.table,
+        board: layout.board,
+      });
+    } else {
+      console.log('⏳ Dealing waiting for layout...', {
+        ready: layout.isReady,
+        table: layout.table,
+        board: layout.board,
+      });
+    }
+  }, [layoutReady, layout]);
+
   const performShuffleAnimation = async () => {
     playShuffleSound();
+
+    // Reset values before starting to ensure clean state
+    shuffleAnimation.rotation.setValue(0);
+    shuffleAnimation.translateX.setValue(0);
+    shuffleAnimation.translateY.setValue(0);
 
     await new Promise(resolve => {
       Animated.sequence([
@@ -189,9 +216,16 @@ export function CardDealingAnimation({
             useNativeDriver: true,
           }),
         ]),
-      ]).start(() => resolve(null));
+      ]).start(() => {
+        // Ensure values are exactly 0 after animation completes
+        shuffleAnimation.rotation.setValue(0);
+        shuffleAnimation.translateX.setValue(0);
+        shuffleAnimation.translateY.setValue(0);
+        resolve(null);
+      });
     });
 
+    // Wait briefly before starting deal
     await new Promise(resolve => setTimeout(resolve, 200));
   };
 
@@ -344,12 +378,14 @@ export function CardDealingAnimation({
     outputRange: ['180deg', '0deg'], // Start face-down (180deg), animate to face-up (0deg)
   });
 
-  // Fade-out handoff
+  // Fade-out handoff with smoother transition
   useEffect(() => {
     if (!fadeOut) return;
+    // Slightly longer fade for smoother transition
     Animated.timing(overlayOpacity, {
       toValue: 0,
-      duration: 180,
+      duration: 250,
+      easing: SMOOTH_EASING,
       useNativeDriver: true,
     }).start(() => onFadeOutComplete?.());
   }, [fadeOut, overlayOpacity, onFadeOutComplete]);

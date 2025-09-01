@@ -26,7 +26,8 @@ export function SupabaseLifecycleProvider({ children }: { children: React.ReactN
     // Dynamically import Supabase only when needed
     const setupAutoRefresh = async () => {
       try {
-        const { supabase } = await import('../lib/supabase');
+        const { getSupabaseClient } = await import('../lib/supabase');
+        const supabase = await getSupabaseClient();
 
         const handleAppStateChange = (nextAppState: AppStateStatus) => {
           if (nextAppState === 'active') {

@@ -62,8 +62,8 @@ export const BOUNCE_EASING = Easing.bounce;
 export const ELASTIC_EASING = Easing.elastic(1.2);
 
 // Hand animation constants
-export const HAND_ANIMATION_DURATION = 280;
-export const HAND_ANIMATION_STAGGER = 25;
+export const HAND_ANIMATION_DURATION = 250; // Slightly faster for snappier feel
+export const HAND_ANIMATION_STAGGER = 15; // Reduced stagger for less total delay
 
 // Animation presets
 export const FADE_IN = {

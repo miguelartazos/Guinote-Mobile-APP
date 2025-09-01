@@ -60,7 +60,6 @@ jest.mock('../utils/gameStateFactory', () => ({
       lastTrickWinner: undefined,
       lastTrick: undefined,
       canCambiar7: true,
-      pendingVueltas: false,
       lastTrickWinnerTeam: prevState.lastTrickWinner
         ? prevState.teams.find(t => t.playerIds.includes(prevState.lastTrickWinner))?.id
         : undefined,
@@ -206,7 +205,7 @@ describe('useGameState - Vueltas Transition', () => {
         expect(resultState?.isVueltas).toBe(true);
         expect(resultState?.initialScores?.get('team1' as TeamId)).toBe(team1Score);
         expect(resultState?.initialScores?.get('team2' as TeamId)).toBe(team2Score);
-        expect(resultState?.pendingVueltas).toBe(false);
+        // pendingVueltas deprecated
         expect(resultState?.hands.size).toBe(4);
         expect(resultState?.trumpCard).toEqual({ suit: 'espadas', rank: 7, value: 0 });
         expect(resultState?.trumpSuit).toBe('espadas');
@@ -343,7 +342,7 @@ describe('useGameState - Vueltas Transition', () => {
     expect(vueltasState?.hands.size).toBe(4);
     expect(vueltasState?.trumpCard).toEqual({ suit: 'espadas', rank: 7, value: 0 });
     expect(vueltasState?.trumpSuit).toBe('espadas');
-    expect(vueltasState?.pendingVueltas).toBe(false);
+    // pendingVueltas deprecated
   });
 
   test('should transition to gameOver when a team reaches 101 points', () => {

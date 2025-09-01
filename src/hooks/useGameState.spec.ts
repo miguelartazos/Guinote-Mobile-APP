@@ -608,6 +608,73 @@ describe('useGameState', () => {
     });
   });
 
+  describe('continueToNextPartida (Partida Ganada flow)', () => {
+    test('starts a fresh partida with dealing after gameOver', () => {
+      const gameLogic = require('../utils/gameLogic');
+      // Make startNewPartida return a dealing state
+      gameLogic.startNewPartida.mockImplementationOnce((prev: any, _ms: any) => ({
+        ...prev,
+        phase: 'dealing',
+        isVueltas: false,
+        hands: new Map(),
+      }));
+
+      const { result } = renderHook(() => useGameState({ playerName: 'Test' }));
+
+      // Provide a valid gameOver state with a matchScore (not complete)
+      act(() => {
+        result.current.setGameState({
+          id: 'test-game' as any,
+          phase: 'gameOver',
+          players: [
+            { id: 'p1', name: 'P1' } as any,
+            { id: 'p2', name: 'P2' } as any,
+            { id: 'p3', name: 'P3' } as any,
+            { id: 'p4', name: 'P4' } as any,
+          ],
+          teams: [
+            { id: 'team1' as any, playerIds: ['p1', 'p3'] as any, score: 0 } as any,
+            { id: 'team2' as any, playerIds: ['p2', 'p4'] as any, score: 0 } as any,
+          ] as any,
+          deck: [],
+          hands: new Map(),
+          trumpSuit: 'oros',
+          trumpCard: { id: 'trump', suit: 'oros', value: 7 } as any,
+          currentTrick: [],
+          currentPlayerIndex: 0,
+          dealerIndex: 0,
+          trickCount: 0,
+          trickWins: new Map(),
+          canCambiar7: false,
+          gameHistory: [],
+          isVueltas: false,
+          canDeclareVictory: false,
+          matchScore: {
+            team1Partidas: 1,
+            team2Partidas: 0,
+            team1Cotos: 0,
+            team2Cotos: 0,
+            partidasPerCoto: 3,
+            cotosPerMatch: 2,
+            team1Sets: 1,
+            team2Sets: 0,
+            currentSet: 'buenas',
+          },
+        } as any);
+      });
+
+      // Call continueToNextPartida
+      act(() => {
+        result.current.continueToNextPartida();
+      });
+
+      // Should be in dealing for a new partida and not vueltas
+      expect(result.current.gameState?.phase).toBe('dealing');
+      expect(result.current.gameState?.isVueltas).toBe(false);
+      expect(result.current.isDealingComplete).toBe(false);
+    });
+  });
+
   describe('Card Play Animation', () => {
     test('should cleanup timeout on unmount', () => {
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');

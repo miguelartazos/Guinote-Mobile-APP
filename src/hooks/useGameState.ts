@@ -31,7 +31,6 @@ import {
   getNextPlayerIndex,
   findPlayerTeam,
   isGameOver,
-  shouldStartVueltas,
   canDeclareVictory,
   determineVueltasWinner,
   getValidCards,
@@ -216,6 +215,36 @@ export function useGameState({
     if (gameState) {
       // deadlockDetector.current.recordStateChange();
     }
+  }, [gameState]);
+
+  // Ensure dealing animations can run: whenever we enter dealing phase, clear the completion flag
+  useEffect(() => {
+    if (gameState?.phase === 'dealing') {
+      setIsDealingComplete(false);
+    }
+  }, [gameState?.phase]);
+
+  // Defensive: if we enter dealing with hands already populated and no pendingHands,
+  // convert current hands into pendingHands so the dealing animation can play properly.
+  useEffect(() => {
+    if (!gameState) return;
+    if (gameState.phase !== 'dealing') return;
+    if (gameState.pendingHands) return;
+    if (gameState.hands.size === 0) return;
+
+    setGameState(prev => {
+      if (!prev) return prev;
+      if (prev.phase !== 'dealing') return prev;
+      if (prev.pendingHands) return prev;
+      if (prev.hands.size === 0) return prev;
+
+      console.warn('♻️ Converting pre-filled hands to pendingHands for dealing animation');
+      return {
+        ...prev,
+        pendingHands: new Map(prev.hands),
+        hands: new Map(),
+      } as GameState;
+    });
   }, [gameState]);
 
   // Initialize game
@@ -480,7 +509,8 @@ export function useGameState({
         players,
         teams,
         deck: deckAfterTrump,
-        hands: hands as ReadonlyMap<PlayerId, ReadonlyArray<Card>>,
+        hands: new Map() as ReadonlyMap<PlayerId, ReadonlyArray<Card>>, // Start with empty hands for animation
+        pendingHands: hands as ReadonlyMap<PlayerId, ReadonlyArray<Card>>, // Store dealt cards to be animated
         trumpSuit: trumpCard.suit,
         trumpCard,
         currentTrick: [],
@@ -630,18 +660,20 @@ export function useGameState({
             }
           }
 
-          const shouldVueltas = shouldStartVueltas({
-            ...prevState,
-            teams: newTeams,
-            // Deck/hands considered pre-draw for this decision; final phase updates happen after dealing
-            deck: prevState.deck,
-            hands: newHands,
-          });
-
           // Determine if we will enter arrastre after dealing (computed but applied after dealing commits)
           const willEnterArrastre = deckSnapshot.length === 0 && !prevState.isVueltas;
           if (willEnterArrastre) {
           }
+
+          // Early-finish check for VUELTAS: if combined totals reach 101+, end hand now
+          const reached101InVueltas = (() => {
+            if (!prevState.isVueltas || !prevState.initialScores) return false;
+            const team1 = newTeams[0];
+            const team2 = newTeams[1];
+            const t1 = (prevState.initialScores.get(team1.id) || 0) + team1.score;
+            const t2 = (prevState.initialScores.get(team2.id) || 0) + team2.score;
+            return t1 >= WINNING_SCORE || t2 >= WINNING_SCORE;
+          })();
 
           // Don't clear the trick immediately - show animation first
           const nextStateAfterTrick: GameState = {
@@ -657,7 +689,9 @@ export function useGameState({
             teamTrickPiles: prevState.teamTrickPiles,
             lastTrickWinner: winnerId,
             lastTrick: newTrick,
-            pendingPostTrickDraws: pendingDraws.length > 0 ? pendingDraws : undefined,
+            // If vueltas reached 101+, do not schedule post-trick dealing
+            pendingPostTrickDraws:
+              reached101InVueltas ? undefined : pendingDraws.length > 0 ? pendingDraws : undefined,
             // Provide metadata for last trick overlay and points
             pendingTrickWinner: {
               playerId: winnerId,
@@ -669,34 +703,16 @@ export function useGameState({
             },
             phase: (() => {
               let phase: GamePhase;
-              // If a team reached 101 in first hand, go directly to scoring
-              const teamReached101FirstHand =
-                !prevState.isVueltas && (newTeams[0].score >= 101 || newTeams[1].score >= 101);
-
-              // Check if any team reached 101 during vueltas (counting initial scores)
-              const teamReached101InVueltas =
-                prevState.isVueltas &&
-                newTeams.some(team => {
-                  const initialScore = prevState.initialScores?.get(team.id) || 0;
-                  const totalScore = initialScore + team.score;
-                  return totalScore >= 101;
-                });
-
-              if (teamReached101FirstHand) {
+              
+              // In vueltas, if combined totals reach 101+, end the hand immediately
+              if (reached101InVueltas) {
                 phase = 'scoring';
-              } else if (teamReached101InVueltas) {
-                // Team reached 101 during vueltas - show Fin de Mano first
-                // Do NOT mutate team scores here; UI will display combined totals
-                phase = 'scoring';
-              } else if (isGameOver({ ...prevState, teams: newTeams })) {
-                phase = 'gameOver';
-              } else if (isLastTrick && !prevState.isVueltas) {
-                // Show scores before deciding on vueltas
-                phase = 'scoring';
-              } else if (isLastTrick && prevState.isVueltas) {
-                // Vueltas complete - go to scoring to determine winner
+              } else if (isLastTrick) {
+                // All cards have been played - now show Fin de Mano screen
                 phase = 'scoring';
               } else {
+                // Continue playing - even if a team has 101+ points
+                // The game must continue until all cards are played
                 phase = prevState.phase;
               }
 
@@ -707,10 +723,12 @@ export function useGameState({
 
               return phase;
             })(),
-            isVueltas: shouldVueltas ? true : prevState.isVueltas,
-            initialScores: shouldVueltas
-              ? new Map(newTeams.map(t => [t.id, t.score]))
-              : prevState.initialScores,
+            // Defer starting vueltas until the user taps "Continuar" from the scoring screen.
+            // We only mark isVueltas and capture initialScores inside initializeVueltasState()
+            // which is called by continueFromScoring(). This prevents premature VUELTAS state
+            // during the Fin de Mano overlay.
+            isVueltas: prevState.isVueltas,
+            initialScores: prevState.initialScores,
             lastActionTimestamp: Date.now(),
             trickAnimating: false,
             // Keep cambiar7 until arrastre actually starts after dealing
@@ -723,6 +741,9 @@ export function useGameState({
             setGameState(p => (p ? { ...p, trickAnimating: true } : p));
           }, 250);
 
+          if (reached101InVueltas) {
+            console.log('🏁 Vueltas early finish: combined totals reached 101+, entering scoring');
+          }
           return nextStateAfterTrick;
         }
 
@@ -846,17 +867,33 @@ export function useGameState({
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
         const currentPlayerTeamId = findPlayerTeam(currentPlayer.id, gameState);
 
-        // Can only cantar after your pair won the previous trick and before next trick starts
+        // Can cantar at game start (mano) or after your team won the previous trick
         const lastWinner = gameState.lastTrickWinner;
         const lastWinnerTeamId = lastWinner ? findPlayerTeam(lastWinner, gameState) : undefined;
+        const isGameStart = !lastWinner && gameState.trickCount === 0;
+        const isFirstPlayer = gameState.currentPlayerIndex === (gameState.dealerIndex - 1 + 4) % 4;
 
-        if (
-          gameState.currentTrick.length !== 0 ||
-          !currentPlayerTeamId ||
-          !lastWinnerTeamId ||
-          currentPlayerTeamId !== lastWinnerTeamId
-        ) {
-          console.warn('Can only cantar after winning a trick!');
+        // Check if trick hasn't started yet
+        if (gameState.currentTrick.length !== 0) {
+          console.warn('Cannot cantar during a trick!');
+          return;
+        }
+
+        if (!currentPlayerTeamId) {
+          console.warn('Player has no team!');
+          return;
+        }
+
+        // Check if it's a valid time to cantar
+        if (!isGameStart) {
+          // Not game start, so must have won last trick
+          if (!lastWinnerTeamId || currentPlayerTeamId !== lastWinnerTeamId) {
+            console.warn('Can only cantar after winning a trick!');
+            return;
+          }
+        } else if (!isFirstPlayer) {
+          // At game start, only mano can cantar
+          console.warn('Only mano can cantar at game start!');
           return;
         }
 
@@ -893,11 +930,29 @@ export function useGameState({
             };
           }
 
+          // Early finish during VUELTAS if combined totals reach 101+
+          const reached101InVueltas = (() => {
+            if (!prevState.isVueltas || !prevState.initialScores) return false;
+            const team1 = newTeams[0];
+            const team2 = newTeams[1];
+            const t1 = (prevState.initialScores.get(team1.id) || 0) + team1.score;
+            const t2 = (prevState.initialScores.get(team2.id) || 0) + team2.score;
+            return t1 >= WINNING_SCORE || t2 >= WINNING_SCORE;
+          })();
+
+          if (reached101InVueltas) {
+            console.log('🏁 Vueltas early finish via cante: combined totals reached 101+, entering scoring');
+          }
+
           return {
             ...prevState,
             teams: newTeams,
             lastActionTimestamp: Date.now(), // Trigger AI re-run after cante
-            phase: isGameOver({ ...prevState, teams: newTeams }) ? 'gameOver' : 'playing',
+            phase: reached101InVueltas
+              ? 'scoring'
+              : isGameOver({ ...prevState, teams: newTeams })
+              ? 'gameOver'
+              : 'playing',
           };
         });
       } finally {
@@ -1085,11 +1140,21 @@ export function useGameState({
     }
   }, [hasLoadedSavedGame, gameState, mockData]);
 
-  // Handle vueltas dealing - This should not be needed anymore as cards are created immediately
-  // Keeping as a safety fallback only
+  // Handle vueltas dealing - Safety fallback only
+  // Do NOT pre-populate hands here; that bypasses the dealing animation overlay.
+  // If something went wrong and pendingHands were not prepared, create them now so the
+  // animation can proceed normally and commit via completeDealingAnimation().
   useEffect(() => {
-    if (gameState?.phase === 'dealing' && gameState.isVueltas && gameState.hands.size === 0) {
-      // This should not happen anymore, but keeping as safety net
+    if (!gameState) return;
+    if (gameState.phase !== 'dealing' || !gameState.isVueltas) return;
+
+    // Normal path: initializeVueltasState sets pendingHands and leaves hands empty.
+    if (gameState.pendingHands && gameState.hands.size === 0) {
+      return; // All good – let the dealing overlay run
+    }
+
+    // Fallback path: only when both hands are empty AND pendingHands are missing.
+    if (gameState.hands.size === 0 && !gameState.pendingHands) {
       const deck = shuffleDeck(createDeck());
       const { hands, remainingDeck } = dealInitialCards(
         deck,
@@ -1102,20 +1167,48 @@ export function useGameState({
       setGameState(prev => ({
         ...prev!,
         deck: deckAfterTrump,
-        hands,
+        pendingHands: hands, // Use pendingHands so the dealing animation can play
         trumpCard,
         trumpSuit: trumpCard.suit,
       }));
     }
-  }, [gameState?.phase, gameState?.isVueltas, gameState?.hands.size, gameState?.players]);
+  }, [
+    gameState?.phase,
+    gameState?.isVueltas,
+    gameState?.hands.size,
+    gameState?.players,
+    gameState?.pendingHands,
+  ]);
+
+  // Extra robustness: if we ever end up in VUELTAS with empty hands and not in dealing phase,
+  // re-initialize vueltas properly to trigger the dealing animation.
+  useEffect(() => {
+    if (!gameState) return;
+    if (gameState.isVueltas && gameState.hands.size === 0 && gameState.phase !== 'dealing') {
+      console.warn('⚠️ Detected invalid vueltas state (no hands, not dealing). Reinitializing.');
+      const newState = initializeVueltasState(gameState);
+      setGameState(newState);
+      setIsDealingComplete(false);
+      setAIMemory(clearMemory());
+    }
+  }, [gameState]);
 
   // Complete dealing animation
   const completeDealingAnimation = useCallback(() => {
     setIsDealingComplete(true);
-    setGameState(prev => ({
-      ...prev!,
-      phase: 'playing' as GamePhase,
-    }));
+    setGameState(prev => {
+      if (!prev) return prev;
+      
+      // Move cards from pendingHands to actual hands
+      const newHands = prev.pendingHands || prev.hands;
+      
+      return {
+        ...prev,
+        phase: 'playing' as GamePhase,
+        hands: newHands,
+        pendingHands: undefined, // Clear pending hands after animation
+      };
+    });
   }, []);
 
   // Complete card play animation
@@ -1446,17 +1539,27 @@ export function useGameState({
 
     // Guard against multiple clicks
     if (isProcessingScoring) {
+      console.log('⚠️ Already processing scoring, ignoring duplicate call');
       return;
     }
     setIsProcessingScoring(true);
 
-    // CASE 1: Completing vueltas - check for winner and end partida
+    console.log('📊 continueFromScoring called', {
+      isVueltas: gameState.isVueltas,
+      team1Score: gameState.teams[0].score,
+      team2Score: gameState.teams[1].score,
+      initialScores: gameState.initialScores,
+    });
+
+    // CASE 1: Completing vueltas - check for winner and transition to next partida
     if (gameState.isVueltas) {
+      console.log('🎯 Processing vueltas completion');
       const newState = processVueltasCompletion(gameState);
       setGameState(newState);
 
       // Reset dealing complete flag to trigger animation if starting new partida
       if (newState.phase === 'dealing') {
+        console.log('🎴 Starting new partida after vueltas');
         setIsDealingComplete(false);
         setAIMemory(clearMemory());
       }
@@ -1465,12 +1568,13 @@ export function useGameState({
       return;
     }
 
-    // CASE 2: Just finished idas - decide whether partida ended or start vueltas
+    // CASE 2: Just finished first hand (idas) - decide whether partida ended or start vueltas
     const team1Score = gameState.teams[0].score;
     const team2Score = gameState.teams[1].score;
 
     if (team1Score >= WINNING_SCORE || team2Score >= WINNING_SCORE) {
-      // End partida now and update match score
+      // Team reached 101 in first hand - end partida and update match score
+      console.log('🏆 Team reached 101 in first hand, ending partida');
       setGameState(prev => {
         if (!prev) return prev;
         const currentMatchScore = prev.matchScore || createInitialMatchScore();
@@ -1479,6 +1583,13 @@ export function useGameState({
           winningTeamIndex,
           currentMatchScore,
         );
+
+        console.log('📈 Match score updated', {
+          team1Partidas: updatedMatchScore.team1Partidas,
+          team2Partidas: updatedMatchScore.team2Partidas,
+          team1Cotos: updatedMatchScore.team1Cotos,
+          team2Cotos: updatedMatchScore.team2Cotos,
+        });
 
         return {
           ...prev,
@@ -1490,14 +1601,13 @@ export function useGameState({
       return;
     }
 
-    // Otherwise, proceed to vueltas carrying idas scores
-    {
-      const newState = initializeVueltasState(gameState);
-      setGameState(newState);
-      setIsDealingComplete(false);
-      setAIMemory(clearMemory());
-      setIsProcessingScoring(false);
-    }
+    // No team reached 101 - proceed to vueltas (second hand)
+    console.log('🔄 No team reached 101, starting vueltas');
+    const newState = initializeVueltasState(gameState);
+    setGameState(newState);
+    setIsDealingComplete(false);
+    setAIMemory(clearMemory());
+    setIsProcessingScoring(false);
   }, [gameState, isProcessingScoring]);
 
   // Start vueltas after showing celebration

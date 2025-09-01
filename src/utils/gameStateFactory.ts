@@ -97,7 +97,8 @@ export function createInitialGameState(playerInfos: PlayerInfo[]): GameState {
     players,
     teams,
     deck: deckAfterTrump,
-    hands,
+    hands: new Map(), // Start with empty hands for animation
+    pendingHands: hands, // Store dealt cards to be animated
     trumpSuit: trumpCard.suit,
     trumpCard,
     currentTrick: [],
@@ -119,6 +120,7 @@ export function createInitialGameState(playerInfos: PlayerInfo[]): GameState {
 
 /**
  * Reset game state for a new hand (vueltas)
+ * CRITICAL: Preserves initial scores and maintains proper state for vueltas
  */
 export function resetGameStateForVueltas(
   previousState: GameState,
@@ -137,29 +139,34 @@ export function resetGameStateForVueltas(
   const trumpCard = remainingDeck[remainingDeck.length - 1];
   const deckAfterTrump = remainingDeck.slice(0, -1);
 
-  // Reset teams but keep scores
+  // CRITICAL: Reset teams but preserve their IDs and player assignments
+  // Only reset the scores to 0 for the vueltas hand (initial scores are tracked separately)
   const teams: [Team, Team] = [
     {
       ...previousState.teams[0],
+      score: 0, // Reset to 0 for vueltas hand
       cardPoints: 0,
       cantes: [],
     },
     {
       ...previousState.teams[1],
+      score: 0, // Reset to 0 for vueltas hand
       cardPoints: 0,
       cantes: [],
     },
   ];
 
-  // Rotate dealer
-  const newDealerIndex = (previousState.dealerIndex + 1) % 4;
+  // IMPORTANT: Keep same dealer for vueltas (don't rotate between hands of same partida)
+  // Dealer only rotates between partidas
+  const newDealerIndex = previousState.dealerIndex;
 
   const gameState: GameState = {
     ...previousState,
     phase: 'dealing',
     teams,
     deck: deckAfterTrump,
-    hands,
+    hands: new Map(), // Start with empty hands for animation
+    pendingHands: hands, // Store dealt cards to be animated
     trumpSuit: trumpCard.suit,
     trumpCard,
     currentTrick: [],
@@ -175,6 +182,7 @@ export function resetGameStateForVueltas(
     lastTrickWinner: undefined,
     lastTrick: undefined,
     canDeclareVictory: false,
+    teamTrickPiles: new Map(),
   };
 
   return gameState;
