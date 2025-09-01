@@ -49,10 +49,19 @@
 				<string>com.guinote2.app</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>guinote</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>guinote</string>
+			</array>
+		</dict>
 	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>clerk</string>
+		<string>whatsapp</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>

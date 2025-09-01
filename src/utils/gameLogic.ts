@@ -109,19 +109,20 @@ export function isValidPlay(
     return true; // Complete freedom in draw phase
   }
 
-  const leadCard = currentTrick[0].card;
-  const leadSuit = leadCard.suit;
-
-  // ARRASTRE PHASE ONLY: Must follow suit if possible
-  const hasSuit = hand.some(c => c.suit === leadSuit);
-  if (hasSuit && card.suit !== leadSuit) return false;
-
-  // In arrastre phase, additional rules apply
+  // ARRASTRE PHASE - strict rules apply
   if (gamePhase === 'arrastre') {
+    const leadCard = currentTrick[0].card;
+    const leadSuit = leadCard.suit;
     // If we don't have full game state info, deny the play for safety
     if (!currentPlayerId || !gameState) {
       console.warn('⚠️ Arrastre validation: Missing player/game state, denying play');
       return false; // Deny the play for safety
+    }
+
+    // Rule 1: Must follow suit if possible
+    const hasSuit = hand.some(c => c.suit === leadSuit);
+    if (hasSuit && card.suit !== leadSuit) {
+      return false; // Must play the led suit if you have it
     }
 
     // Check if partner is currently winning the trick
@@ -145,8 +146,8 @@ export function isValidPlay(
       partnerIsWinning = currentPlayerTeam === winnerTeam && currentWinnerId !== currentPlayerId;
     }
 
-    // If following suit, must beat if possible (unless partner is winning)
-    if (card.suit === leadSuit && !partnerIsWinning) {
+    // Rule 2: If following suit, must beat if possible (unless partner is winning)
+    if (hasSuit && card.suit === leadSuit && !partnerIsWinning) {
       const suitCards = hand.filter(c => c.suit === leadSuit);
       const beatingCards = suitCards.filter(c => canBeatTrick(c, currentTrick, trumpSuit));
 
@@ -166,21 +167,22 @@ export function isValidPlay(
       return true; // 4th player can discard ANY card when partner is winning and has no suit
     }
 
-    // If can't follow suit, must trump if possible (unless partner is winning)
-    // Note: This now only applies to players 2 and 3, as player 4 is handled above
+    // Rule 3: If can't follow suit, must trump if possible (unless partner is winning)
     if (!hasSuit && card.suit !== trumpSuit && !partnerIsWinning) {
       const hasTrump = hand.some(c => c.suit === trumpSuit);
-      if (hasTrump) return false;
+      if (hasTrump) {
+        return false; // Must play trump when you have it and can't follow suit
+      }
     }
 
-    // If trumping, must beat other trumps if possible (unless partner is winning)
+    // Rule 4: If trumping, must beat other trumps if possible (unless partner is winning)
     if (!hasSuit && card.suit === trumpSuit && !partnerIsWinning) {
       const trumpCards = hand.filter(c => c.suit === trumpSuit);
       const beatingTrumps = trumpCards.filter(c => canBeatTrick(c, currentTrick, trumpSuit));
 
       // Only enforce "must beat with trump" if we have trumps that can beat
       if (beatingTrumps.length > 0 && !canBeatTrick(card, currentTrick, trumpSuit)) {
-        return false;
+        return false; // Has higher trump but playing lower
       }
       // If no trumps can beat, allow any trump
     }
@@ -188,7 +190,7 @@ export function isValidPlay(
     return true;
   }
 
-  // This code should never be reached (only 'playing' and 'arrastre' phases)
+  // Default case for other phases (should not normally be reached)
   return true;
 }
 
@@ -627,6 +629,104 @@ export function startNewPartida(previousState: GameState, matchScore: MatchScore
       ...team,
       score: 0, // Reset score for new partida
     })) as GameState['teams'],
+  };
+}
+
+/**
+ * Process vueltas completion and determine next game state
+ */
+export function processVueltasCompletion(state: GameState): GameState {
+  let winningTeamId = determineVueltasWinner(state);
+
+  // Robust fallback: if still undefined (edge cases), use stored tie-breaker or totals
+  if (!winningTeamId) {
+    const fallback = state.lastTrickWinnerTeam;
+    if (fallback) {
+      winningTeamId = fallback;
+    } else if (state.initialScores) {
+      const team1 = state.teams[0];
+      const team2 = state.teams[1];
+      const team1Total = (state.initialScores.get(team1.id) || 0) + team1.score;
+      const team2Total = (state.initialScores.get(team2.id) || 0) + team2.score;
+      if (team1Total !== team2Total) {
+        winningTeamId = team1Total > team2Total ? team1.id : team2.id;
+      }
+    }
+  }
+
+  if (!winningTeamId) {
+    console.error('⚠️ Vueltas complete but no winner determined');
+    return state;
+  }
+
+  const currentMatchScore = state.matchScore || createInitialMatchScore();
+  const winningTeamIndex = state.teams.findIndex(t => t.id === winningTeamId);
+
+  if (!isValidTeamIndex(winningTeamIndex)) {
+    console.error('⚠️ Invalid winning team index:', winningTeamIndex);
+    return state;
+  }
+
+  const { matchScore: updatedMatchScore, phase } = updateMatchScoreAndDeterminePhase(
+    winningTeamIndex,
+    currentMatchScore,
+  );
+
+  // If match is complete, stay in gameOver phase
+  if (phase === 'gameOver') {
+    return {
+      ...state,
+      phase: 'gameOver',
+      matchScore: updatedMatchScore,
+    };
+  }
+
+  // Otherwise start new partida
+  return startNewPartida(state, updatedMatchScore);
+}
+
+/**
+ * Process when a team reaches 101 points
+ */
+export function processTeamReached101(state: GameState): GameState {
+  const team1Score = state.teams[0].score;
+  const team2Score = state.teams[1].score;
+
+  // Determine winning team (team with 101+ points)
+  const winningTeamIndex = team1Score >= WINNING_SCORE ? 0 : 1;
+  const currentMatchScore = state.matchScore || createInitialMatchScore();
+
+  const { matchScore: updatedMatchScore } = updateMatchScoreAndDeterminePhase(
+    winningTeamIndex,
+    currentMatchScore,
+  );
+
+  return {
+    ...state,
+    phase: 'gameOver',
+    matchScore: updatedMatchScore,
+  };
+}
+
+/**
+ * Initialize vueltas from current game state
+ */
+export function initializeVueltasState(state: GameState): GameState {
+  const initialScores = new Map(state.teams.map(t => [t.id, t.score]));
+  const vueltasState = resetGameStateForVueltas(state, initialScores);
+
+  // Preserve last trick winner information for canDeclareVictory
+  const lastWinner = state.lastTrickWinner;
+  const lastWinnerTeam = lastWinner
+    ? state.teams.find(t => t.playerIds.includes(lastWinner))?.id
+    : undefined;
+
+  return {
+    ...vueltasState,
+    lastTrickWinnerTeam: lastWinnerTeam,
+    canDeclareVictory: !!lastWinnerTeam,
+    matchScore: state.matchScore || createInitialMatchScore(),
+    pendingVueltas: false,
   };
 }
 

@@ -565,7 +565,7 @@ function playStrategicCard(
   const isFourthPlayer = currentTrick.length === 3;
   const leadSuit = currentTrick.length > 0 ? currentTrick[0].card.suit : null;
   const hasSuit = leadSuit ? hand.some(c => c.suit === leadSuit) : false;
-  
+
   if (phase === 'arrastre' && isFourthPlayer && partnerIsWinning && !hasSuit) {
     // 4th player with partner winning and no suit - can discard anything
     // Strategy: discard lowest value cards, preserve trumps and high cards
@@ -643,8 +643,10 @@ export function playAICard(
         // Double-check each card
         for (const card of hand) {
           if (isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState)) {
-            console.warn('🔧 Fallback: Found valid card for trick start:', 
-              `${card.value} de ${card.suit}`);
+            console.warn(
+              '🔧 Fallback: Found valid card for trick start:',
+              `${card.value} de ${card.suit}`,
+            );
             return card;
           }
         }
@@ -654,8 +656,7 @@ export function playAICard(
         const suitCards = hand.filter(c => c.suit === leadSuit);
         for (const card of suitCards) {
           if (isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState)) {
-            console.warn('🔧 Fallback: Found valid suit card:', 
-              `${card.value} de ${card.suit}`);
+            console.warn('🔧 Fallback: Found valid suit card:', `${card.value} de ${card.suit}`);
             return card;
           }
         }
@@ -664,8 +665,7 @@ export function playAICard(
         const trumpCards = hand.filter(c => c.suit === trumpSuit);
         for (const card of trumpCards) {
           if (isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState)) {
-            console.warn('🔧 Fallback: Found valid trump:', 
-              `${card.value} de ${card.suit}`);
+            console.warn('🔧 Fallback: Found valid trump:', `${card.value} de ${card.suit}`);
             return card;
           }
         }
@@ -673,8 +673,7 @@ export function playAICard(
         // Strategy 4: Try any card
         for (const card of hand) {
           if (isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState)) {
-            console.warn('🔧 Fallback: Found valid card:', 
-              `${card.value} de ${card.suit}`);
+            console.warn('🔧 Fallback: Found valid card:', `${card.value} de ${card.suit}`);
             return card;
           }
         }

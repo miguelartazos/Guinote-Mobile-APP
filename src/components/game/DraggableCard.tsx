@@ -152,9 +152,9 @@ export function DraggableCard({
   const canPlay = isEnabled;
 
   return (
-    <PanGestureHandler 
+    <PanGestureHandler
       enabled={true}
-      onGestureEvent={onGestureEvent} 
+      onGestureEvent={onGestureEvent}
       onHandlerStateChange={onHandlerStateChange}
     >
       <Animated.View

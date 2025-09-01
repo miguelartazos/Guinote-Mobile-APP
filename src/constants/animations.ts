@@ -17,6 +17,9 @@ export const TRICK_STACK_OFFSET = 3;
 export const TRICK_CELEBRATION_DURATION = 800;
 export const SCORE_FLOAT_DURATION = 1200;
 export const SCORE_FLOAT_HEIGHT = -80;
+export const WINNER_HIGHLIGHT_DURATION = 400;
+export const WINNER_HIGHLIGHT_SCALE = 1.3;
+export const WINNER_HIGHLIGHT_DELAY = 200;
 
 // Cante animations
 export const CANTE_GLOW_DURATION = 600;

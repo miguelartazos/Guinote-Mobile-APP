@@ -34,6 +34,7 @@ type Player = {
   ranking: number;
   cards: SpanishCardData[];
   avatar: string;
+  isHidden?: boolean; // True if cards should be hidden (opponent hands)
 };
 
 type GameTableProps = {
@@ -55,6 +56,7 @@ type GameTableProps = {
   validCardIndices?: number[]; // Indices of valid cards for current player
   isVueltas?: boolean;
   canDeclareVictory?: boolean;
+  teamScores?: { team1: number; team2: number };
   trickAnimating?: boolean;
   pendingTrickWinner?: {
     playerId: string;
@@ -113,6 +115,7 @@ export function GameTable({
   validCardIndices,
   isVueltas = false,
   canDeclareVictory = false,
+  teamScores,
   trickAnimating = false,
   pendingTrickWinner,
   onCompleteTrickAnimation,
@@ -161,20 +164,20 @@ export function GameTable({
 
     const newPosition = getDeckPosition(layout.table.width, layout.table.height, currentLayoutInfo);
 
-    // Only update if position changed significantly (more than 5 pixels)
+    // Only update if position changed significantly (more than 10 pixels to reduce vibration)
     if (
       !deckPositionRef.current ||
-      Math.abs(deckPositionRef.current.x - newPosition.x) > 5 ||
-      Math.abs(deckPositionRef.current.y - newPosition.y) > 5
+      Math.abs(deckPositionRef.current.x - newPosition.x) > 10 ||
+      Math.abs(deckPositionRef.current.y - newPosition.y) > 10
     ) {
       deckPositionRef.current = newPosition;
     }
 
     return deckPositionRef.current;
   }, [
-    // Only recalculate on major dimension changes
-    Math.floor(layout.table.width / 20) * 20,
-    Math.floor(layout.table.height / 20) * 20,
+    // Only recalculate on major dimension changes - use consistent threshold with position check
+    Math.floor(layout.table.width / 50) * 50,
+    Math.floor(layout.table.height / 50) * 50,
     layout.isReady,
   ]);
 
@@ -208,12 +211,48 @@ export function GameTable({
   const rightCardAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
   const rightPreviousPositions = useRef<Map<string, number>>(new Map()).current;
 
-  // Create unique keys for cards based on suit and value
-  const getCardKey = (card: SpanishCardData) => `${card.suit}_${card.value}`;
+  // Track previous card counts to maintain positions during animations
+  const leftPreviousCount = useRef(leftPlayer.cards.length);
+  const topPreviousCount = useRef(topPlayer.cards.length);
+  const rightPreviousCount = useRef(rightPlayer.cards.length);
+
+  // Track if we're currently animating to prevent position jumps
+  const leftAnimating = useRef(false);
+  const topAnimating = useRef(false);
+  const rightAnimating = useRef(false);
+
+  // Track active animations to handle completion properly
+  const leftActiveAnimations = useRef<Set<number>>(new Set());
+  const topActiveAnimations = useRef<Set<number>>(new Set());
+  const rightActiveAnimations = useRef<Set<number>>(new Set());
+
+  // Track previous cards to find correct source positions
+  const leftPreviousCards = useRef<typeof leftPlayer.cards>(leftPlayer.cards);
+  const topPreviousCards = useRef<typeof topPlayer.cards>(topPlayer.cards);
+  const rightPreviousCards = useRef<typeof rightPlayer.cards>(rightPlayer.cards);
+
+  // Create unique keys for cards
+  // For visible cards: use suit and value for stable keys across animations
+  // For hidden cards: use index since all have dummy values
+  const getCardKey = (
+    card: SpanishCardData,
+    index: number,
+    playerPrefix: string,
+    isHidden: boolean = false,
+  ) => {
+    if (isHidden) {
+      return `${playerPrefix}_hidden_${index}`;
+    }
+    return `${card.suit}_${card.value}`;
+  };
 
   // Cleanup animations for bottom player
   useEffect(() => {
-    const currentCardKeys = new Set(bottomPlayer.cards.map(getCardKey));
+    const currentCardKeys = new Set(
+      bottomPlayer.cards.map((card, index) =>
+        getCardKey(card, index, 'bottom', bottomPlayer.isHidden),
+      ),
+    );
     Array.from(bottomCardAnimations.keys()).forEach(key => {
       if (!currentCardKeys.has(key)) {
         bottomCardAnimations.delete(key);
@@ -224,57 +263,44 @@ export function GameTable({
 
   // Cleanup animations for left player
   useEffect(() => {
-    // Clean up animations for cards that no longer exist
-    const currentKeys = new Set(
-      leftPlayer.cards.map((_, index) => `left_${leftPlayer.cards.length}_${index}`),
+    const currentCardKeys = new Set(
+      leftPlayer.cards.map((card, index) => getCardKey(card, index, 'left', leftPlayer.isHidden)),
     );
     Array.from(leftCardAnimations.keys()).forEach(key => {
-      // Keep keys from the current count and one previous count (for animation reuse)
-      if (
-        !key.startsWith(`left_${leftPlayer.cards.length}_`) &&
-        !key.startsWith(`left_${leftPlayer.cards.length + 1}_`)
-      ) {
+      if (!currentCardKeys.has(key)) {
         leftCardAnimations.delete(key);
         leftPreviousPositions.delete(key);
       }
     });
-  }, [leftPlayer.cards.length, leftCardAnimations, leftPreviousPositions]);
+  }, [leftPlayer.cards, leftCardAnimations, leftPreviousPositions]);
 
   // Cleanup animations for top player
   useEffect(() => {
-    // Clean up animations for cards that no longer exist
-    const currentKeys = new Set(
-      topPlayer.cards.map((_, index) => `top_${topPlayer.cards.length}_${index}`),
+    const currentCardKeys = new Set(
+      topPlayer.cards.map((card, index) => getCardKey(card, index, 'top', topPlayer.isHidden)),
     );
     Array.from(topCardAnimations.keys()).forEach(key => {
-      // Keep keys from the current count and one previous count (for animation reuse)
-      if (
-        !key.startsWith(`top_${topPlayer.cards.length}_`) &&
-        !key.startsWith(`top_${topPlayer.cards.length + 1}_`)
-      ) {
+      if (!currentCardKeys.has(key)) {
         topCardAnimations.delete(key);
         topPreviousPositions.delete(key);
       }
     });
-  }, [topPlayer.cards.length, topCardAnimations, topPreviousPositions]);
+  }, [topPlayer.cards, topCardAnimations, topPreviousPositions]);
 
   // Cleanup animations for right player
   useEffect(() => {
-    // Clean up animations for cards that no longer exist
-    const currentKeys = new Set(
-      rightPlayer.cards.map((_, index) => `right_${rightPlayer.cards.length}_${index}`),
+    const currentCardKeys = new Set(
+      rightPlayer.cards.map((card, index) =>
+        getCardKey(card, index, 'right', rightPlayer.isHidden),
+      ),
     );
     Array.from(rightCardAnimations.keys()).forEach(key => {
-      // Keep keys from the current count and one previous count (for animation reuse)
-      if (
-        !key.startsWith(`right_${rightPlayer.cards.length}_`) &&
-        !key.startsWith(`right_${rightPlayer.cards.length + 1}_`)
-      ) {
+      if (!currentCardKeys.has(key)) {
         rightCardAnimations.delete(key);
         rightPreviousPositions.delete(key);
       }
     });
-  }, [rightPlayer.cards.length, rightCardAnimations, rightPreviousPositions]);
+  }, [rightPlayer.cards, rightCardAnimations, rightPreviousPositions]);
 
   // Measure pile centers so trick animation can land exactly on stacks
   const [team1PileCenter, setTeam1PileCenter] = useState<{ x: number; y: number } | null>(null);
@@ -294,6 +320,16 @@ export function GameTable({
     if (isDealing) {
       return false;
     }
+    // Hide deck in arrastre phase ONLY if there are no cards left to deal
+    // This ensures deck remains visible while the last cards are being dealt
+    if (
+      gamePhase === 'arrastre' &&
+      deckCount <= 0 &&
+      !postTrickDealingAnimating &&
+      !postTrickDealingPending
+    ) {
+      return false;
+    }
     // Only show if there are actually cards in the deck
     if (deckCount <= 0) {
       return false;
@@ -307,7 +343,16 @@ export function GameTable({
       return false;
     }
     return true;
-  }, [gamePhase, isDealing, deckCount, layout.isReady, deckPosition, trumpCard]);
+  }, [
+    gamePhase,
+    isDealing,
+    deckCount,
+    layout.isReady,
+    deckPosition,
+    trumpCard,
+    postTrickDealingAnimating,
+    postTrickDealingPending,
+  ]);
 
   return (
     <View
@@ -365,6 +410,8 @@ export function GameTable({
         isCurrentPlayer={currentPlayerIndex === playerIdToPosition[rightPlayer.id]}
         teamId="team2"
         isThinking={thinkingPlayerId === rightPlayer.id}
+        teamScores={teamScores}
+        isVueltas={isVueltas}
       />
       <MinimalPlayerPanel
         playerName={bottomPlayer.name}
@@ -398,6 +445,28 @@ export function GameTable({
               );
             }
 
+            // Detect if cards were added (count increased) or removed (count decreased)
+            const cardsAdded = topPlayer.cards.length > topPreviousCount.current;
+            const cardsRemoved = topPlayer.cards.length < topPreviousCount.current;
+
+            // Find where this card was in the previous arrangement
+            let sourcePosition = null;
+            if (cardsRemoved && topPreviousCards.current) {
+              const currentCard = topPlayer.cards[index];
+              const previousIndex = topPreviousCards.current.findIndex(
+                card => card.suit === currentCard.suit && card.value === currentCard.value,
+              );
+              if (previousIndex !== -1) {
+                sourcePosition = getPlayerCardPosition(
+                  2,
+                  previousIndex,
+                  topPreviousCount.current,
+                  'small',
+                  layoutInfo,
+                );
+              }
+            }
+
             const targetPosition = getPlayerCardPosition(
               2,
               index,
@@ -406,48 +475,56 @@ export function GameTable({
               layoutInfo,
             );
 
-            // Create a stable key based on total cards to track animations properly
-            // When a card is played, we want remaining cards to animate to new positions
-            const cardKey = `top_${topPlayer.cards.length}_${index}`;
+            // Create a stable key based on card's suit and value
+            const cardKey = getCardKey(card, index, 'top', topPlayer.isHidden);
 
-            // Check if we need to reuse an animation from a previous position
-            // This happens when a card was removed and indices shifted
             let animatedX: Animated.Value;
-            let needsAnimation = false;
 
             if (!topCardAnimations.has(cardKey)) {
-              // Try to find an animation from a higher index (card that moved left)
-              const previousKey = `top_${topPlayer.cards.length + 1}_${index + 1}`;
-              if (topCardAnimations.has(previousKey)) {
-                // Reuse the animation from the card that was at index+1
-                animatedX = topCardAnimations.get(previousKey)!;
-                // Don't delete the old key yet - we'll clean it up in the effect
-                topCardAnimations.set(cardKey, animatedX);
-                // Animation should start from its current position
-                needsAnimation = true;
+              // Check if this is a new card added after post-trick dealing
+              const isNewCard =
+                cardsAdded &&
+                !topPreviousCards.current.some(
+                  prevCard => prevCard.suit === card.suit && prevCard.value === card.value,
+                );
+
+              if (isNewCard && postTrickDealingAnimating) {
+                // New card from dealing - start from deck/trump position
+                const deckPos = getDeckPosition(
+                  layout.table.width,
+                  layout.table.height,
+                  layoutInfo,
+                );
+                animatedX = new Animated.Value(deckPos.x);
+              } else if (cardsRemoved && sourcePosition) {
+                // Start from where the card was with the old layout
+                animatedX = new Animated.Value(sourcePosition.x);
+                topAnimating.current = true;
               } else {
-                // Create new animation starting at the target position
-                // This is for newly dealt cards or first render
+                // First render or existing card - start at target
                 animatedX = new Animated.Value(targetPosition.x);
-                topCardAnimations.set(cardKey, animatedX);
               }
-              topPreviousPositions.set(cardKey, targetPosition.x);
+              topCardAnimations.set(cardKey, animatedX);
             } else {
               animatedX = topCardAnimations.get(cardKey)!;
             }
 
-            const previousX = topPreviousPositions.get(cardKey);
-
             // Get the current actual position of the animated value
-            const currentX = (animatedX as any)._value;
+            // We need to track the current value without using private API
+            let currentX = targetPosition.x;
+            const previousX = topPreviousPositions.get(cardKey);
+            if (previousX !== undefined) {
+              currentX = previousX;
+            } else if (sourcePosition) {
+              currentX = sourcePosition.x;
+            }
 
-            // Animate if we need to move to a new position
-            if (
-              needsAnimation ||
-              (previousX !== undefined && Math.abs(previousX - targetPosition.x) > 1) ||
-              (currentX !== undefined && Math.abs(currentX - targetPosition.x) > 1)
-            ) {
-              const staggerDelay = index * HAND_ANIMATION_STAGGER;
+            // Always animate if position differs from target
+            if (Math.abs(currentX - targetPosition.x) > 1) {
+              const staggerDelay = cardsRemoved || cardsAdded ? index * HAND_ANIMATION_STAGGER : 0;
+
+              // Track this animation
+              topActiveAnimations.current.add(index);
 
               Animated.timing(animatedX, {
                 toValue: targetPosition.x,
@@ -455,10 +532,29 @@ export function GameTable({
                 delay: staggerDelay,
                 easing: Easing.out(Easing.cubic),
                 useNativeDriver: false,
-              }).start();
+              }).start(() => {
+                // Remove from active animations
+                topActiveAnimations.current.delete(index);
 
-              topPreviousPositions.set(cardKey, targetPosition.x);
+                // Update state when all animations complete
+                if ((cardsRemoved || cardsAdded) && topActiveAnimations.current.size === 0) {
+                  topPreviousCount.current = topPlayer.cards.length;
+                  topPreviousCards.current = topPlayer.cards;
+                  topAnimating.current = false;
+                }
+              });
+            } else if (
+              cardsRemoved &&
+              index === topPlayer.cards.length - 1 &&
+              topActiveAnimations.current.size === 0
+            ) {
+              // No animation needed but still need to update state
+              topPreviousCount.current = topPlayer.cards.length;
+              topPreviousCards.current = topPlayer.cards;
+              topAnimating.current = false;
             }
+
+            topPreviousPositions.set(cardKey, targetPosition.x);
 
             return (
               <Animated.View
@@ -484,6 +580,7 @@ export function GameTable({
       {!isDealing && layout.isReady && (
         <View style={styles.leftPlayerCards}>
           {leftPlayer.cards.map((card, index) => {
+            const currentCard = card; // Use currentCard to avoid unused variable warning
             // Hide card during play animation
             const isAnimating =
               cardPlayAnimation?.playerId === leftPlayer.id &&
@@ -504,6 +601,28 @@ export function GameTable({
               );
             }
 
+            // Detect if cards were added (count increased) or removed (count decreased)
+            const cardsAdded = leftPlayer.cards.length > leftPreviousCount.current;
+            const cardsRemoved = leftPlayer.cards.length < leftPreviousCount.current;
+
+            // Find where this card was in the previous arrangement
+            let sourcePosition = null;
+            if (cardsRemoved && leftPreviousCards.current) {
+              const currentCard = leftPlayer.cards[index];
+              const previousIndex = leftPreviousCards.current.findIndex(
+                card => card.suit === currentCard.suit && card.value === currentCard.value,
+              );
+              if (previousIndex !== -1) {
+                sourcePosition = getPlayerCardPosition(
+                  3,
+                  previousIndex,
+                  leftPreviousCount.current,
+                  'small',
+                  layoutInfo,
+                );
+              }
+            }
+
             const targetPosition = getPlayerCardPosition(
               3,
               index,
@@ -511,53 +630,63 @@ export function GameTable({
               'small',
               layoutInfo,
             );
+
             const dims = getCardDimensions().small;
             const rotatedWidth = dims.height; // 90deg rotated
             const containerWidth = 120; // matches leftPlayerCards width
             const x = Math.max(0, (containerWidth - rotatedWidth) / 2);
 
-            // Create a stable key based on total cards to track animations properly
-            // When a card is played, we want remaining cards to animate to new positions
-            const cardKey = `left_${leftPlayer.cards.length}_${index}`;
+            // Create a stable key based on card's suit and value
+            const cardKey = getCardKey(card, index, 'left', leftPlayer.isHidden);
 
-            // Check if we need to reuse an animation from a previous position
-            // This happens when a card was removed and indices shifted
             let animatedY: Animated.Value;
-            let needsAnimation = false;
 
             if (!leftCardAnimations.has(cardKey)) {
-              // Try to find an animation from a higher index (card that moved down)
-              const previousKey = `left_${leftPlayer.cards.length + 1}_${index + 1}`;
-              if (leftCardAnimations.has(previousKey)) {
-                // Reuse the animation from the card that was at index+1
-                animatedY = leftCardAnimations.get(previousKey)!;
-                // Don't delete the old key yet - we'll clean it up in the effect
-                leftCardAnimations.set(cardKey, animatedY);
-                // Animation should start from its current position
-                needsAnimation = true;
+              // Check if this is a new card added after post-trick dealing
+              const isNewCard =
+                cardsAdded &&
+                !leftPreviousCards.current.some(
+                  prevCard =>
+                    prevCard.suit === currentCard.suit && prevCard.value === currentCard.value,
+                );
+
+              if (isNewCard && postTrickDealingAnimating) {
+                // New card from dealing - start from deck/trump position
+                const deckPos = getDeckPosition(
+                  layout.table.width,
+                  layout.table.height,
+                  layoutInfo,
+                );
+                animatedY = new Animated.Value(deckPos.y);
+              } else if (cardsRemoved && sourcePosition) {
+                // Start from where the card was with the old layout
+                animatedY = new Animated.Value(sourcePosition.y);
+                leftAnimating.current = true;
               } else {
-                // Create new animation starting at the target position
-                // This is for newly dealt cards or first render
+                // First render or existing card - start at target
                 animatedY = new Animated.Value(targetPosition.y);
-                leftCardAnimations.set(cardKey, animatedY);
               }
-              leftPreviousPositions.set(cardKey, targetPosition.y);
+              leftCardAnimations.set(cardKey, animatedY);
             } else {
               animatedY = leftCardAnimations.get(cardKey)!;
             }
 
-            const previousY = leftPreviousPositions.get(cardKey);
-
             // Get the current actual position of the animated value
-            const currentY = (animatedY as any)._value;
+            // We need to track the current value without using private API
+            let currentY = targetPosition.y;
+            const previousY = leftPreviousPositions.get(cardKey);
+            if (previousY !== undefined) {
+              currentY = previousY;
+            } else if (sourcePosition) {
+              currentY = sourcePosition.y;
+            }
 
-            // Animate if we need to move to a new position
-            if (
-              needsAnimation ||
-              (previousY !== undefined && Math.abs(previousY - targetPosition.y) > 1) ||
-              (currentY !== undefined && Math.abs(currentY - targetPosition.y) > 1)
-            ) {
-              const staggerDelay = index * HAND_ANIMATION_STAGGER;
+            // Always animate if position differs from target
+            if (Math.abs(currentY - targetPosition.y) > 1) {
+              const staggerDelay = cardsRemoved || cardsAdded ? index * HAND_ANIMATION_STAGGER : 0;
+
+              // Track this animation
+              leftActiveAnimations.current.add(index);
 
               Animated.timing(animatedY, {
                 toValue: targetPosition.y,
@@ -565,10 +694,29 @@ export function GameTable({
                 delay: staggerDelay,
                 easing: Easing.out(Easing.cubic),
                 useNativeDriver: false,
-              }).start();
+              }).start(() => {
+                // Remove from active animations
+                leftActiveAnimations.current.delete(index);
 
-              leftPreviousPositions.set(cardKey, targetPosition.y);
+                // Update state when all animations complete
+                if ((cardsRemoved || cardsAdded) && leftActiveAnimations.current.size === 0) {
+                  leftPreviousCount.current = leftPlayer.cards.length;
+                  leftPreviousCards.current = leftPlayer.cards;
+                  leftAnimating.current = false;
+                }
+              });
+            } else if (
+              cardsRemoved &&
+              index === leftPlayer.cards.length - 1 &&
+              leftActiveAnimations.current.size === 0
+            ) {
+              // No animation needed but still need to update state
+              leftPreviousCount.current = leftPlayer.cards.length;
+              leftPreviousCards.current = leftPlayer.cards;
+              leftAnimating.current = false;
             }
+
+            leftPreviousPositions.set(cardKey, targetPosition.y);
 
             return (
               <Animated.View
@@ -594,6 +742,7 @@ export function GameTable({
       {!isDealing && layout.isReady && (
         <View style={styles.rightPlayerCards}>
           {rightPlayer.cards.map((card, index) => {
+            const currentCard = card; // Use currentCard to avoid unused variable warning
             // Hide card during play animation
             const isAnimating =
               cardPlayAnimation?.playerId === rightPlayer.id &&
@@ -614,6 +763,28 @@ export function GameTable({
               );
             }
 
+            // Detect if cards were added (count increased) or removed (count decreased)
+            const cardsAdded = rightPlayer.cards.length > rightPreviousCount.current;
+            const cardsRemoved = rightPlayer.cards.length < rightPreviousCount.current;
+
+            // Find where this card was in the previous arrangement
+            let sourcePosition = null;
+            if (cardsRemoved && rightPreviousCards.current) {
+              const currentCard = rightPlayer.cards[index];
+              const previousIndex = rightPreviousCards.current.findIndex(
+                card => card.suit === currentCard.suit && card.value === currentCard.value,
+              );
+              if (previousIndex !== -1) {
+                sourcePosition = getPlayerCardPosition(
+                  1,
+                  previousIndex,
+                  rightPreviousCount.current,
+                  'small',
+                  layoutInfo,
+                );
+              }
+            }
+
             const targetPosition = getPlayerCardPosition(
               1,
               index,
@@ -621,53 +792,63 @@ export function GameTable({
               'small',
               layoutInfo,
             );
+
             const dims = getCardDimensions().small;
             const rotatedWidth = dims.height; // -90deg rotated
             const containerWidth = 120; // matches rightPlayerCards width
             const x = Math.max(0, (containerWidth - rotatedWidth) / 2);
 
-            // Create a stable key based on total cards to track animations properly
-            // When a card is played, we want remaining cards to animate to new positions
-            const cardKey = `right_${rightPlayer.cards.length}_${index}`;
+            // Create a stable key based on card's suit and value
+            const cardKey = getCardKey(card, index, 'right', rightPlayer.isHidden);
 
-            // Check if we need to reuse an animation from a previous position
-            // This happens when a card was removed and indices shifted
             let animatedY: Animated.Value;
-            let needsAnimation = false;
 
             if (!rightCardAnimations.has(cardKey)) {
-              // Try to find an animation from a higher index (card that moved up)
-              const previousKey = `right_${rightPlayer.cards.length + 1}_${index + 1}`;
-              if (rightCardAnimations.has(previousKey)) {
-                // Reuse the animation from the card that was at index+1
-                animatedY = rightCardAnimations.get(previousKey)!;
-                // Don't delete the old key yet - we'll clean it up in the effect
-                rightCardAnimations.set(cardKey, animatedY);
-                // Animation should start from its current position
-                needsAnimation = true;
+              // Check if this is a new card added after post-trick dealing
+              const isNewCard =
+                cardsAdded &&
+                !rightPreviousCards.current.some(
+                  prevCard =>
+                    prevCard.suit === currentCard.suit && prevCard.value === currentCard.value,
+                );
+
+              if (isNewCard && postTrickDealingAnimating) {
+                // New card from dealing - start from deck/trump position
+                const deckPos = getDeckPosition(
+                  layout.table.width,
+                  layout.table.height,
+                  layoutInfo,
+                );
+                animatedY = new Animated.Value(deckPos.y);
+              } else if (cardsRemoved && sourcePosition) {
+                // Start from where the card was with the old layout
+                animatedY = new Animated.Value(sourcePosition.y);
+                rightAnimating.current = true;
               } else {
-                // Create new animation starting at the target position
-                // This is for newly dealt cards or first render
+                // First render or existing card - start at target
                 animatedY = new Animated.Value(targetPosition.y);
-                rightCardAnimations.set(cardKey, animatedY);
               }
-              rightPreviousPositions.set(cardKey, targetPosition.y);
+              rightCardAnimations.set(cardKey, animatedY);
             } else {
               animatedY = rightCardAnimations.get(cardKey)!;
             }
 
-            const previousY = rightPreviousPositions.get(cardKey);
-
             // Get the current actual position of the animated value
-            const currentY = (animatedY as any)._value;
+            // We need to track the current value without using private API
+            let currentY = targetPosition.y;
+            const previousY = rightPreviousPositions.get(cardKey);
+            if (previousY !== undefined) {
+              currentY = previousY;
+            } else if (sourcePosition) {
+              currentY = sourcePosition.y;
+            }
 
-            // Animate if we need to move to a new position
-            if (
-              needsAnimation ||
-              (previousY !== undefined && Math.abs(previousY - targetPosition.y) > 1) ||
-              (currentY !== undefined && Math.abs(currentY - targetPosition.y) > 1)
-            ) {
-              const staggerDelay = index * HAND_ANIMATION_STAGGER;
+            // Always animate if position differs from target
+            if (Math.abs(currentY - targetPosition.y) > 1) {
+              const staggerDelay = cardsRemoved || cardsAdded ? index * HAND_ANIMATION_STAGGER : 0;
+
+              // Track this animation
+              rightActiveAnimations.current.add(index);
 
               Animated.timing(animatedY, {
                 toValue: targetPosition.y,
@@ -675,10 +856,29 @@ export function GameTable({
                 delay: staggerDelay,
                 easing: Easing.out(Easing.cubic),
                 useNativeDriver: false,
-              }).start();
+              }).start(() => {
+                // Remove from active animations
+                rightActiveAnimations.current.delete(index);
 
-              rightPreviousPositions.set(cardKey, targetPosition.y);
+                // Update state when all animations complete
+                if ((cardsRemoved || cardsAdded) && rightActiveAnimations.current.size === 0) {
+                  rightPreviousCount.current = rightPlayer.cards.length;
+                  rightPreviousCards.current = rightPlayer.cards;
+                  rightAnimating.current = false;
+                }
+              });
+            } else if (
+              cardsRemoved &&
+              index === rightPlayer.cards.length - 1 &&
+              rightActiveAnimations.current.size === 0
+            ) {
+              // No animation needed but still need to update state
+              rightPreviousCount.current = rightPlayer.cards.length;
+              rightPreviousCards.current = rightPlayer.cards;
+              rightAnimating.current = false;
             }
+
+            rightPreviousPositions.set(cardKey, targetPosition.y);
 
             return (
               <Animated.View
@@ -918,7 +1118,7 @@ export function GameTable({
         <View style={[styles.bottomPlayerHand, landscape && styles.bottomPlayerHandLandscape]}>
           {bottomPlayer.cards.map((card, index) => {
             // Get card key and dimensions first (needed for placeholder)
-            const cardKey = getCardKey(card);
+            const cardKey = getCardKey(card, index, 'bottom', bottomPlayer.isHidden);
             const cardDimensions = getCardDimensions();
 
             // Hide card if it matches the hideCardFromHand criteria
@@ -983,7 +1183,7 @@ export function GameTable({
                   'large',
                   layoutInfo,
                 );
-                const key = getCardKey(bottomPlayer.cards[i]);
+                const key = getCardKey(bottomPlayer.cards[i], i, 'bottom', bottomPlayer.isHidden);
                 const prev = bottomPreviousPositions.get(key);
                 return prev && Math.abs(prev.x - pos.x) > 1;
               }).length;

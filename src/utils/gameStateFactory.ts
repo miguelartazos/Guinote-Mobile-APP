@@ -1,5 +1,5 @@
-import type { GameState, Player, GameId, Team, TeamId } from '../types/game.types';
-import { createDeck, shuffleDeck, dealInitialCards } from './gameLogic';
+import type { GameState, Player, GameId, Team, TeamId, AIPersonality } from '../types/game.types';
+import { createDeck, shuffleDeck, dealInitialCards, createInitialMatchScore } from './gameLogic';
 
 interface PlayerInfo {
   id: string;
@@ -10,6 +10,25 @@ interface PlayerInfo {
   isBot: boolean;
   personality?: 'aggressive' | 'defensive' | 'balanced' | 'unpredictable';
   difficulty?: 'easy' | 'medium' | 'hard';
+}
+
+// Map database personality types to game personality types
+function mapPersonality(
+  dbPersonality?: 'aggressive' | 'defensive' | 'balanced' | 'unpredictable',
+): AIPersonality | undefined {
+  if (!dbPersonality) return undefined;
+
+  switch (dbPersonality) {
+    case 'aggressive':
+      return 'aggressive';
+    case 'defensive':
+    case 'balanced':
+      return 'prudent';
+    case 'unpredictable':
+      return 'tricky';
+    default:
+      return 'prudent';
+  }
 }
 
 /**
@@ -42,7 +61,7 @@ export function createInitialGameState(playerInfos: PlayerInfo[]): GameState {
     teamId: info.teamId,
     isBot: info.isBot,
     ...(info.isBot && {
-      personality: info.personality,
+      personality: mapPersonality(info.personality),
       difficulty: info.difficulty,
     }),
   }));
@@ -91,6 +110,8 @@ export function createInitialGameState(playerInfos: PlayerInfo[]): GameState {
     gameHistory: [],
     isVueltas: false,
     canDeclareVictory: false,
+    matchScore: createInitialMatchScore(),
+    teamTrickPiles: new Map(),
   };
 
   return gameState;

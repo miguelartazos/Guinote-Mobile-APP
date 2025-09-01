@@ -186,9 +186,9 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
             </Text>
           </TouchableOpacity>
 
-          <Button 
-            variant="secondary" 
-            onPress={() => navigation.goBack()} 
+          <Button
+            variant="secondary"
+            onPress={() => navigation.goBack()}
             icon="⬅️"
             size="large"
             style={styles.backButton}

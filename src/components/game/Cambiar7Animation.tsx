@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Animated, Text, Dimensions } from 'react-native';
 import { SpanishCard } from './SpanishCard';
 import type { Card } from '../../types/game.types';
@@ -66,8 +66,13 @@ export function Cambiar7Animation({
     scale: new Animated.Value(1),
     rotation: new Animated.Value(playerHandPosition.rotation),
     opacity: new Animated.Value(1),
-    zIndex: new Animated.Value(200),
   }).current;
+
+  // Use state for zIndex since it cannot be animated with native driver
+  const [sevenZIndex, setSevenZIndex] = useState(200);
+
+  // Ref to track timeout for cleanup
+  const zIndexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Animation values for the trump card (from deck to player hand)
   const trumpAnimation = useRef({
@@ -76,8 +81,10 @@ export function Cambiar7Animation({
     scale: new Animated.Value(1),
     rotation: new Animated.Value(90), // Trump starts rotated
     opacity: new Animated.Value(1),
-    zIndex: new Animated.Value(199),
   }).current;
+
+  // Use state for zIndex
+  const [trumpZIndex] = useState(199);
 
   // Announcement bubble animation positioned near player
   const announcementAnimation = useRef({
@@ -122,6 +129,14 @@ export function Cambiar7Animation({
     };
 
     runAnimation();
+
+    // Cleanup function to clear timeout on unmount
+    return () => {
+      if (zIndexTimeoutRef.current) {
+        clearTimeout(zIndexTimeoutRef.current);
+        zIndexTimeoutRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -144,6 +159,11 @@ export function Cambiar7Animation({
   };
 
   const animateCardSwap = async () => {
+    // Schedule zIndex change to happen after 400ms (when card is near deck)
+    zIndexTimeoutRef.current = setTimeout(() => {
+      setSevenZIndex(98); // Move under deck
+    }, 400);
+
     await new Promise(resolve => {
       Animated.parallel([
         // Move 7 from player hand to deck bottom (under the deck)
@@ -171,14 +191,6 @@ export function Cambiar7Animation({
               duration: 600,
               useNativeDriver: true,
             }),
-            Animated.sequence([
-              Animated.delay(400),
-              Animated.timing(sevenAnimation.zIndex, {
-                toValue: 98, // Move under deck
-                duration: 100,
-                useNativeDriver: false,
-              }),
-            ]),
           ]),
         ]),
         // Move trump from deck to player hand
@@ -226,12 +238,12 @@ export function Cambiar7Animation({
         Animated.timing(sevenAnimation.opacity, {
           toValue: 0,
           duration: 300,
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
         Animated.timing(trumpAnimation.opacity, {
           toValue: 0,
           duration: 300,
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
       ]).start(() => resolve(null));
     });
@@ -277,7 +289,7 @@ export function Cambiar7Animation({
           {
             width: cardWidth,
             height: cardHeight,
-            zIndex: sevenAnimation.zIndex,
+            zIndex: sevenZIndex,
             opacity: sevenAnimation.opacity,
             transform: [
               { translateX: sevenAnimation.translateX },
@@ -299,7 +311,7 @@ export function Cambiar7Animation({
           {
             width: cardWidth,
             height: cardHeight,
-            zIndex: trumpAnimation.zIndex,
+            zIndex: trumpZIndex,
             opacity: trumpAnimation.opacity,
             transform: [
               { translateX: trumpAnimation.translateX },

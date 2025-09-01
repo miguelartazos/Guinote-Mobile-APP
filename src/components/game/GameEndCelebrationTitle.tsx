@@ -178,13 +178,23 @@ const portraitStyles = StyleSheet.create({
 
 const landscapeStyles: Partial<typeof portraitStyles> = {
   container: {
+    alignItems: 'center',
     marginBottom: 35,
   },
   titleText: {
     fontSize: 36,
+    fontWeight: '900',
+    color: colors.text,
     letterSpacing: 3,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   decorativeLine: {
     width: 80,
+    height: 2,
+    backgroundColor: colors.goldDark,
+    opacity: 0.8,
   },
 };

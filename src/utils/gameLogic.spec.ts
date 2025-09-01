@@ -300,6 +300,416 @@ describe('isValidPlay', () => {
     expect(isValidPlay(hand[0], hand, currentTrick, trumpSuit, 'arrastre')).toBe(false);
     expect(isValidPlay(hand[1], hand, currentTrick, trumpSuit, 'arrastre')).toBe(false);
   });
+
+  test('arrastre phase comprehensive validation - must follow suit', () => {
+    const mockGameState = {
+      teams: [
+        { id: 'team1' as TeamId, playerIds: ['p1', 'p3'] as [PlayerId, PlayerId] },
+        { id: 'team2' as TeamId, playerIds: ['p2', 'p4'] as [PlayerId, PlayerId] },
+      ],
+    } as GameState;
+
+    const leadCard: TrickCard = {
+      playerId: 'p1' as PlayerId,
+      card: { id: 'espadas_5' as CardId, suit: 'espadas', value: 5 },
+    };
+    const currentTrick = [leadCard];
+
+    const hand: Card[] = [
+      { id: 'espadas_3' as CardId, suit: 'espadas', value: 3 },
+      { id: 'copas_10' as CardId, suit: 'copas', value: 10 },
+      { id: 'oros_1' as CardId, suit: 'oros', value: 1 }, // trump
+    ];
+
+    // Must play espadas when having it
+    expect(
+      isValidPlay(
+        hand[0],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true);
+
+    // Cannot play other suits when having the led suit
+    expect(
+      isValidPlay(
+        hand[1],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(false);
+
+    // Cannot play trump when having the led suit
+    expect(
+      isValidPlay(
+        hand[2],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(false);
+  });
+
+  test('arrastre phase - must beat if possible when following suit', () => {
+    const mockGameState = {
+      teams: [
+        { id: 'team1' as TeamId, playerIds: ['p1', 'p3'] as [PlayerId, PlayerId] },
+        { id: 'team2' as TeamId, playerIds: ['p2', 'p4'] as [PlayerId, PlayerId] },
+      ],
+    } as GameState;
+
+    const leadCard: TrickCard = {
+      playerId: 'p1' as PlayerId,
+      card: { id: 'espadas_7' as CardId, suit: 'espadas', value: 7 },
+    };
+    const currentTrick = [leadCard];
+
+    // Card ranking: 1 > 3 > 12 > 10 > 11 > 7 > 6 > 5 > 4 > 2
+    const hand: Card[] = [
+      { id: 'espadas_2' as CardId, suit: 'espadas', value: 2 }, // Can't beat 7
+      { id: 'espadas_11' as CardId, suit: 'espadas', value: 11 }, // Caballo - CAN beat 7 (11 > 7)
+      { id: 'espadas_3' as CardId, suit: 'espadas', value: 3 }, // Tres - CAN beat 7
+      { id: 'espadas_1' as CardId, suit: 'espadas', value: 1 }, // As - CAN beat 7
+    ];
+
+    // Cannot play cards that can't beat when we have cards that can
+    expect(
+      isValidPlay(
+        hand[0],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(false); // Can't play 2 when we have 11, 3, or 1 that can beat
+
+    // Can play cards that beat
+    expect(
+      isValidPlay(
+        hand[1],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true); // Can play 11 which beats 7
+
+    expect(
+      isValidPlay(
+        hand[2],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true); // Can play 3 which beats 7
+
+    expect(
+      isValidPlay(
+        hand[3],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true); // Can play 1 which beats 7
+  });
+
+  test('arrastre phase - can play low card when partner is winning', () => {
+    const mockGameState = {
+      teams: [
+        { id: 'team1' as TeamId, playerIds: ['p1', 'p3'] as [PlayerId, PlayerId] },
+        { id: 'team2' as TeamId, playerIds: ['p2', 'p4'] as [PlayerId, PlayerId] },
+      ],
+    } as GameState;
+
+    const currentTrick: TrickCard[] = [
+      {
+        playerId: 'p1' as PlayerId,
+        card: { id: 'espadas_5' as CardId, suit: 'espadas', value: 5 },
+      },
+      {
+        playerId: 'p2' as PlayerId,
+        card: { id: 'espadas_11' as CardId, suit: 'espadas', value: 11 },
+      }, // Partner of p4 winning
+    ];
+
+    const hand: Card[] = [
+      { id: 'espadas_3' as CardId, suit: 'espadas', value: 3 }, // Low card
+      { id: 'espadas_1' as CardId, suit: 'espadas', value: 1 }, // As - could beat
+    ];
+
+    // As p4, partner p2 is winning, so can play any card of the suit
+    expect(
+      isValidPlay(
+        hand[0],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p4' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true);
+
+    expect(
+      isValidPlay(
+        hand[1],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p4' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true);
+  });
+
+  test('arrastre phase - must trump when not having suit and partner not winning', () => {
+    const mockGameState = {
+      teams: [
+        { id: 'team1' as TeamId, playerIds: ['p1', 'p3'] as [PlayerId, PlayerId] },
+        { id: 'team2' as TeamId, playerIds: ['p2', 'p4'] as [PlayerId, PlayerId] },
+      ],
+    } as GameState;
+
+    const currentTrick: TrickCard[] = [
+      {
+        playerId: 'p1' as PlayerId,
+        card: { id: 'espadas_11' as CardId, suit: 'espadas', value: 11 },
+      }, // Opponent winning
+    ];
+
+    const hand: Card[] = [
+      { id: 'copas_3' as CardId, suit: 'copas', value: 3 }, // No espadas
+      { id: 'bastos_10' as CardId, suit: 'bastos', value: 10 },
+      { id: 'oros_7' as CardId, suit: 'oros', value: 7 }, // Trump
+    ];
+
+    // As p2, must play trump since partner not winning
+    expect(
+      isValidPlay(
+        hand[2],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true);
+
+    // Cannot play non-trump when must trump
+    expect(
+      isValidPlay(
+        hand[0],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(false);
+
+    expect(
+      isValidPlay(
+        hand[1],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(false);
+  });
+
+  test('arrastre phase - can discard when no suit and no trump', () => {
+    const mockGameState = {
+      teams: [
+        { id: 'team1' as TeamId, playerIds: ['p1', 'p3'] as [PlayerId, PlayerId] },
+        { id: 'team2' as TeamId, playerIds: ['p2', 'p4'] as [PlayerId, PlayerId] },
+      ],
+    } as GameState;
+
+    const currentTrick: TrickCard[] = [
+      {
+        playerId: 'p1' as PlayerId,
+        card: { id: 'espadas_11' as CardId, suit: 'espadas', value: 11 },
+      },
+    ];
+
+    const hand: Card[] = [
+      { id: 'copas_3' as CardId, suit: 'copas', value: 3 }, // No espadas, no oros
+      { id: 'bastos_10' as CardId, suit: 'bastos', value: 10 },
+      { id: 'copas_12' as CardId, suit: 'copas', value: 12 },
+    ];
+
+    // Can play any card when no trump and no suit
+    expect(
+      isValidPlay(
+        hand[0],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true);
+
+    expect(
+      isValidPlay(
+        hand[1],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true);
+
+    expect(
+      isValidPlay(
+        hand[2],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p2' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true);
+  });
+
+  test('arrastre phase - fourth player special rule when partner winning', () => {
+    const mockGameState = {
+      teams: [
+        { id: 'team1' as TeamId, playerIds: ['p1', 'p3'] as [PlayerId, PlayerId] },
+        { id: 'team2' as TeamId, playerIds: ['p2', 'p4'] as [PlayerId, PlayerId] },
+      ],
+    } as GameState;
+
+    // Card ranking: 1 > 3 > 12 > 10 > 11 > 7 > 6 > 5 > 4 > 2
+    // Need p2 (partner of p4) to be winning
+    const currentTrick: TrickCard[] = [
+      {
+        playerId: 'p1' as PlayerId,
+        card: { id: 'espadas_5' as CardId, suit: 'espadas', value: 5 },
+      },
+      {
+        playerId: 'p2' as PlayerId,
+        card: { id: 'espadas_3' as CardId, suit: 'espadas', value: 3 },
+      }, // 3 beats 5, p2 winning!
+      {
+        playerId: 'p3' as PlayerId,
+        card: { id: 'espadas_2' as CardId, suit: 'espadas', value: 2 },
+      }, // 2 doesn't beat 3
+    ];
+
+    const hand: Card[] = [
+      { id: 'copas_3' as CardId, suit: 'copas', value: 3 }, // No espadas
+      { id: 'oros_1' as CardId, suit: 'oros', value: 1 }, // Ace of trump
+    ];
+
+    // As p4 (fourth player), with partner p2 winning and no suit, can play ANY card
+    expect(
+      isValidPlay(
+        hand[0],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p4' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true);
+
+    // Can even save the ace of trump
+    expect(
+      isValidPlay(
+        hand[1],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p4' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true);
+  });
+
+  test('arrastre phase - must beat trump with higher trump if possible', () => {
+    const mockGameState = {
+      teams: [
+        { id: 'team1' as TeamId, playerIds: ['p1', 'p3'] as [PlayerId, PlayerId] },
+        { id: 'team2' as TeamId, playerIds: ['p2', 'p4'] as [PlayerId, PlayerId] },
+      ],
+    } as GameState;
+
+    const currentTrick: TrickCard[] = [
+      {
+        playerId: 'p1' as PlayerId,
+        card: { id: 'espadas_5' as CardId, suit: 'espadas', value: 5 },
+      },
+      { playerId: 'p2' as PlayerId, card: { id: 'oros_7' as CardId, suit: 'oros', value: 7 } }, // Trump played
+    ];
+
+    // Card ranking: 1 > 3 > 12 > 10 > 11 > 7 > 6 > 5 > 4 > 2
+    // Trump 7 was played, so we need higher trump: 1, 3, 12, 10, or 11
+    const hand: Card[] = [
+      { id: 'copas_3' as CardId, suit: 'copas', value: 3 }, // No espadas
+      { id: 'oros_2' as CardId, suit: 'oros', value: 2 }, // Lower trump (can't beat 7)
+      { id: 'oros_3' as CardId, suit: 'oros', value: 3 }, // Higher trump (3 beats 7)
+    ];
+
+    // Must play higher trump if possible (the 3 of trump)
+    expect(
+      isValidPlay(
+        hand[2],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p3' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(true);
+
+    // Cannot play lower trump when having higher
+    expect(
+      isValidPlay(
+        hand[1],
+        hand,
+        currentTrick,
+        trumpSuit,
+        'arrastre',
+        'p3' as PlayerId,
+        mockGameState,
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('calculateTrickWinner', () => {

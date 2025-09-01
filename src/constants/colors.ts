@@ -47,7 +47,7 @@ export type RgbaColor = Brand<string, 'RgbaColor'>;
 export const colors: Record<ColorName, HexColor | RgbaColor> = {
   // Original dark Spanish theme with professional enhancements
   primary: '#0F2619' as HexColor,
-  accent: '#D4A574' as HexColor,  // Professional gold
+  accent: '#D4A574' as HexColor, // Professional gold
   secondary: '#1E3A2F' as HexColor,
   text: '#F5E6D3' as HexColor,
   textMuted: '#A0A096' as HexColor,
@@ -80,16 +80,16 @@ export const colors: Record<ColorName, HexColor | RgbaColor> = {
   orangeRanking: '#FF8C00' as HexColor,
 
   // Enhanced button colors for better contrast
-  primaryButton: '#D4A574' as HexColor,  // Gold for primary actions
-  primaryButtonText: '#0F2619' as HexColor,  // Dark text on gold
-  secondaryButton: '#1E3A2F' as HexColor,  // Dark green for secondary
-  secondaryButtonText: '#F5E6D3' as HexColor,  // Light text
+  primaryButton: '#D4A574' as HexColor, // Gold for primary actions
+  primaryButtonText: '#0F2619' as HexColor, // Dark text on gold
+  secondaryButton: '#1E3A2F' as HexColor, // Dark green for secondary
+  secondaryButtonText: '#F5E6D3' as HexColor, // Light text
 
   // Card and component colors
-  cardBackground: '#162920' as HexColor,  // Dark surface
-  cardBorder: '#2A3F32' as HexColor,  // Subtle border
-  iconPrimary: '#D4A574' as HexColor,  // Gold icons
-  iconSecondary: '#A0A096' as HexColor,  // Muted icons
+  cardBackground: '#162920' as HexColor, // Dark surface
+  cardBorder: '#2A3F32' as HexColor, // Subtle border
+  iconPrimary: '#D4A574' as HexColor, // Gold icons
+  iconSecondary: '#A0A096' as HexColor, // Muted icons
 
   // Status colors (for dark theme)
   successLight: 'rgba(76, 175, 80, 0.1)' as RgbaColor,

@@ -72,6 +72,7 @@ describe('gameStatePersistence', () => {
       ['team2' as TeamId, 2],
     ]),
     collectedTricks: new Map(),
+    teamTrickPiles: new Map(),
     canCambiar7: true,
     gameHistory: [],
     isVueltas: false,

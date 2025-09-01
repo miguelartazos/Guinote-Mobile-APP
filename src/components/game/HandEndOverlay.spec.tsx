@@ -4,32 +4,26 @@ import { Animated } from 'react-native';
 import { HandEndOverlay } from './HandEndOverlay';
 
 // Mock the Animated API
-jest.mock('react-native', () => {
-  const actualRN = jest.requireActual('react-native');
-  return {
-    ...actualRN,
-    Animated: {
-      ...actualRN.Animated,
-      parallel: jest.fn(() => ({
-        start: jest.fn(callback => callback && callback()),
-      })),
-      timing: jest.fn(() => ({
-        start: jest.fn(callback => callback && callback()),
-      })),
-      spring: jest.fn(() => ({
-        start: jest.fn(callback => callback && callback()),
-      })),
-      Value: jest.fn(value => ({
-        setValue: jest.fn(),
-        interpolate: jest.fn(config => {
-          // Simple interpolation mock
-          return config.outputRange ? config.outputRange[1] : value;
-        }),
-      })),
-      createAnimatedComponent: (Component: any) => Component,
-    },
-  };
-});
+jest.mock('react-native/Libraries/Animated/Animated', () => ({
+  Value: jest.fn(() => ({
+    setValue: jest.fn(),
+    interpolate: jest.fn(config => {
+      return config.outputRange ? config.outputRange[1] : 0;
+    }),
+  })),
+  timing: jest.fn(() => ({
+    start: jest.fn(callback => callback && callback()),
+  })),
+  spring: jest.fn(() => ({
+    start: jest.fn(callback => callback && callback()),
+  })),
+  parallel: jest.fn(() => ({
+    start: jest.fn(callback => callback && callback()),
+  })),
+  View: require('react-native').View,
+  Text: require('react-native').Text,
+  createAnimatedComponent: (Component: any) => Component,
+}));
 
 describe('HandEndOverlay', () => {
   const defaultProps = {
@@ -114,111 +108,43 @@ describe('HandEndOverlay', () => {
     });
   });
 
-  describe('countdown timer', () => {
-    test('starts countdown at correct time when going to vueltas', async () => {
-      const { getByText, queryByText } = render(
-        <HandEndOverlay {...defaultProps} shouldPlayVueltas={true} />,
+  describe('button behavior', () => {
+    test('shows VER RESULTADO button when team reaches 101', () => {
+      const { getByText } = render(
+        <HandEndOverlay {...defaultProps} team1Score={105} shouldPlayVueltas={false} />,
       );
 
-      // Initially no countdown shown
-      expect(queryByText(/Vueltas en \d/)).toBeNull();
-
-      // Fast-forward to 4 seconds (7 - 3 = 4 seconds before countdown)
-      act(() => {
-        jest.advanceTimersByTime(4000);
-      });
-
-      // Countdown should start
-      await waitFor(() => {
-        expect(getByText('Vueltas en 3...')).toBeDefined();
-      });
+      expect(getByText('VER RESULTADO')).toBeDefined();
     });
 
-    test('counts down correctly', async () => {
+    test('shows CONTINUAR A VUELTAS button when no winner', () => {
       const { getByText } = render(<HandEndOverlay {...defaultProps} shouldPlayVueltas={true} />);
 
-      // Fast-forward to start of countdown
-      act(() => {
-        jest.advanceTimersByTime(4000);
-      });
-
-      await waitFor(() => {
-        expect(getByText('Vueltas en 3...')).toBeDefined();
-      });
-
-      // Advance 1 second
-      act(() => {
-        jest.advanceTimersByTime(1000);
-      });
-
-      await waitFor(() => {
-        expect(getByText('Vueltas en 2...')).toBeDefined();
-      });
-
-      // Advance another second
-      act(() => {
-        jest.advanceTimersByTime(1000);
-      });
-
-      await waitFor(() => {
-        expect(getByText('Vueltas en 1...')).toBeDefined();
-      });
+      expect(getByText('CONTINUAR A VUELTAS')).toBeDefined();
     });
 
-    test('auto-advances after 7 seconds', () => {
+    test('calls onAutoAdvance when button is pressed', () => {
       const onAutoAdvance = jest.fn();
-      render(
+      const { getByText } = render(
         <HandEndOverlay {...defaultProps} shouldPlayVueltas={true} onAutoAdvance={onAutoAdvance} />,
       );
 
-      expect(onAutoAdvance).not.toHaveBeenCalled();
-
-      // Advance full 7 seconds
-      act(() => {
-        jest.advanceTimersByTime(7000);
-      });
-
-      // Wait for animation to complete
-      act(() => {
-        jest.advanceTimersByTime(200); // FADE_OUT duration
-      });
+      const button = getByText('CONTINUAR A VUELTAS');
+      button.props.onPress();
 
       expect(onAutoAdvance).toHaveBeenCalledTimes(1);
     });
 
-    test('does not show countdown when not going to vueltas', () => {
-      const { queryByText } = render(
-        <HandEndOverlay {...defaultProps} shouldPlayVueltas={false} />,
-      );
+    test('does not show any countdown text', () => {
+      const { queryByText } = render(<HandEndOverlay {...defaultProps} shouldPlayVueltas={true} />);
 
-      // Advance time
+      // Advance time to where countdown used to appear
       act(() => {
         jest.advanceTimersByTime(5000);
       });
 
       expect(queryByText(/Vueltas en \d/)).toBeNull();
-    });
-
-    test('cleans up timers on unmount', () => {
-      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
-      const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
-
-      const { unmount } = render(<HandEndOverlay {...defaultProps} shouldPlayVueltas={true} />);
-
-      // Start some timers
-      act(() => {
-        jest.advanceTimersByTime(4500); // Start countdown
-      });
-
-      // Unmount component
-      unmount();
-
-      // Should have called cleanup functions
-      expect(clearTimeoutSpy).toHaveBeenCalled();
-      expect(clearIntervalSpy).toHaveBeenCalled();
-
-      clearTimeoutSpy.mockRestore();
-      clearIntervalSpy.mockRestore();
+      expect(queryByText(/en \d\.\.\./)).toBeNull();
     });
   });
 
@@ -240,19 +166,6 @@ describe('HandEndOverlay', () => {
       const { getByLabelText } = render(<HandEndOverlay {...defaultProps} />);
 
       expect(getByLabelText('más 20 puntos de cantes')).toBeDefined();
-    });
-
-    test('announces countdown with proper timer role', () => {
-      const { getByLabelText } = render(
-        <HandEndOverlay {...defaultProps} shouldPlayVueltas={true} />,
-      );
-
-      // Fast-forward to countdown
-      act(() => {
-        jest.advanceTimersByTime(4000);
-      });
-
-      expect(getByLabelText('Vueltas en 3 segundos')).toBeDefined();
     });
   });
 

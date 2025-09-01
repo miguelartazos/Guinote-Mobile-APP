@@ -1,14 +1,6 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { playCard, cambiar7, declareCante } from './gameLogic';
-import type {
-  GameState,
-  Card,
-  CardId,
-  PlayerId,
-  TeamId,
-  GameId,
-  Team,
-} from '../types/game.types';
+import type { GameState, Card, CardId, PlayerId, TeamId, GameId, Team } from '../types/game.types';
 import type { SpanishSuit, CardValue } from '../types/cardTypes';
 
 // Helper to create test game state

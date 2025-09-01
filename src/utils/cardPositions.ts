@@ -202,8 +202,8 @@ export function getDeckPosition(
   if (layoutInfo?.boardLayout && layoutInfo.boardLayout.width > 0) {
     const board = layoutInfo.boardLayout;
     return {
-      x: Math.floor(board.x + leftRailWidth + safeMargin),
-      y: Math.floor(board.y + board.height / 2 - cardHeight / 2),
+      x: board.x + leftRailWidth + safeMargin,
+      y: board.y + board.height / 2 - cardHeight / 2,
       rotation: 0,
       zIndex: 100,
     };
@@ -211,8 +211,8 @@ export function getDeckPosition(
 
   // Fallback with consistent positioning
   return {
-    x: Math.floor(leftRailWidth + safeMargin),
-    y: Math.floor(screenHeight * 0.45 - cardHeight / 2),
+    x: leftRailWidth + safeMargin,
+    y: screenHeight * 0.45 - cardHeight / 2,
     rotation: 0,
     zIndex: 100,
   };

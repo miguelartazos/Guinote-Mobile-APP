@@ -134,13 +134,16 @@ export function GameEndCelebration({
       // 6. Show continue button
       await showButton();
 
-      // Complete after a brief pause
-      setTimeout(onComplete, 1500);
+      // Complete after a brief pause - but NOT for vueltas transition
+      // For vueltas, user must click the continue button
+      if (!isVueltasTransition) {
+        setTimeout(onComplete, 1500);
+      }
     };
 
     runAnimation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isVueltasTransition]);
 
   const fadeInOverlay = async () => {
     await new Promise(resolve => {
@@ -464,22 +467,35 @@ const portraitStyles = StyleSheet.create({
 
 const landscapeStyles: Partial<typeof portraitStyles> = {
   container: {
-    flexDirection: 'row',
+    flex: 1,
   },
   contentContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 40,
-    maxWidth: 700,
   },
   buttonContainer: {
     marginTop: 24,
   },
   continueButton: {
+    backgroundColor: colors.gold,
     paddingHorizontal: 56,
     paddingVertical: 20,
     borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.goldDark,
+    elevation: 6,
+    shadowColor: colors.gold,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
   },
   continueButtonText: {
     fontSize: 20,
+    fontWeight: '900',
+    color: colors.primary,
+    textTransform: 'uppercase',
     letterSpacing: 2.5,
   },
 };

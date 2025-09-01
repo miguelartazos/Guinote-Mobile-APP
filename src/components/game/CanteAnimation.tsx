@@ -7,21 +7,19 @@ import { typography } from '../../constants/typography';
 type CanteType = 'veinte' | 'cuarenta';
 
 type CanteAnimationProps = {
-  cards: Array<{ suit: SpanishSuit; value: CardValue }>;
   canteType: CanteType;
   playerPosition: { x: number; y: number };
   onComplete: () => void;
   playSound?: () => void;
   playerName?: string;
-  playerAvatar?: string;
 };
 
 export function CanteAnimation({
-  cards,
   canteType,
   playerPosition,
   onComplete,
   playSound,
+  playerName,
 }: CanteAnimationProps) {
   // Text animation - smaller and near player
   const textAnimation = useRef({
@@ -86,20 +84,23 @@ export function CanteAnimation({
 
   return (
     <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-      {/* Discrete cante text near player icon */}
+      {/* Enhanced cante announcement near player icon */}
       <Animated.View
         style={[
           styles.discreteTextContainer,
           {
-            left: playerPosition.x - 40,
-            top: playerPosition.y - 60,
+            left: playerPosition.x - 60,
+            top: playerPosition.y - 70,
             opacity: textAnimation.opacity,
             transform: [{ scale: textAnimation.scale }, { translateY: textAnimation.translateY }],
           },
         ]}
       >
         <View style={styles.speechBubble}>
-          <Text style={styles.discreteCanteText}>{canteType === 'veinte' ? '20' : '40'}</Text>
+          <Text style={styles.playerNameText}>{playerName || 'Jugador'}</Text>
+          <Text style={styles.discreteCanteText}>
+            {canteType === 'veinte' ? '¡Canto 20!' : '¡Las 40!'}
+          </Text>
         </View>
       </Animated.View>
 
@@ -116,20 +117,31 @@ const styles = StyleSheet.create({
   },
   speechBubble: {
     backgroundColor: colors.accent,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
     borderWidth: 2,
     borderColor: colors.white,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+    alignItems: 'center',
+    minWidth: 120,
+  },
+  playerNameText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 2,
   },
   discreteCanteText: {
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });

@@ -119,7 +119,7 @@ export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
 
         // Subscribe to the channel
         await channel.subscribe();
-        
+
         // Store the channel reference
         channelRef.current = channel;
         setState(prev => ({

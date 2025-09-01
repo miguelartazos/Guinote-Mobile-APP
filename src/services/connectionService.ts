@@ -43,6 +43,7 @@ export interface OptimisticUpdate<T = unknown> {
 }
 
 const QUEUE_STORAGE_KEY = '@guinote/offline_queue';
+const SYNC_VERSION_KEY = '@guinote/last_sync_version';
 const MAX_RETRY_COUNT = 3;
 const RETRY_BACKOFF_BASE = 1000; // 1 second
 
@@ -52,9 +53,13 @@ class ConnectionService {
   private isProcessingQueue = false;
   private optimisticUpdates = new Map<ActionId, OptimisticUpdate>();
   private actionExecutor?: (action: QueuedAction) => Promise<unknown>;
+  private lastSyncVersion = 0;
+  private isRecovering = false;
+  private stateSyncCallback?: () => Promise<{ version: number; state: unknown }>;
 
   private constructor() {
     this.loadQueueFromStorage();
+    this.loadSyncVersion();
   }
 
   static getInstance(): ConnectionService {
@@ -83,6 +88,28 @@ class ConnectionService {
       }
     } catch (error) {
       console.error('[ConnectionService] Failed to load queue from storage:', error);
+    }
+  }
+
+  private async loadSyncVersion() {
+    try {
+      const stored = await AsyncStorage.getItem(SYNC_VERSION_KEY);
+      if (stored) {
+        this.lastSyncVersion = parseInt(stored, 10);
+        if (__DEV__) {
+          console.log(`[ConnectionService] Last sync version: ${this.lastSyncVersion}`);
+        }
+      }
+    } catch (error) {
+      console.error('[ConnectionService] Failed to load sync version:', error);
+    }
+  }
+
+  private async saveSyncVersion() {
+    try {
+      await AsyncStorage.setItem(SYNC_VERSION_KEY, this.lastSyncVersion.toString());
+    } catch (error) {
+      console.error('[ConnectionService] Failed to save sync version:', error);
     }
   }
 
@@ -261,6 +288,85 @@ class ConnectionService {
     this.actionQueue = [];
     this.optimisticUpdates.clear();
     await AsyncStorage.removeItem(QUEUE_STORAGE_KEY);
+  }
+
+  /**
+   * Set the state sync callback for recovery
+   */
+  setStateSyncCallback(callback: () => Promise<{ version: number; state: unknown }>) {
+    this.stateSyncCallback = callback;
+  }
+
+  /**
+   * Handle reconnection with state sync and queue flush
+   */
+  async handleReconnect(): Promise<{
+    synced: boolean;
+    processed: number;
+    failed: number;
+  }> {
+    if (this.isRecovering) {
+      return { synced: false, processed: 0, failed: 0 };
+    }
+
+    this.isRecovering = true;
+
+    try {
+      // Step 1: Request state sync if callback is available
+      if (this.stateSyncCallback) {
+        try {
+          const { version, state } = await this.stateSyncCallback();
+
+          // Step 2: Apply state diff if version is newer
+          if (version > this.lastSyncVersion) {
+            this.lastSyncVersion = version;
+            await this.saveSyncVersion();
+
+            if (__DEV__) {
+              console.log(
+                `[ConnectionService] State synced from version ${this.lastSyncVersion} to ${version}`,
+              );
+            }
+          }
+        } catch (syncError) {
+          console.error('[ConnectionService] State sync failed:', syncError);
+        }
+      }
+
+      // Step 3: Flush queued actions
+      const result = await this.processQueue();
+
+      return {
+        synced: true,
+        processed: result.processed,
+        failed: result.failed,
+      };
+    } finally {
+      this.isRecovering = false;
+    }
+  }
+
+  /**
+   * Get recovery state
+   */
+  getRecoveryState(): {
+    lastSyncVersion: number;
+    isRecovering: boolean;
+    queuedActions: number;
+  } {
+    return {
+      lastSyncVersion: this.lastSyncVersion,
+      isRecovering: this.isRecovering,
+      queuedActions: this.actionQueue.length,
+    };
+  }
+
+  /**
+   * Update sync version after successful sync
+   */
+  async updateSyncVersion(version: number) {
+    this.lastSyncVersion = version;
+    await this.saveSyncVersion();
   }
 }
 

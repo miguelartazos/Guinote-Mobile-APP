@@ -196,8 +196,6 @@ export function CardDealingAnimation({
   };
 
   const dealCardsRound = async (round: number) => {
-    const cardDimensions = getCardDimensions();
-
     for (let playerOffset = 0; playerOffset < 4; playerOffset++) {
       const playerIndex = (3 + playerOffset) % 4; // Start from player to right of dealer
 
@@ -208,10 +206,10 @@ export function CardDealingAnimation({
         const cardIndexForPlayer = playerIndex * 6 + round * 3 + cardNum;
         const handIndex = round * 3 + cardNum; // index within this player's hand (0..5)
 
-        // First move to dealing line position from top of deck
+        // Get exact top of deck position (consistent with PostTrickDealingAnimation)
         const deckPos = getDeckPosition(parentWidth, parentHeight, layoutInfo);
-        const lineX = Math.max(8, deckPos.x + 10 + cardNum * 6);
-        const lineY = Math.max(8, deckPos.y); // Start from top of deck, not offset down
+        const deckTopX = deckPos.x + 10; // Left edge of top card
+        const deckTopY = deckPos.y; // Top edge of deck (no offset)
 
         // Compute FINAL absolute position matching GameTable containers
         const finalPos = getFinalAbsoluteCardPosition(
@@ -224,41 +222,34 @@ export function CardDealingAnimation({
 
         // Initialize at exact TOP-OF-DECK position (relative to final position)
         cardAnimations.current[cardIndexForPlayer].position.setValue({
-          x: deckPos.x + 10 - finalPos.x,
-          y: deckPos.y - finalPos.y,
+          x: deckTopX - finalPos.x,
+          y: deckTopY - finalPos.y,
         });
 
         animations.push(
-          Animated.sequence([
-            // First animate to line position
-            Animated.parallel([
-              Animated.timing(cardAnimations.current[cardIndexForPlayer].opacity, {
-                toValue: 1,
-                duration: 100,
-                useNativeDriver: true,
-              }),
-              Animated.timing(cardAnimations.current[cardIndexForPlayer].position, {
-                toValue: { x: lineX - finalPos.x, y: lineY - finalPos.y },
-                duration: CARD_DEAL_DURATION / 2,
-                easing: SMOOTH_EASING,
-                useNativeDriver: true,
-              }),
+          Animated.parallel([
+            // Fade in the card
+            Animated.timing(cardAnimations.current[cardIndexForPlayer].opacity, {
+              toValue: 1,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+            // Animate directly from deck top to final position
+            Animated.timing(cardAnimations.current[cardIndexForPlayer].position, {
+              toValue: { x: 0, y: 0 },
+              duration: CARD_DEAL_DURATION,
+              easing: SMOOTH_EASING,
+              useNativeDriver: true,
+            }),
+            // Scale animation for visual effect
+            Animated.sequence([
               Animated.timing(cardAnimations.current[cardIndexForPlayer].scale, {
                 toValue: 1.1,
                 duration: CARD_DEAL_DURATION / 2,
                 useNativeDriver: true,
               }),
-            ]),
-            // Then animate to final position
-            Animated.parallel([
-              Animated.timing(cardAnimations.current[cardIndexForPlayer].position, {
-                toValue: { x: 0, y: 0 },
-                duration: CARD_DEAL_DURATION / 2,
-                easing: SMOOTH_EASING,
-                useNativeDriver: true,
-              }),
               Animated.timing(cardAnimations.current[cardIndexForPlayer].scale, {
-                toValue: 1, // No scale transform needed, using large cards for bottom player
+                toValue: 1,
                 duration: CARD_DEAL_DURATION / 2,
                 useNativeDriver: true,
               }),

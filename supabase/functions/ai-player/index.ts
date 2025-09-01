@@ -1,5 +1,7 @@
 // Edge Function for AI player decision making in Guiñote
+// @ts-ignore - Deno imports
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+// @ts-ignore - Deno imports
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
 const corsHeaders = {
@@ -206,13 +208,50 @@ const isPartnerWinning = (trick: any[], winningCard: any): boolean => {
   return winningCard.position % 2 === 0; // Simplified - assumes AI is at position 1 or 3
 };
 
+// Seeded random number generator for deterministic behavior
+class SeededRandom {
+  private seed: number;
+  private readonly a = 16807;
+  private readonly m = 2147483647;
+
+  constructor(seed: number) {
+    this.seed = seed % this.m || 1;
+  }
+
+  next(): number {
+    this.seed = (this.a * this.seed) % this.m;
+    return this.seed / this.m;
+  }
+
+  nextInt(min: number, max: number): number {
+    return Math.floor(this.next() * (max - min + 1)) + min;
+  }
+}
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
+
 // AI decision making based on difficulty
 const makeAIDecision = (
   gameState: GameState,
   playerIndex: number,
   difficulty: 'easy' | 'medium' | 'hard',
   personality?: 'aggressive' | 'conservative' | 'balanced',
+  roomId?: string,
 ): AIDecision => {
+  // Create seeded RNG if room ID provided - use trick count for deterministic behavior
+  const rng = roomId
+    ? new SeededRandom(
+        hashString(`${roomId}_${gameState.id}_trick_${gameState.current_trick?.length || 0}`),
+      )
+    : null;
   const hand = gameState.hands[playerIndex];
   const teamIndex = playerIndex % 2;
   const teamCantes = gameState.cantes?.[teamIndex] || [];
@@ -249,8 +288,14 @@ const makeAIDecision = (
   let selectedCard: Card;
 
   if (difficulty === 'easy') {
-    // Easy AI: Random valid card
-    selectedCard = validCards[Math.floor(Math.random() * validCards.length)];
+    // Easy AI: Random valid card (require RNG for deterministic behavior)
+    if (!rng) {
+      // Fallback to first valid card if no RNG available
+      selectedCard = validCards[0];
+    } else {
+      const randomIndex = rng.nextInt(0, validCards.length - 1);
+      selectedCard = validCards[randomIndex];
+    }
   } else if (difficulty === 'medium') {
     // Medium AI: Basic strategy
     selectedCard = selectMediumCard(
@@ -258,6 +303,7 @@ const makeAIDecision = (
       gameState.current_trick,
       gameState.trump_suit,
       personality || 'balanced',
+      rng,
     );
   } else {
     // Hard AI: Advanced strategy
@@ -267,6 +313,7 @@ const makeAIDecision = (
       gameState,
       playerIndex,
       personality || 'balanced',
+      rng,
     );
   }
 
@@ -276,52 +323,94 @@ const makeAIDecision = (
   };
 };
 
+// Helper function: Select a card when leading a trick
+const selectLeadingCard = (
+  sortedCards: Card[],
+  personality: string,
+  rng?: SeededRandom | null,
+): Card => {
+  if (personality === 'aggressive') {
+    // Play high cards
+    return sortedCards[0];
+  } else if (personality === 'conservative') {
+    // Play low cards
+    return sortedCards[sortedCards.length - 1];
+  } else {
+    // Balanced: play medium value
+    if (rng) {
+      const midIndex = rng.nextInt(
+        Math.floor(sortedCards.length / 3),
+        Math.floor((2 * sortedCards.length) / 3),
+      );
+      return sortedCards[midIndex];
+    } else {
+      // Fallback to middle card if no RNG
+      return sortedCards[Math.floor(sortedCards.length / 2)];
+    }
+  }
+};
+
+// Helper function: Select a card when following in a trick
+const selectFollowingCard = (
+  validCards: Card[],
+  sortedCards: Card[],
+  currentTrick: any[],
+  trumpSuit: string,
+): Card => {
+  const winningCard = getCurrentWinningCard(currentTrick, trumpSuit);
+  const leadSuit = currentTrick[0].card.suit;
+
+  // Find cards that can win the trick
+  const winningCards = validCards.filter(
+    c =>
+      getCardStrength(c, trumpSuit, leadSuit) >
+      getCardStrength(winningCard.card, trumpSuit, leadSuit),
+  );
+
+  if (winningCards.length > 0) {
+    // Try to win with lowest possible card
+    winningCards.sort((a, b) => getCardPoints(a.rank) - getCardPoints(b.rank));
+    return winningCards[0];
+  } else {
+    // Can't win - play lowest card
+    return sortedCards[sortedCards.length - 1];
+  }
+};
+
 const selectMediumCard = (
   validCards: Card[],
   currentTrick: any[],
   trumpSuit: string,
   personality: string,
+  rng?: SeededRandom | null,
 ): Card => {
   // Sort cards by value
   const sortedCards = [...validCards].sort((a, b) => getCardPoints(b.rank) - getCardPoints(a.rank));
 
   if (currentTrick.length === 0) {
     // Leading the trick
-    if (personality === 'aggressive') {
-      // Play high cards
-      return sortedCards[0];
-    } else if (personality === 'conservative') {
-      // Play low cards
-      return sortedCards[sortedCards.length - 1];
-    } else {
-      // Balanced: play medium value
-      return sortedCards[Math.floor(sortedCards.length / 2)];
-    }
+    return selectLeadingCard(sortedCards, personality, rng);
   } else {
     // Following in trick
-    const winningCard = getCurrentWinningCard(currentTrick, trumpSuit);
-    const canWin = validCards.some(
-      c =>
-        getCardStrength(c, trumpSuit, currentTrick[0].card.suit) >
-        getCardStrength(winningCard.card, trumpSuit, currentTrick[0].card.suit),
-    );
-
-    if (canWin) {
-      // Try to win with lowest possible card
-      const winningCards = validCards
-        .filter(
-          c =>
-            getCardStrength(c, trumpSuit, currentTrick[0].card.suit) >
-            getCardStrength(winningCard.card, trumpSuit, currentTrick[0].card.suit),
-        )
-        .sort((a, b) => getCardPoints(a.rank) - getCardPoints(b.rank));
-
-      return winningCards[0];
-    } else {
-      // Can't win - play lowest card
-      return sortedCards[sortedCards.length - 1];
-    }
+    return selectFollowingCard(validCards, sortedCards, currentTrick, trumpSuit);
   }
+};
+
+// Helper function: Adjust personality based on score situation
+const adjustPersonalityByScore = (
+  personality: string,
+  ourScore: number,
+  theirScore: number,
+): string => {
+  const scoreDiff = ourScore - theirScore;
+
+  if (scoreDiff < -30) {
+    return 'aggressive'; // Behind - need to be aggressive
+  } else if (scoreDiff > 30) {
+    return 'conservative'; // Ahead - play safe
+  }
+
+  return personality; // Keep original personality
 };
 
 const selectHardCard = (
@@ -330,49 +419,42 @@ const selectHardCard = (
   gameState: GameState,
   playerIndex: number,
   personality: string,
+  rng?: SeededRandom | null,
 ): Card => {
-  // Advanced AI considers:
-  // - Card counting
-  // - Probability of winning future tricks
-  // - Team coordination
-  // - Score situation
-
+  // Advanced AI adjusts strategy based on score
   const teamIndex = playerIndex % 2;
   const ourScore = gameState.team_scores[teamIndex];
   const theirScore = gameState.team_scores[1 - teamIndex];
-  const scoreDiff = ourScore - theirScore;
 
-  // Adjust strategy based on score
-  let adjustedPersonality = personality;
-  if (scoreDiff < -30) {
-    adjustedPersonality = 'aggressive'; // Behind - need to be aggressive
-  } else if (scoreDiff > 30) {
-    adjustedPersonality = 'conservative'; // Ahead - play safe
-  }
+  const adjustedPersonality = adjustPersonalityByScore(personality, ourScore, theirScore);
 
-  // For now, use medium strategy with adjustments
+  // Use medium strategy with score-based adjustments
   return selectMediumCard(
     validCards,
     gameState.current_trick,
     gameState.trump_suit,
     adjustedPersonality,
+    rng,
   );
 };
 
-serve(async req => {
+serve(async (req: Request) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    // @ts-ignore - Deno global
+    const supabaseUrl = (globalThis as any).Deno?.env.get('SUPABASE_URL') ?? '';
+    // @ts-ignore - Deno global
+    const supabaseServiceKey = (globalThis as any).Deno?.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const {
       gameStateId,
+      roomId,
       playerIndex,
       difficulty = 'medium',
       personality = 'balanced',
@@ -389,8 +471,8 @@ serve(async req => {
       throw new Error(`Failed to get game state: ${gameError.message}`);
     }
 
-    // Make AI decision
-    const decision = makeAIDecision(gameState, playerIndex, difficulty, personality);
+    // Make AI decision with room-seeded RNG for deterministic behavior
+    const decision = makeAIDecision(gameState, playerIndex, difficulty, personality, roomId);
 
     // Execute the decision
     let result;
@@ -436,9 +518,12 @@ serve(async req => {
       status: 200,
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
-    });
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      },
+    );
   }
 });

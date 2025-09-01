@@ -1,16 +1,16 @@
 export const typography = {
   fontSize: {
     // Increased sizes for better readability for seniors
-    xs: 14,    // Minimum size
-    sm: 16,    // Small text
-    base: 18,  // Base size
-    md: 20,    // Body text
-    lg: 24,    // Emphasized text
-    xl: 28,    // Section headers
+    xs: 14, // Minimum size
+    sm: 16, // Small text
+    base: 18, // Base size
+    md: 20, // Body text
+    lg: 24, // Emphasized text
+    xl: 28, // Section headers
     '2xl': 32, // Alternative large
     '3xl': 36, // Alternative extra large
-    xxl: 32,   // Page headers
-    xxxl: 40,  // Main titles
+    xxl: 32, // Page headers
+    xxxl: 40, // Main titles
   },
   fontWeight: {
     light: '300' as const,

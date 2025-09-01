@@ -191,28 +191,44 @@ const portraitStyles = StyleSheet.create({
 
 const landscapeStyles: Partial<typeof portraitStyles> = {
   container: {
-    justifyContent: 'space-between',
-    width: '100%',
-    maxWidth: 580,
+    flexDirection: 'row',
+    alignItems: 'stretch',
     marginBottom: 30,
   },
   scoreCard: {
-    minWidth: 200,
-    paddingHorizontal: 36,
+    backgroundColor: colors.background,
     paddingVertical: 24,
+    paddingHorizontal: 36,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.goldDark,
+    minWidth: 200,
+    alignItems: 'center',
   },
   scoreText: {
     fontSize: 64,
+    fontWeight: '900',
+    color: colors.text,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   pointsLabel: {
     fontSize: 12,
+    color: colors.textMuted,
     marginTop: 4,
+    letterSpacing: 1,
+    fontWeight: '600',
   },
   scoreDivider: {
     marginHorizontal: 24,
+    justifyContent: 'center',
   },
   versusText: {
     fontSize: 20,
-    fontWeight: '800',
+    color: colors.goldDark,
+    fontWeight: '700',
+    marginVertical: 8,
+    letterSpacing: 1,
   },
 };

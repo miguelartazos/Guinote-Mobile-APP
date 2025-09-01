@@ -1,148 +1,75 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-} from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import type { JugarStackNavigationProp, JugarStackScreenProps } from '../types/navigation';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
+import { dimensions } from '../constants/dimensions';
+// Room components
+import { RoomHeader } from '../components/room/RoomHeader';
+import { PlayerSlots } from '../components/room/PlayerSlots';
+import { TeamIndicator } from '../components/room/TeamIndicator';
+import { ReadyButton } from '../components/room/ReadyButton';
+import { StartGameButton } from '../components/room/StartGameButton';
+import { AIPlayerManager } from '../components/room/AIPlayerManager';
+import { LoadingOverlay } from '../components/ui/LoadingOverlay';
 // Using unified hooks for backend
 import { shareRoomViaWhatsApp } from '../services/sharing/whatsappShare';
 import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
-import { useUnifiedGame } from '../hooks/useUnifiedGame';
 import { useUnifiedRooms } from '../hooks/useUnifiedRooms';
 
-type Props = JugarStackScreenProps<'GameRoom'>;
+type GameRoomScreenProps = JugarStackScreenProps<'GameRoom'>;
 
-interface PlayerSlot {
-  position: number;
-  teamIndex: 0 | 1;
-  isOccupied: boolean;
-  isAI: boolean;
-  name: string;
-  isHost: boolean;
-  userId?: string;
-}
-
-export function GameRoomScreen() {
+export function GameRoomScreen({ route }: GameRoomScreenProps) {
   const navigation = useNavigation<JugarStackNavigationProp>();
-  const route = useRoute<Props['route']>();
   const { roomId, roomCode } = route.params;
+  const { user } = useUnifiedAuth();
+  const userId = user?.id;
 
-  const [playerSlots, setPlayerSlots] = useState<PlayerSlot[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isStarting, setIsStarting] = useState(false);
+  const {
+    room,
+    players,
+    isLoading,
+    error,
+    getRoomPlayers,
+    subscribeToRoom,
+    updateReadyStatus,
+    startGame,
+    addAIPlayer,
+    leaveRoom,
+  } = useUnifiedRooms();
 
-  // Auth hooks
-  const { user, isAuthenticated } = useUnifiedAuth();
-  const profile = user;
-  const userId = user?.id || user?._id;
+  const [localIsReady, setLocalIsReady] = useState(false);
 
-  // Unified hooks
-  const gameHook = useUnifiedGame(roomId || '');
-  const rooms = useUnifiedRooms();
-
-  // Extract room and actions from the game hook
-  const room = gameHook?.room;
-  const actions = gameHook?.actions || gameHook;
-
-  // Data from backend
-  const players = room ? room.players : [];
-  const isConnected = !!room;
+  const isHost = room?.host_id === userId;
+  const currentPlayer = players.find(p => p.id === userId);
+  const allPlayersReady = players.length === 4 && players.every(p => p.isReady);
 
   useEffect(() => {
-    if (players && players.length > 0) {
-      // Update player slots based on real-time data
-      const slots: PlayerSlot[] = [0, 1, 2, 3].map(position => {
-        const player = players.find((p: any) => p.position === position);
-        const teamIndex = (position % 2) as 0 | 1;
+    const unsubscribe = subscribeToRoom(roomId);
+    getRoomPlayers(roomId);
 
-        if (player) {
-          let isCurrentUserHost = false;
-          let playerName = 'Jugador';
-          let isAI = false;
-          let userId: string | undefined;
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [roomId, subscribeToRoom, getRoomPlayers]);
 
-          // Check if current user is host
-          isCurrentUserHost =
-            (room?.hostId === userId || room?.host_id === userId) && position === 0;
-          isAI = player.isAI || false;
-          playerName = isAI
-            ? `IA ${player.aiDifficulty || 'medium'}`
-            : player.user?.username || 'Jugador';
-          userId = player.userId;
-
-          return {
-            position,
-            teamIndex,
-            isOccupied: true,
-            isAI,
-            name: playerName,
-            isHost: isCurrentUserHost,
-            userId,
-          };
-        }
-
-        return {
-          position,
-          teamIndex,
-          isOccupied: false,
-          isAI: false,
-          name: '',
-          isHost: false,
-        };
-      });
-
-      setPlayerSlots(slots);
-      setIsLoading(false);
-    } else if (players && players.length === 0) {
-      // Initialize empty slots
-      const emptySlots: PlayerSlot[] = [0, 1, 2, 3].map(position => ({
-        position,
-        teamIndex: (position % 2) as 0 | 1,
-        isOccupied: false,
-        isAI: false,
-        name: '',
-        isHost: false,
-      }));
-      setPlayerSlots(emptySlots);
-      setIsLoading(false);
+  useEffect(() => {
+    if (currentPlayer) {
+      setLocalIsReady(currentPlayer.isReady);
     }
-  }, [players, profile, room, userId]);
+  }, [currentPlayer]);
 
-  const handleAddAI = async () => {
-    const emptySlots = playerSlots.filter(slot => !slot.isOccupied).length;
-    if (emptySlots === 0) {
-      Alert.alert('Sala llena', 'No hay espacios disponibles');
-      return;
-    }
+  const handleToggleReady = async () => {
+    if (!userId) return;
 
     try {
-      if (room && actions?.addAIPlayer) {
-        await actions.addAIPlayer('medium');
-      }
+      const newReadyStatus = !localIsReady;
+      setLocalIsReady(newReadyStatus);
+      await updateReadyStatus(roomId, userId, newReadyStatus);
     } catch (error) {
-      Alert.alert('Error', 'No se pudo añadir jugador IA');
-    }
-  };
-
-  const handleRemoveAI = async () => {
-    try {
-      if (room) {
-        // Find first AI player to remove
-        const aiPlayer = playerSlots.find(slot => slot.isAI);
-        if (aiPlayer && rooms.removeAIPlayer) {
-          await rooms.removeAIPlayer(roomId, aiPlayer.position);
-        }
-      }
-    } catch (error) {
-      Alert.alert('Error', 'No se pudieron eliminar jugadores IA');
+      setLocalIsReady(!localIsReady);
+      Alert.alert('Error', 'No se pudo actualizar el estado');
     }
   };
 
@@ -152,197 +79,98 @@ export function GameRoomScreen() {
     }
   };
 
-  const handleStartGame = async () => {
-    const occupiedSlots = playerSlots.filter(slot => slot.isOccupied).length;
+  const handleAddAIPlayer = async (config: import('../hooks/useUnifiedRooms').AIConfig) => {
+    if (!isHost) {
+      Alert.alert('Solo el anfitrión', 'Solo el anfitrión puede añadir jugadores IA');
+      return;
+    }
 
-    if (occupiedSlots < 4) {
-      Alert.alert('Sala incompleta', '¿Quieres completar con jugadores IA?', [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Completar con IA',
-          onPress: async () => {
-            if (room && actions?.addAIPlayer) {
-              // Add AI players one by one
-              for (let i = 0; i < 4 - occupiedSlots; i++) {
-                await actions.addAIPlayer('medium');
-              }
-            }
-            setTimeout(() => startGame(), 1000);
-          },
-        },
-      ]);
-    } else {
-      startGame();
+    try {
+      await addAIPlayer(roomId, config);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo añadir jugador IA');
     }
   };
 
-  const startGame = () => {
-    setIsStarting(true);
-    navigation.navigate('Game', {
-      gameMode: 'friends',
-      roomId,
-      roomCode,
-    });
+  const handleStartGame = async () => {
+    if (!isHost || !allPlayersReady) return;
+
+    try {
+      await startGame(roomId);
+      navigation.navigate('Game', {
+        gameMode: 'friends',
+        roomId,
+        roomCode,
+        players,
+      });
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo iniciar la partida');
+    }
   };
 
   const handleLeaveRoom = async () => {
-    Alert.alert('Abandonar sala', '¿Estás seguro de que quieres salir?', [
+    Alert.alert('Salir de la sala', '¿Estás seguro de que quieres salir?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Salir',
         style: 'destructive',
         onPress: async () => {
-          if (userId && actions?.leaveRoom) {
-            await actions.leaveRoom(userId);
+          try {
+            await leaveRoom(roomId);
+            navigation.goBack();
+          } catch (error) {
+            Alert.alert('Error', 'No se pudo salir de la sala');
           }
-          navigation.goBack();
         },
       },
     ]);
   };
 
-  const isHost = room && userId && (room.hostId === userId || room.host_id === userId);
-  const hasAI = playerSlots.some(slot => slot.isAI);
-  const canStart = playerSlots.filter(slot => slot.isOccupied).length >= 2;
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={styles.loadingText}>Cargando sala...</Text>
-      </View>
-    );
+  if (error) {
+    Alert.alert('Error', error);
   }
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Room Code */}
-        <View style={styles.roomCodeContainer}>
-          <Text style={styles.roomCodeLabel}>Código de Sala</Text>
-          <Text style={styles.roomCode}>{roomCode || room?.code || 'LOADING'}</Text>
-          <TouchableOpacity style={styles.shareButton} onPress={handleShareRoom}>
-            <Text style={styles.shareButtonText}>📱 Compartir por WhatsApp</Text>
-          </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity
+          testID="leave-room-button"
+          onPress={handleLeaveRoom}
+          style={styles.backButton}
+        >
+          <Text style={styles.backButtonText}>← Salir</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Sala de Juego</Text>
+        <View style={styles.placeholder} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content}>
+        <RoomHeader code={roomCode || roomId.slice(0, 6).toUpperCase()} onShare={handleShareRoom} />
+
+        <PlayerSlots players={players} onAddAI={() => {}} isHost={isHost} />
+
+        <AIPlayerManager
+          players={players}
+          roomId={roomId}
+          isHost={isHost}
+          onAddAI={handleAddAIPlayer}
+        />
+
+        <TeamIndicator
+          teams={[
+            { id: 'team1', name: 'Equipo 1', players: players.filter(p => p.teamId === 'team1') },
+            { id: 'team2', name: 'Equipo 2', players: players.filter(p => p.teamId === 'team2') },
+          ]}
+        />
+
+        <View style={styles.actions}>
+          <ReadyButton isReady={localIsReady} onToggle={handleToggleReady} />
+
+          {isHost && <StartGameButton enabled={allPlayersReady} onStart={handleStartGame} />}
         </View>
-
-        {/* Teams */}
-        <View style={styles.teamsContainer}>
-          {/* Team 1 */}
-          <View style={styles.team}>
-            <Text style={styles.teamTitle}>Equipo 1</Text>
-            {playerSlots
-              .filter(slot => slot.teamIndex === 0)
-              .map(slot => (
-                <View key={slot.position} style={styles.playerSlot}>
-                  {slot.isOccupied ? (
-                    <>
-                      <Text style={styles.playerName}>
-                        {slot.isAI ? '🤖 ' : '👤 '}
-                        {slot.name}
-                      </Text>
-                      {slot.isHost && <Text style={styles.hostBadge}>Anfitrión</Text>}
-                    </>
-                  ) : (
-                    <Text style={styles.emptySlot}>Esperando jugador...</Text>
-                  )}
-                </View>
-              ))}
-          </View>
-
-          {/* Team 2 */}
-          <View style={styles.team}>
-            <Text style={styles.teamTitle}>Equipo 2</Text>
-            {playerSlots
-              .filter(slot => slot.teamIndex === 1)
-              .map(slot => (
-                <View key={slot.position} style={styles.playerSlot}>
-                  {slot.isOccupied ? (
-                    <>
-                      <Text style={styles.playerName}>
-                        {slot.isAI ? '🤖 ' : '👤 '}
-                        {slot.name}
-                      </Text>
-                      {slot.isHost && <Text style={styles.hostBadge}>Anfitrión</Text>}
-                    </>
-                  ) : (
-                    <Text style={styles.emptySlot}>Esperando jugador...</Text>
-                  )}
-                </View>
-              ))}
-          </View>
-        </View>
-
-        {/* Connection Status */}
-        {!isConnected && (
-          <View style={styles.connectionWarning}>
-            <Text style={styles.connectionWarningText}>
-              ⚠️ Conexión perdida. Intentando reconectar...
-            </Text>
-          </View>
-        )}
-
-        {/* Room Status */}
-        {room && (
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusText}>
-              Estado:{' '}
-              {room.status === 'waiting'
-                ? 'Esperando jugadores'
-                : room.status === 'playing'
-                ? 'En juego'
-                : room.status}
-            </Text>
-            <Text style={styles.statusText}>
-              Modo:{' '}
-              {(room.gameMode || room.game_mode) === 'friends'
-                ? 'Amigos'
-                : (room.gameMode || room.game_mode) === 'ranked'
-                ? 'Clasificatoria'
-                : room.gameMode || room.game_mode}
-            </Text>
-          </View>
-        )}
       </ScrollView>
 
-      {/* Actions */}
-      <View style={styles.actions}>
-        {isHost && (
-          <>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.secondaryButton]}
-              onPress={hasAI ? handleRemoveAI : handleAddAI}
-            >
-              <Text style={styles.secondaryButtonText}>
-                {hasAI ? '➖ Quitar IA' : '➕ Añadir IA'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.primaryButton,
-                !canStart && styles.buttonDisabled,
-              ]}
-              onPress={handleStartGame}
-              disabled={!canStart || isStarting}
-            >
-              {isStarting ? (
-                <ActivityIndicator color={colors.background} />
-              ) : (
-                <Text style={styles.primaryButtonText}>🎯 Empezar Partida</Text>
-              )}
-            </TouchableOpacity>
-          </>
-        )}
-
-        <TouchableOpacity
-          style={[styles.actionButton, styles.dangerButton]}
-          onPress={handleLeaveRoom}
-        >
-          <Text style={styles.dangerButtonText}>🚪 Salir</Text>
-        </TouchableOpacity>
-      </View>
+      <LoadingOverlay visible={isLoading} message="Cargando sala..." />
     </View>
   );
 }
@@ -352,155 +180,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: typography.fontSize.lg,
-    color: colors.textSecondary,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 20,
-  },
-  roomCodeContainer: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  roomCodeLabel: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
-    marginBottom: 8,
-  },
-  roomCode: {
-    fontSize: typography.fontSize['3xl'],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.accent,
-    letterSpacing: 4,
-    marginBottom: 16,
-  },
-  shareButton: {
-    backgroundColor: colors.accent,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  shareButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.background,
-  },
-  teamsContainer: {
+  header: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 24,
-  },
-  team: {
-    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: dimensions.spacing.lg,
+    paddingTop: dimensions.spacing.xl,
+    paddingBottom: dimensions.spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  teamTitle: {
+  backButton: {
+    padding: dimensions.spacing.sm,
+  },
+  backButtonText: {
     fontSize: typography.fontSize.lg,
+    color: colors.accent,
+    fontWeight: typography.fontWeight.medium,
+  },
+  title: {
+    fontSize: typography.fontSize.xxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text,
-    marginBottom: 12,
-    textAlign: 'center',
   },
-  playerSlot: {
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    minHeight: 50,
-    justifyContent: 'center',
+  placeholder: {
+    width: 60,
   },
-  playerName: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-  },
-  emptySlot: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
-  },
-  hostBadge: {
-    fontSize: typography.fontSize.xs,
-    color: colors.accent,
-    fontWeight: typography.fontWeight.semibold,
-    marginTop: 4,
-  },
-  connectionWarning: {
-    backgroundColor: colors.warning,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-  },
-  connectionWarningText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text,
-    textAlign: 'center',
-  },
-  statusContainer: {
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-  },
-  statusText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: 4,
+  content: {
+    flexGrow: 1,
+    padding: dimensions.spacing.lg,
   },
   actions: {
-    padding: 20,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  actionButton: {
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  primaryButton: {
-    backgroundColor: colors.accent,
-  },
-  secondaryButton: {
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.accent,
-  },
-  dangerButton: {
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.error,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  primaryButtonText: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.background,
-  },
-  secondaryButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.accent,
-  },
-  dangerButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.error,
+    marginTop: dimensions.spacing.xl,
+    gap: dimensions.spacing.md,
   },
 });

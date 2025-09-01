@@ -11,6 +11,8 @@ type MinimalPlayerPanelProps = {
   position: 'top' | 'left' | 'right' | 'bottom';
   teamId?: 'team1' | 'team2';
   isThinking?: boolean;
+  teamScores?: { team1: number; team2: number };
+  isVueltas?: boolean;
 };
 
 export function MinimalPlayerPanel({
@@ -19,6 +21,8 @@ export function MinimalPlayerPanel({
   position,
   teamId,
   isThinking = false,
+  teamScores,
+  isVueltas = false,
 }: MinimalPlayerPanelProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -117,6 +121,14 @@ export function MinimalPlayerPanel({
         />
       </View>
       <Text style={styles.playerName}>{getPlayerDisplayName(playerName)}</Text>
+      {/* Show scores in top right panel during vueltas */}
+      {position === 'right' && isVueltas && teamScores && (
+        <View style={styles.scoreContainer}>
+          <Text style={styles.scoreText}>
+            N: {teamScores.team1} | E: {teamScores.team2}
+          </Text>
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -169,5 +181,16 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  scoreContainer: {
+    marginLeft: 8,
+    paddingLeft: 8,
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  scoreText: {
+    color: colors.gold,
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

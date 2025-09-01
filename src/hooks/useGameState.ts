@@ -41,7 +41,11 @@ import {
   updateMatchScoreAndDeterminePhase,
   startNewPartida,
   isValidTeamIndex,
+  processVueltasCompletion,
+  processTeamReached101,
+  initializeVueltasState,
 } from '../utils/gameLogic';
+import { resetGameStateForVueltas } from '../utils/gameStateFactory';
 import {
   createMemory,
   updateMemory,
@@ -527,19 +531,11 @@ export function useGameState({
         // Add card to current trick
         const newTrick = [...prevState.currentTrick, { playerId: currentPlayer.id, card }];
 
-        console.log('🃏 CARD PLAYED:', {
-          player: currentPlayer.name,
-          card: `${card.value} de ${card.suit}`,
-          trickPosition: newTrick.length,
-          isLastCard: newTrick.length === 4,
-        });
-
         // Update AI memory for all played cards
         setAIMemory(prev => {
           const updated = updateMemory(prev, currentPlayer.id, card);
           // Clear memory if it's getting too large to prevent memory leaks
           if (shouldClearMemory(updated)) {
-            console.log('🧹 Clearing AI memory - too many cards tracked');
             return clearMemory();
           }
           return updated;
@@ -560,18 +556,8 @@ export function useGameState({
             console.warn('Team detection failed for trick winner:', winnerId);
           }
 
-          console.log('🏆 TRICK COMPLETE:', {
-            winner: winnerId,
-            winnerName: prevState.players.find(p => p.id === winnerId)?.name,
-            points,
-            cards: newTrick.map(tc => ({
-              player: tc.playerId,
-              card: `${tc.card.value} de ${tc.card.suit}`,
-            })),
-          });
-
           // Update scores
-          const newTeams = [...prevState.teams] as [Team, Team];
+          let newTeams = [...prevState.teams] as [Team, Team];
           const teamIndex = newTeams.findIndex(t => t.id === winnerTeam);
           if (teamIndex !== -1) {
             newTeams[teamIndex] = {
@@ -607,11 +593,6 @@ export function useGameState({
               drawOrder.push(prevState.players[nextIndex].id);
             }
 
-            console.log('📦 DRAWING ORDER (counter-clockwise from winner):', {
-              drawOrder: drawOrder.map(id => prevState.players.find(p => p.id === id)?.name),
-              deckSize: deckSnapshot.length,
-            });
-
             const initialDeckCountForRound = deckSnapshot.length;
             let trumpAwarded = false;
 
@@ -631,12 +612,6 @@ export function useGameState({
 
           // Winner starts next trick
           const winnerIndex = prevState.players.findIndex(p => p.id === winnerId);
-
-          console.log('🎯 NEXT PLAYER:', {
-            winnerIndex,
-            nextPlayerName: prevState.players[winnerIndex]?.name,
-            nextPlayerId: prevState.players[winnerIndex]?.id,
-          });
 
           // Check if this is the last trick of the game (deck already empty and hands empty before trick)
           const isLastTrick =
@@ -667,7 +642,6 @@ export function useGameState({
           // Determine if we will enter arrastre after dealing (computed but applied after dealing commits)
           const willEnterArrastre = deckSnapshot.length === 0 && !prevState.isVueltas;
           if (willEnterArrastre) {
-            console.log('🎴 PHASE TRANSITION PENDING: Will enter ARRASTRE after dealing');
           }
 
           // Don't clear the trick immediately - show animation first
@@ -700,8 +674,27 @@ export function useGameState({
               const teamReached101FirstHand =
                 !prevState.isVueltas && (newTeams[0].score >= 101 || newTeams[1].score >= 101);
 
+              // Check if any team reached 101 during vueltas (counting initial scores)
+              const teamReached101InVueltas =
+                prevState.isVueltas &&
+                newTeams.some(team => {
+                  const initialScore = prevState.initialScores?.get(team.id) || 0;
+                  const totalScore = initialScore + team.score;
+                  return totalScore >= 101;
+                });
+
               if (teamReached101FirstHand) {
                 phase = 'scoring';
+              } else if (teamReached101InVueltas) {
+                // Team reached 101 during vueltas - combine scores and end the partida
+                // Update team scores to include initial scores from idas
+                if (prevState.initialScores) {
+                  newTeams = newTeams.map(team => ({
+                    ...team,
+                    score: team.score + (prevState.initialScores?.get(team.id) || 0),
+                  })) as [Team, Team];
+                }
+                phase = 'gameOver';
               } else if (isGameOver({ ...prevState, teams: newTeams })) {
                 phase = 'gameOver';
               } else if (isLastTrick && !prevState.isVueltas) {
@@ -742,11 +735,6 @@ export function useGameState({
 
         // Next player's turn
         const nextPlayerIndex = getNextPlayerIndex(prevState.currentPlayerIndex, 4);
-        console.log('Advancing turn:', {
-          from: prevState.currentPlayerIndex,
-          to: nextPlayerIndex,
-          trickSize: newTrick.length,
-        });
         return {
           ...clearedAnimationState,
           hands: newHands,
@@ -1043,7 +1031,6 @@ export function useGameState({
 
     // Save after 500ms of no changes
     saveTimeoutRef.current = setTimeout(() => {
-      console.log('💾 Auto-saving game state');
       saveGameState(gameState).catch(error => {
         console.error('Failed to save game state:', error);
       });
@@ -1077,7 +1064,6 @@ export function useGameState({
       loadGameState()
         .then(savedState => {
           if (savedState) {
-            console.log('📂 Loaded saved game state');
             // Normalize loaded state to avoid being stuck in non-playing phases/animations
             const normalizedState: GameState = {
               ...savedState,
@@ -1110,7 +1096,6 @@ export function useGameState({
   // Keeping as a safety fallback only
   useEffect(() => {
     if (gameState?.phase === 'dealing' && gameState.isVueltas && gameState.hands.size === 0) {
-      console.log('⚠️ Vueltas cards not initialized properly, fixing now');
       // This should not happen anymore, but keeping as safety net
       const deck = shuffleDeck(createDeck());
       const { hands, remainingDeck } = dealInitialCards(
@@ -1173,10 +1158,6 @@ export function useGameState({
           const already = arr.some((t: ReadonlyArray<TrickCard>) => keyOf(t) === lastKey);
           if (!already) {
             arr.push([...prev.lastTrick]);
-            console.log('📦 Trick committed to team pile', {
-              teamId: String(winnerTeamId),
-              newCount: arr.length,
-            });
           }
           m.set(winnerTeamId, arr);
           committedPiles = m;
@@ -1204,7 +1185,6 @@ export function useGameState({
         const names = (prev.pendingPostTrickDraws || []).map(
           d => prev.players.find(p => p.id === d.playerId)?.name || String(d.playerId),
         );
-        console.log('📝 Pending post-trick draws (winner → CCW):', names);
       }
 
       return nextState;
@@ -1217,7 +1197,6 @@ export function useGameState({
       if (!prev) return prev;
       const draws = prev.pendingPostTrickDraws || [];
       if (draws.length === 0) {
-        console.log('✅ Post-trick dealing finalized (no draws). Unblocking plays.');
         return { ...prev, postTrickDealingAnimating: false, postTrickDealingPending: false };
       }
 
@@ -1263,12 +1242,6 @@ export function useGameState({
         canCambiar7: nextPhase === 'arrastre' ? false : prev.canCambiar7,
         lastActionTimestamp: Date.now(),
       } as GameState;
-      console.log('✅ Post-trick dealing finalized. Flags cleared and phase set', {
-        postTrickDealingAnimating: nextState.postTrickDealingAnimating,
-        postTrickDealingPending: nextState.postTrickDealingPending,
-        phase: nextState.phase,
-        currentPlayer: nextState.players[nextState.currentPlayerIndex]?.name,
-      });
       return nextState;
     });
   }, []);
@@ -1318,14 +1291,6 @@ export function useGameState({
 
           const playerName =
             prev.players.find(p => p.id === draw.playerId)?.name || String(draw.playerId);
-          console.log('✅ Dealt card committed via fallback', {
-            player: playerName,
-            playerId: draw.playerId,
-            card: `${draw.card.value} de ${draw.card.suit}`,
-            source: draw.source,
-            newHandSize: hand.length,
-            remainingDraws: remaining.length,
-          });
 
           return {
             ...prev,
@@ -1355,14 +1320,6 @@ export function useGameState({
 
         const playerName =
           prev.players.find(p => p.id === draw.playerId)?.name || String(draw.playerId);
-        console.log('✅ Dealt card committed to hand', {
-          player: playerName,
-          playerId: draw.playerId,
-          card: `${draw.card.value} de ${draw.card.suit}`,
-          source: draw.source,
-          newHandSize: hand.length,
-          remainingDraws: remaining.length,
-        });
 
         if (remaining.length === 0) {
           // Schedule a safety finalize in case overlay onComplete is missed due to a race
@@ -1491,155 +1448,53 @@ export function useGameState({
   // Declare victory in vueltas
   // Continue from scoring phase (either to vueltas or game over)
   const continueFromScoring = useCallback(() => {
-    console.log('🎮 continueFromScoring called', {
-      phase: gameState?.phase,
-      isVueltas: gameState?.isVueltas,
-      isProcessingScoring,
-      matchScore: gameState?.matchScore,
-      team1Score: gameState?.teams[0].score,
-      team2Score: gameState?.teams[1].score,
-    });
-
     if (!gameState || gameState.phase !== 'scoring') {
-      console.log('⚠️ Cannot continue - wrong phase or no game state');
       return;
     }
 
     // Guard against multiple clicks
     if (isProcessingScoring) {
-      console.log('⚠️ Already processing scoring transition, ignoring');
       return;
     }
     setIsProcessingScoring(true);
 
     // CASE 1: Completing vueltas
     if (gameState.isVueltas) {
-      // Vueltas complete - determine winner and update match score
-      let winningTeamId = determineVueltasWinner(gameState);
+      const newState = processVueltasCompletion(gameState);
+      setGameState(newState);
 
-      // Robust fallback: if still undefined (edge cases), use stored tie-breaker or totals
-      if (!winningTeamId) {
-        const fallback = gameState.lastTrickWinnerTeam;
-        if (fallback) {
-          winningTeamId = fallback;
-        } else if (gameState.initialScores) {
-          const team1 = gameState.teams[0];
-          const team2 = gameState.teams[1];
-          const team1Total = (gameState.initialScores.get(team1.id) || 0) + team1.score;
-          const team2Total = (gameState.initialScores.get(team2.id) || 0) + team2.score;
-          if (team1Total !== team2Total) {
-            winningTeamId = team1Total > team2Total ? team1.id : team2.id;
-          }
-        }
-      }
-
-      if (winningTeamId) {
-        console.log('🏆 Vueltas winner determined:', winningTeamId);
-
-        // Update match score immediately
-        const currentMatchScore = gameState.matchScore || createInitialMatchScore();
-        const winningTeamIndex = gameState.teams.findIndex(t => t.id === winningTeamId);
-
-        if (!isValidTeamIndex(winningTeamIndex)) {
-          console.error('⚠️ Invalid winning team index:', winningTeamIndex);
-          setIsProcessingScoring(false);
-          return;
-        }
-
-        // Update match score and determine next phase
-        const { matchScore: updatedMatchScore, phase } = updateMatchScoreAndDeterminePhase(
-          winningTeamIndex,
-          currentMatchScore,
-        );
-
-        // Start new partida immediately
-        setGameState(prev => {
-          if (!prev) return null;
-
-          // If match is complete, stay in gameOver phase
-          if (phase === 'gameOver') {
-            return {
-              ...prev,
-              phase: 'gameOver',
-              matchScore: updatedMatchScore,
-            };
-          }
-
-          // Otherwise start new partida
-          return startNewPartida(prev, updatedMatchScore);
-        });
-
-        // Reset dealing complete flag to trigger animation
+      // Reset dealing complete flag to trigger animation if starting new partida
+      if (newState.phase === 'dealing') {
         setIsDealingComplete(false);
-
-        // Clear AI memory when starting new partida
         setAIMemory(clearMemory());
-      } else {
-        console.error('⚠️ Vueltas complete but no winner determined');
       }
 
       setIsProcessingScoring(false);
       return;
     }
 
-    // CASE 2: First hand complete, check if we need vueltas or immediate winner
+    // CASE 2: Check if we need vueltas or immediate winner
     const team1Score = gameState.teams[0].score;
     const team2Score = gameState.teams[1].score;
     const hasWinner = team1Score >= WINNING_SCORE || team2Score >= WINNING_SCORE;
 
     if (hasWinner) {
       // A team reached 101 points - END PARTIDA IMMEDIATELY
-      console.log('🏆 Team reached 101 points, ending partida immediately', {
-        team1Score,
-        team2Score,
-      });
-
-      // Determine winning team (team with 101+ points)
-      const winningTeamIndex = team1Score >= WINNING_SCORE ? 0 : 1;
-      const currentMatchScore = gameState.matchScore || createInitialMatchScore();
-
-      // Update match score and determine next phase
-      const { matchScore: updatedMatchScore, phase } = updateMatchScoreAndDeterminePhase(
-        winningTeamIndex,
-        currentMatchScore,
-      );
-
-      // Transition to gameOver to show celebration
-      setGameState(prev => {
-        if (!prev) return null;
-
-        return {
-          ...prev,
-          phase: 'gameOver',
-          matchScore: updatedMatchScore,
-        };
-      });
-
+      const newState = processTeamReached101(gameState);
+      setGameState(newState);
       setIsProcessingScoring(false);
     } else {
-      // CASE 3: No team reached 101 points - Show celebration before vueltas
-      console.log('🎯 No team reached 101 points, showing celebration before vueltas', {
-        team1Score,
-        team2Score,
-      });
-
-      // Transition to gameOver phase with pendingVueltas flag
-      setGameState(prev => {
-        if (!prev) return null;
-
-        console.log('🔄 Showing celebration screen before vueltas', {
-          team1Score: prev.teams[0].score,
-          team2Score: prev.teams[1].score,
-        });
-
-        return {
-          ...prev,
-          phase: 'gameOver',
-          pendingVueltas: true, // Flag to indicate vueltas should start after celebration
-          matchScore: prev.matchScore || createInitialMatchScore(),
-        };
-      });
-
+      // CASE 3: No team reached 101 points - Need to play vueltas
+      if (shouldStartVueltas(gameState)) {
+        // Initialize vueltas directly
+        const newState = initializeVueltasState(gameState);
+        setGameState(newState);
+        setIsDealingComplete(false);
+        setAIMemory(clearMemory());
+      } else {
+        // Just stay in scoring phase - HandEndOverlay will remain visible
+        console.log('📊 Staying in scoring phase - waiting for user to continue to vueltas');
+      }
       setIsProcessingScoring(false);
     }
   }, [gameState, isProcessingScoring]);
@@ -1647,62 +1502,14 @@ export function useGameState({
   // Start vueltas after showing celebration
   const startVueltas = useCallback(() => {
     if (!gameState || !gameState.pendingVueltas) {
-      console.log('⚠️ Cannot start vueltas - no pending vueltas state');
       return;
     }
 
-    console.log('🎯 Starting vueltas phase after celebration');
-
-    setGameState(prev => {
-      if (!prev) return null;
-
-      // Store current scores
-      const initialScores = new Map(prev.teams.map(t => [t.id, t.score]));
-
-      // Determine last trick winner team
-      const lastWinner = prev.lastTrickWinner;
-      const lastWinnerTeam = lastWinner
-        ? prev.teams.find(t => t.playerIds.includes(lastWinner))?.id
-        : undefined;
-
-      // Create and shuffle deck for vueltas
-      const deck = shuffleDeck(createDeck());
-      const { hands, remainingDeck } = dealInitialCards(
-        deck,
-        prev.players.map(p => p.id),
-      );
-      const trumpCard = remainingDeck[remainingDeck.length - 1];
-      const deckAfterTrump = remainingDeck.slice(0, -1);
-
-      return {
-        ...prev,
-        phase: 'dealing' as GamePhase, // Start with dealing phase to trigger animation
-        isVueltas: true,
-        initialScores,
-        lastTrickWinnerTeam: lastWinnerTeam,
-        canDeclareVictory: !!lastWinnerTeam,
-        matchScore: prev.matchScore, // Preserve match score through vueltas
-        deck: deckAfterTrump, // Deck with cards ready
-        hands, // Hands with cards ready for dealing animation
-        trumpCard, // Actual trump card
-        trumpSuit: trumpCard.suit, // Actual trump suit
-        currentTrick: [],
-        currentPlayerIndex: (prev.dealerIndex + 1) % 4,
-        dealerIndex: (prev.dealerIndex + 1) % 4,
-        trickCount: 0,
-        lastTrickWinner: undefined,
-        lastTrick: undefined,
-        canCambiar7: true,
-        pendingVueltas: false, // Clear the flag
-      };
-    });
-
-    // Reset dealing complete flag to trigger animation
+    const newState = initializeVueltasState(gameState);
+    setGameState(newState);
     setIsDealingComplete(false);
-
-    // Clear AI memory when starting vueltas
     setAIMemory(clearMemory());
-  }, [gameState?.pendingVueltas]);
+  }, [gameState]);
 
   const declareVictory = useCallback(() => {
     if (!gameState?.isVueltas || gameState.currentTrick.length > 0) return false;
@@ -1786,7 +1593,6 @@ export function useGameState({
       const otherTeam = gameState.teams.find(t => t.id !== playerTeam?.id);
 
       if (otherTeam) {
-        console.log('Renuncio declared:', reason);
         setGameState(prev => {
           if (!prev) return null;
 
@@ -1826,7 +1632,6 @@ export function useGameState({
 
     // Prevent double-tap using the same pattern as VoiceButton
     if (doubleTapGuardRef.current) {
-      console.log('⚠️ Preventing double-tap on continue to next partida');
       return;
     }
 
@@ -1843,11 +1648,8 @@ export function useGameState({
 
       // Don't allow continuing if match is complete (safety check)
       if (isMatchComplete(currentMatchScore)) {
-        console.log('⚠️ Match is complete, cannot continue to next partida');
         return prev;
       }
-
-      console.log('🎴 Starting new partida with match score:', currentMatchScore);
 
       // Start new partida with the updated match score
       return startNewPartida(prev, currentMatchScore);

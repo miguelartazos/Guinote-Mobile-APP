@@ -8,6 +8,9 @@ import {
   TRICK_CELEBRATION_DURATION,
   SMOOTH_EASING,
   BOUNCE_EASING,
+  WINNER_HIGHLIGHT_DURATION,
+  WINNER_HIGHLIGHT_SCALE,
+  WINNER_HIGHLIGHT_DELAY,
 } from '../../constants/animations';
 import { runAfterInteractions } from '../../utils/animationPerformance';
 
@@ -68,10 +71,10 @@ export function TrickCollectionAnimation({
         });
       }
 
-      // 1. Gather cards to a tight pile in the middle (stack)
-      await gatherCardsToCenter();
+      // 1. Highlight the winning card
+      await highlightWinnerCard();
 
-      // 2. Slide the stack to winner pile
+      // 2. Fly cards directly from trick positions to winner pile
       await animateCardsToWinner();
 
       // 3. Show sparkle effect
@@ -116,49 +119,40 @@ export function TrickCollectionAnimation({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const gatherCardsToCenter = async () => {
-    // Compute stack center: average of current card positions
-    let cx = 0;
-    let cy = 0;
-    const n = cardAnimations.length;
-    const positionsNow =
-      startPositions && startPositions.length === n
-        ? startPositions
-        : cards.map(() => ({ x: 0, y: 0 }));
-    positionsNow.forEach(p => {
-      cx += p.x;
-      cy += p.y;
-    });
-    cx = cx / n;
-    cy = cy / n;
+  const highlightWinnerCard = async () => {
+    // Only animate if we have a valid winning card index
+    if (winningCardIndex < 0 || winningCardIndex >= cardAnimations.length) {
+      return;
+    }
 
-    const animations = cardAnimations.map((anim, index) => {
-      // Slight random offset for natural stacking
-      const jitterX = (index - 1.5) * 3;
-      const jitterY = (index - 1.5) * 3;
+    // Wait a moment to let players see the trick
+    await new Promise(resolve => setTimeout(resolve, WINNER_HIGHLIGHT_DELAY));
 
-      return Animated.parallel([
-        Animated.timing(anim.position, {
-          toValue: { x: cx + jitterX, y: cy + jitterY },
-          duration: Math.max(180, TRICK_SLIDE_DURATION * 0.5),
+    // Animate the winning card scale up
+    await new Promise(resolve => {
+      Animated.sequence([
+        // Scale up
+        Animated.timing(cardAnimations[winningCardIndex].scale, {
+          toValue: WINNER_HIGHLIGHT_SCALE,
+          duration: WINNER_HIGHLIGHT_DURATION / 2,
           easing: SMOOTH_EASING,
           useNativeDriver: true,
         }),
-        Animated.timing(anim.scale, {
-          toValue: 0.9,
-          duration: Math.max(160, TRICK_SLIDE_DURATION * 0.45),
+        // Hold at peak
+        Animated.delay(100),
+        // Scale back down
+        Animated.timing(cardAnimations[winningCardIndex].scale, {
+          toValue: 1,
+          duration: WINNER_HIGHLIGHT_DURATION / 2,
+          easing: SMOOTH_EASING,
           useNativeDriver: true,
         }),
-      ]);
-    });
-
-    await new Promise(resolve => {
-      Animated.stagger(60, animations).start(() => resolve(null));
+      ]).start(() => resolve(null));
     });
   };
 
   const animateCardsToWinner = async () => {
-    const dims = getCardDimensions().small;
+    const dims = getCardDimensions().medium;
     const targetX = winnerPosition.x - dims.width / 2;
     const targetY = winnerPosition.y - dims.height / 2;
 
@@ -167,6 +161,7 @@ export function TrickCollectionAnimation({
       const offsetX = 0;
       const offsetY = 0;
 
+      // Keep cards at their natural size (1.0) - no scaling
       return Animated.parallel([
         Animated.timing(anim.position, {
           toValue: {
@@ -177,18 +172,6 @@ export function TrickCollectionAnimation({
           easing: SMOOTH_EASING,
           useNativeDriver: true,
         }),
-        Animated.sequence([
-          Animated.timing(anim.scale, {
-            toValue: 0.9,
-            duration: TRICK_SLIDE_DURATION / 2,
-            useNativeDriver: true,
-          }),
-          Animated.timing(anim.scale, {
-            toValue: 0.7,
-            duration: TRICK_SLIDE_DURATION / 2,
-            useNativeDriver: true,
-          }),
-        ]),
         Animated.timing(anim.rotation, {
           toValue: (Math.random() - 0.5) * 0.2,
           duration: TRICK_SLIDE_DURATION,
@@ -252,7 +235,7 @@ export function TrickCollectionAnimation({
             },
           ]}
         >
-          <SpanishCard card={cards[index]} size="small" />
+          <SpanishCard card={cards[index]} size="medium" />
         </Animated.View>
       ))}
 

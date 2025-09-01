@@ -152,8 +152,13 @@ const portraitStyles = StyleSheet.create({
 
 const landscapeStyles: Partial<typeof portraitStyles> = {
   container: {
+    backgroundColor: colors.background,
     paddingVertical: 24,
     paddingHorizontal: 40,
-    minWidth: 480,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.goldDark,
+    marginBottom: 20,
+    marginTop: 8,
   },
 };
