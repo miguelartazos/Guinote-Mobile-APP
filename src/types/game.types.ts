@@ -137,6 +137,7 @@ export type GameState = Readonly<{
     card: Card;
     cardIndex: number;
   };
+  pendingVueltas?: boolean; // True when game should continue to vueltas after celebration
 }>;
 
 export type GameAction =

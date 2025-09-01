@@ -54,8 +54,12 @@ export function CardDealingAnimation({
   const parentWidth = layout.table.width || Dimensions.get('window').width;
   const parentHeight = layout.table.height || Dimensions.get('window').height;
   const layoutInfo: LayoutInfo = {
-    parentLayout: layout.table.width > 0 ? layout.table : { x: 0, y: 0, width: parentWidth, height: parentHeight },
-    boardLayout: layout.board.width > 0 ? layout.board : computeBoardLayout(parentWidth, parentHeight),
+    parentLayout:
+      layout.table.width > 0
+        ? layout.table
+        : { x: 0, y: 0, width: parentWidth, height: parentHeight },
+    boardLayout:
+      layout.board.width > 0 ? layout.board : computeBoardLayout(parentWidth, parentHeight),
   };
 
   // Animation values for each card
@@ -204,10 +208,10 @@ export function CardDealingAnimation({
         const cardIndexForPlayer = playerIndex * 6 + round * 3 + cardNum;
         const handIndex = round * 3 + cardNum; // index within this player's hand (0..5)
 
-        // First move to dealing line position
+        // First move to dealing line position from top of deck
         const deckPos = getDeckPosition(parentWidth, parentHeight, layoutInfo);
         const lineX = Math.max(8, deckPos.x + 10 + cardNum * 6);
-        const lineY = Math.max(8, deckPos.y + 10);
+        const lineY = Math.max(8, deckPos.y); // Start from top of deck, not offset down
 
         // Compute FINAL absolute position matching GameTable containers
         const finalPos = getFinalAbsoluteCardPosition(
@@ -218,7 +222,7 @@ export function CardDealingAnimation({
           parentWidth,
         );
 
-        // Initialize relative offset at TOP-OF-DECK position (deck top is left:+10, top:0)
+        // Initialize at exact TOP-OF-DECK position (relative to final position)
         cardAnimations.current[cardIndexForPlayer].position.setValue({
           x: deckPos.x + 10 - finalPos.x,
           y: deckPos.y - finalPos.y,
@@ -397,10 +401,7 @@ export function CardDealingAnimation({
 
   return (
     <Animated.View
-      style={[
-        StyleSheet.absoluteFillObject,
-        { opacity: overlayOpacity, zIndex: 50 },
-      ]}
+      style={[StyleSheet.absoluteFillObject, { opacity: overlayOpacity, zIndex: 50 }]}
       pointerEvents="none"
       onLayout={onTableLayout}
     >
@@ -489,10 +490,7 @@ export function CardDealingAnimation({
                 left: finalPos.x,
                 top: finalPos.y,
                 opacity: anim.opacity,
-                transform: [
-                  { translateX: anim.position.x },
-                  { translateY: anim.position.y },
-                ],
+                transform: [{ translateX: anim.position.x }, { translateY: anim.position.y }],
               },
             ]}
           >

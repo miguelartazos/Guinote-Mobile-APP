@@ -13,13 +13,22 @@ type GameEndCelebrationTitleProps = {
     scale: Animated.Value;
     translateY: Animated.Value;
   };
+  isVueltasTransition?: boolean;
 };
 
 export const GameEndCelebrationTitle = React.memo(
-  ({ isWinner, celebrationType, titleAnimation }: GameEndCelebrationTitleProps) => {
+  ({
+    isWinner,
+    celebrationType,
+    titleAnimation,
+    isVueltasTransition = false,
+  }: GameEndCelebrationTitleProps) => {
     const styles = useLandscapeStyles(portraitStyles, landscapeStyles);
 
     const getTitle = () => {
+      if (isVueltasTransition) {
+        return 'FIN DE MANO';
+      }
       if (celebrationType === 'partida') {
         return isWinner ? 'PARTIDA GANADA' : 'PARTIDA PERDIDA';
       }

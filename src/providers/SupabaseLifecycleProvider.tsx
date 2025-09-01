@@ -1,24 +1,23 @@
 import React, { useEffect } from 'react';
 import { AppState, AppStateStatus, Platform } from 'react-native';
-import { useFeatureFlags } from '../config/featureFlags';
+import { useFeatureFlag } from '../config/featureFlags';
 
 /**
  * SupabaseLifecycleProvider
  *
  * Manages Supabase auth token auto-refresh based on app state.
- * Only mounts and imports Supabase when ANY Supabase feature flag is enabled.
+ * Only mounts and imports Supabase when the master enableMultiplayer flag is enabled.
  * This prevents loading Supabase on app startup when running in offline mode.
+ *
+ * CRITICAL: This is part of the Hermes safety boundary.
+ * No Supabase imports occur when enableMultiplayer is false.
  */
 export function SupabaseLifecycleProvider({ children }: { children: React.ReactNode }) {
-  const flags = useFeatureFlags();
-
-  // Check if ANY Supabase feature is enabled
-  const isSupabaseEnabled = Object.keys(flags).some(
-    key => key.startsWith('useSupabase') && flags[key as keyof typeof flags],
-  );
+  // Use the master multiplayer flag - this controls ALL Supabase imports
+  const isMultiplayerEnabled = useFeatureFlag('enableMultiplayer');
 
   useEffect(() => {
-    if (!isSupabaseEnabled || Platform.OS === 'web') {
+    if (!isMultiplayerEnabled || Platform.OS === 'web') {
       return;
     }
 
@@ -57,7 +56,7 @@ export function SupabaseLifecycleProvider({ children }: { children: React.ReactN
         appStateSubscription.remove();
       }
     };
-  }, [isSupabaseEnabled]);
+  }, [isMultiplayerEnabled]);
 
   return <>{children}</>;
 }

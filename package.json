@@ -17,7 +17,6 @@
     "@react-navigation/bottom-tabs": "^7.4.2",
     "@react-navigation/native": "^7.1.14",
     "@react-navigation/stack": "^7.4.2",
-    "@sentry/react-native": "^6.19.0",
     "@supabase/supabase-js": "^2.54.0",
     "expo": "^53.0.20",
     "expo-auth-session": "^6.2.1",

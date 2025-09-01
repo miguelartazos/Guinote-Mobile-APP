@@ -3,7 +3,12 @@ import { View, StyleSheet, Animated, Dimensions, InteractionManager } from 'reac
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
 import type { Card, PlayerId } from '../../types/game.types';
 import { SMOOTH_EASING } from '../../constants/animations';
-import { getDeckPosition, getPlayerCardPosition, getTrumpPosition, type LayoutInfo } from '../../utils/cardPositions';
+import {
+  getDeckPosition,
+  getPlayerCardPosition,
+  getTrumpPosition,
+  type LayoutInfo,
+} from '../../utils/cardPositions';
 import { getCardDimensions } from '../../utils/responsive';
 import { createAnimationCleanup, shouldDropFrames } from '../../utils/animationPerformance';
 
@@ -46,7 +51,7 @@ export function PostTrickDealingAnimation({
 
   // Snapshot the planned draws ONCE to avoid restarts as parent updates state
   const plannedDrawsRef = useRef(draws);
-  
+
   // Cleanup manager for timers
   const cleanupManager = useRef(createAnimationCleanup()).current;
 
@@ -64,39 +69,49 @@ export function PostTrickDealingAnimation({
           return;
         }
 
-      const draw = planned[idx];
-      const playerIndex = playerPositions[draw.playerId] ?? 0;
-      console.log('▶️ Dealing to', {
-        idx,
-        playerId: draw.playerId,
-        position: playerIndex,
-        source: draw.source,
-        card: `${draw.card.value} de ${draw.card.suit}`,
-      });
+        const draw = planned[idx];
+        const playerIndex = playerPositions[draw.playerId] ?? 0;
+        console.log('▶️ Dealing to', {
+          idx,
+          playerId: draw.playerId,
+          position: playerIndex,
+          source: draw.source,
+          card: `${draw.card.value} de ${draw.card.suit}`,
+        });
 
-      // Compute positions on demand using latest layoutInfo
-      const sourcePos = draw.source === 'trump'
-        ? getTrumpPosition(screen.width, screen.height, layoutInfo)
-        : getDeckPosition(screen.width, screen.height, layoutInfo);
+        // Compute positions on demand using latest layoutInfo
+        const sourcePos =
+          draw.source === 'trump'
+            ? getTrumpPosition(screen.width, screen.height, layoutInfo)
+            : (() => {
+                // Get exact top of deck position
+                const deckPos = getDeckPosition(screen.width, screen.height, layoutInfo);
+                return {
+                  x: deckPos.x + 10, // Left edge of top card
+                  y: deckPos.y, // Top edge of deck (no offset)
+                  rotation: 0,
+                  zIndex: 200,
+                };
+              })();
 
-      const handSizeBase = currentHandSizes[draw.playerId as string] || 0;
-      const priorDrawsForPlayer = planned
-        .slice(0, idx)
-        .filter(d => d.playerId === draw.playerId).length;
-      const targetCardIndex = handSizeBase + priorDrawsForPlayer;
-      const targetPos = getPlayerCardPosition(
-        playerIndex,
-        targetCardIndex,
-        Math.max(targetCardIndex + 1, handSizeBase + 1),
-        playerIndex === 0 ? 'medium' : 'small',
-        layoutInfo,
-      );
+        const handSizeBase = currentHandSizes[draw.playerId as string] || 0;
+        const priorDrawsForPlayer = planned
+          .slice(0, idx)
+          .filter(d => d.playerId === draw.playerId).length;
+        const targetCardIndex = handSizeBase + priorDrawsForPlayer;
+        const targetPos = getPlayerCardPosition(
+          playerIndex,
+          targetCardIndex,
+          Math.max(targetCardIndex + 1, handSizeBase + 1),
+          playerIndex === 0 ? 'medium' : 'small',
+          layoutInfo,
+        );
 
-      // Initialize start
-      position.setValue({ x: sourcePos.x, y: sourcePos.y });
-      opacity.setValue(0);
-      scale.setValue(1);
-      rotation.setValue(0);
+        // Initialize start
+        position.setValue({ x: sourcePos.x, y: sourcePos.y });
+        opacity.setValue(0);
+        scale.setValue(1);
+        rotation.setValue(0);
 
         // Optimize animation duration based on performance
         const durationPerCard = shouldDropFrames() ? 300 : 350; // Faster than before (was 440)
@@ -112,10 +127,22 @@ export function PostTrickDealingAnimation({
               useNativeDriver: true,
             }),
             Animated.sequence([
-              Animated.timing(scale, { toValue: 1.08, duration: durationPerCard * 0.5, useNativeDriver: true }),
-              Animated.timing(scale, { toValue: 1, duration: durationPerCard * 0.5, useNativeDriver: true }),
+              Animated.timing(scale, {
+                toValue: 1.08,
+                duration: durationPerCard * 0.5,
+                useNativeDriver: true,
+              }),
+              Animated.timing(scale, {
+                toValue: 1,
+                duration: durationPerCard * 0.5,
+                useNativeDriver: true,
+              }),
             ]),
-            Animated.timing(rotation, { toValue: 0, duration: durationPerCard, useNativeDriver: true }),
+            Animated.timing(rotation, {
+              toValue: 0,
+              duration: durationPerCard,
+              useNativeDriver: true,
+            }),
           ]),
         ]).start(() => {
           // Inform host to commit this card to hands/deck immediately
@@ -167,11 +194,7 @@ export function PostTrickDealingAnimation({
         style={[
           styles.animatedCard,
           {
-            transform: [
-              { translateX: position.x },
-              { translateY: position.y },
-              { scale },
-            ],
+            transform: [{ translateX: position.x }, { translateY: position.y }, { scale }],
             opacity,
             width: dims[size].width,
             height: dims[size].height,
@@ -192,5 +215,3 @@ const styles = StyleSheet.create({
 });
 
 export default PostTrickDealingAnimation;
-
-

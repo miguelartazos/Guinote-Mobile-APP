@@ -179,11 +179,11 @@ export function CollapsibleGameMenu({
 const styles = StyleSheet.create({
   menuButton: {
     position: 'absolute',
-    top: 20,
-    left: 20,
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
+    top: 60,
+    left: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     borderColor: colors.gold,
   },
   menuIcon: {
-    fontSize: 24,
+    fontSize: 20,
     color: colors.gold,
   },
   overlay: {

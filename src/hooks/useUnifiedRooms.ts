@@ -1,19 +1,609 @@
-import { useState } from 'react';
+/**
+ * Unified rooms hook with offline-first support
+ *
+ * Provides:
+ * - Room creation and joining
+ * - Offline queue with optimistic updates
+ * - Feature flag protection
+ * - Automatic sync on reconnect
+ */
 
-export function useUnifiedRooms() {
-  const [publicRooms] = useState<any[]>([]);
-  return {
-    publicRooms,
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+import { useFeatureFlag } from '../config/featureFlags';
+import { createRealtimeClient } from '../services/realtimeClient.native';
+import { connectionService } from '../services/connectionService';
+import { useConnectionStatus } from './useConnectionStatus';
+import type { Brand } from '../types/game.types';
+import type { Database } from '../types/database.types';
+import type { ActionType, QueuedAction, RoomId, UserId } from '../services/connectionService';
+
+// Types
+export type Room = Database['public']['Tables']['rooms']['Row'];
+export type RoomPlayer = Database['public']['Tables']['room_players']['Row'];
+export type GameMode = Room['game_mode'];
+export type RoomStatus = Room['status'];
+
+export interface AIConfig {
+  difficulty: 'easy' | 'medium' | 'hard';
+  personality: 'aggressive' | 'defensive' | 'balanced' | 'unpredictable';
+}
+
+export interface Player {
+  id: string;
+  name: string;
+  position: number;
+  teamId: 'team1' | 'team2' | null;
+  isReady: boolean;
+  isBot: boolean;
+  botConfig?: AIConfig;
+  connectionStatus: 'connected' | 'disconnected' | 'reconnecting';
+}
+
+export interface RoomState {
+  room: Room | null;
+  players: Player[];
+  isLoading: boolean;
+  error: string | null;
+  queuedActions: number;
+}
+
+export interface RoomActions {
+  createFriendsRoom(hostId: string): Promise<Room>;
+  joinRoomByCode(code: string, userId: string): Promise<Room>;
+  leaveRoom(roomId: string): Promise<void>;
+  addAIPlayer(roomId: string, config: AIConfig): Promise<void>;
+  subscribeToRoom(roomId: string): () => void;
+  getRoomPlayers(roomId: string): Promise<Player[]>;
+  updateReadyStatus(roomId: string, playerId: string, isReady: boolean): Promise<void>;
+  startGame(roomId: string): Promise<void>;
+}
+
+/**
+ * Hook for unified room management with offline support
+ */
+export function useUnifiedRooms(): RoomState & RoomActions {
+  const enableMultiplayer = useFeatureFlag('enableMultiplayer');
+  const { isOnline } = useConnectionStatus();
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const [state, setState] = useState<RoomState>({
+    room: null,
+    players: [],
     isLoading: false,
     error: null,
-    createRoom: async () => {
-      throw new Error('Online rooms disabled');
+    queuedActions: 0,
+  });
+
+  // Set up action executor for connection service
+  useEffect(() => {
+    if (!enableMultiplayer) return;
+
+    connectionService.setActionExecutor(async (action: QueuedAction) => {
+      const client = await createRealtimeClient();
+      if (!client) {
+        throw new Error('Failed to create realtime client');
+      }
+
+      switch (action.type) {
+        case 'CREATE_ROOM': {
+          const { data, error } = await client
+            .from('rooms')
+            .insert({
+              code: action.payload.code as string,
+              host_id: action.payload.hostId as string,
+              game_mode: 'friend',
+              max_players: 4,
+              current_players: 1,
+              is_public: false,
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+          return data;
+        }
+
+        case 'JOIN_ROOM': {
+          const { data: room, error: roomError } = await client
+            .from('rooms')
+            .select('*')
+            .eq('code', action.payload.code as string)
+            .single();
+
+          if (roomError) throw roomError;
+
+          const { error: joinError } = await client.from('room_players').insert({
+            room_id: room.id,
+            player_id: action.payload.userId as string,
+            position: (action.payload.position as number) || 0,
+            is_ready: false,
+            is_bot: false,
+          });
+
+          if (joinError) throw joinError;
+          return room;
+        }
+
+        case 'LEAVE_ROOM': {
+          const { error } = await client
+            .from('room_players')
+            .update({ left_at: new Date().toISOString() })
+            .eq('room_id', action.payload.roomId as string)
+            .eq('player_id', action.payload.playerId as string);
+
+          if (error) throw error;
+          return;
+        }
+
+        case 'ADD_AI_PLAYER': {
+          const config = action.payload.config as AIConfig;
+          const { error } = await client.from('room_players').insert({
+            room_id: action.payload.roomId as string,
+            player_id: `ai_${Date.now()}`,
+            position: (action.payload.position as number) || 0,
+            is_ready: true,
+            is_bot: true,
+            bot_difficulty: config.difficulty,
+            bot_personality: config.personality,
+          });
+
+          if (error) throw error;
+          return;
+        }
+
+        case 'UPDATE_READY_STATUS': {
+          const { error } = await client
+            .from('room_players')
+            .update({ is_ready: action.payload.isReady as boolean })
+            .eq('room_id', action.payload.roomId as string)
+            .eq('player_id', action.payload.playerId as string);
+
+          if (error) throw error;
+          return;
+        }
+
+        case 'START_GAME': {
+          const { error } = await client
+            .from('rooms')
+            .update({
+              status: 'playing',
+              started_at: new Date().toISOString(),
+            })
+            .eq('id', action.payload.roomId as string);
+
+          if (error) throw error;
+          return;
+        }
+
+        default:
+          throw new Error(`Unknown action type: ${action.type}`);
+      }
+    });
+  }, [enableMultiplayer]);
+
+  // Process queue when coming online
+  useEffect(() => {
+    if (isOnline && enableMultiplayer) {
+      connectionService.processQueue().then(summary => {
+        if (summary.processed > 0 && __DEV__) {
+          console.log(`[useUnifiedRooms] Processed ${summary.processed} queued actions`);
+        }
+        setState(prev => ({ ...prev, queuedActions: summary.remaining }));
+      });
+    }
+  }, [isOnline, enableMultiplayer]);
+
+  // Update queued actions count
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setState(prev => ({ ...prev, queuedActions: connectionService.getQueuedCount() }));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  /**
+   * Create a friends room
+   */
+  const createFriendsRoom = useCallback(
+    async (hostId: string): Promise<Room> => {
+      if (!enableMultiplayer) {
+        throw new Error('Multiplayer is disabled');
+      }
+
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+      try {
+        // Generate room code
+        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+        // Optimistic room creation
+        const optimisticRoom: Room = {
+          id: `temp_${Date.now()}` as string,
+          code,
+          host_id: hostId,
+          game_state: null,
+          status: 'waiting',
+          game_mode: 'friend',
+          max_players: 4,
+          current_players: 1,
+          is_public: false,
+          created_at: new Date().toISOString(),
+          started_at: null,
+          finished_at: null,
+          last_activity_at: new Date().toISOString(),
+        };
+
+        const { result, queued } = await connectionService.queueAction<Room>(
+          'CREATE_ROOM',
+          { code, hostId },
+          optimisticRoom,
+          isOnline,
+        );
+
+        if (result) {
+          setState(prev => ({
+            ...prev,
+            room: result,
+            isLoading: false,
+            queuedActions: queued ? prev.queuedActions + 1 : prev.queuedActions,
+          }));
+          return result;
+        }
+
+        throw new Error('Failed to create room');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to create room';
+        setState(prev => ({ ...prev, error: errorMessage, isLoading: false }));
+        throw error;
+      }
     },
-    joinRoom: async () => {
-      throw new Error('Online rooms disabled');
+    [enableMultiplayer, isOnline],
+  );
+
+  /**
+   * Join a room by code
+   */
+  const joinRoomByCode = useCallback(
+    async (code: string, userId: string): Promise<Room> => {
+      if (!enableMultiplayer) {
+        throw new Error('Multiplayer is disabled');
+      }
+
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+      try {
+        // For offline mode, create optimistic response
+        const optimisticRoom: Room = {
+          id: `temp_${Date.now()}` as string,
+          code,
+          host_id: null,
+          game_state: null,
+          status: 'waiting',
+          game_mode: 'friend',
+          max_players: 4,
+          current_players: 2,
+          is_public: false,
+          created_at: new Date().toISOString(),
+          started_at: null,
+          finished_at: null,
+          last_activity_at: new Date().toISOString(),
+        };
+
+        const { result, queued } = await connectionService.queueAction<Room>(
+          'JOIN_ROOM',
+          { code, userId },
+          optimisticRoom,
+          isOnline,
+        );
+
+        if (result) {
+          setState(prev => ({
+            ...prev,
+            room: result,
+            isLoading: false,
+            queuedActions: queued ? prev.queuedActions + 1 : prev.queuedActions,
+          }));
+          return result;
+        }
+
+        throw new Error('Failed to join room');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to join room';
+        setState(prev => ({ ...prev, error: errorMessage, isLoading: false }));
+        throw error;
+      }
     },
-    refreshRooms: async () => {
-      return;
+    [enableMultiplayer, isOnline],
+  );
+
+  /**
+   * Leave the current room
+   */
+  const leaveRoom = useCallback(
+    async (roomId: string): Promise<void> => {
+      if (!enableMultiplayer) {
+        return;
+      }
+
+      try {
+        await connectionService.queueAction(
+          'LEAVE_ROOM',
+          { roomId, playerId: 'current_user' }, // TODO: Get actual player ID
+          undefined,
+          isOnline,
+        );
+
+        // Clean up subscription
+        if (channelRef.current) {
+          const client = await createRealtimeClient();
+          if (client) {
+            await client.removeChannel(channelRef.current);
+          }
+          channelRef.current = null;
+        }
+
+        setState(prev => ({ ...prev, room: null, players: [] }));
+      } catch (error) {
+        console.error('[useUnifiedRooms] Failed to leave room:', error);
+      }
     },
+    [enableMultiplayer, isOnline],
+  );
+
+  /**
+   * Add an AI player to the room
+   */
+  const addAIPlayer = useCallback(
+    async (roomId: string, config: AIConfig): Promise<void> => {
+      if (!enableMultiplayer) {
+        throw new Error('Multiplayer is disabled');
+      }
+
+      try {
+        const position = state.players.length;
+
+        await connectionService.queueAction(
+          'ADD_AI_PLAYER',
+          { roomId, config, position },
+          undefined,
+          isOnline,
+        );
+
+        // Optimistically add AI player to state
+        const aiPlayer: Player = {
+          id: `ai_${Date.now()}`,
+          name: `AI Player ${position}`,
+          position,
+          teamId: position % 2 === 0 ? 'team1' : 'team2',
+          isReady: true,
+          isBot: true,
+          botConfig: config,
+          connectionStatus: 'connected',
+        };
+
+        setState(prev => ({
+          ...prev,
+          players: [...prev.players, aiPlayer],
+        }));
+      } catch (error) {
+        console.error('[useUnifiedRooms] Failed to add AI player:', error);
+        throw error;
+      }
+    },
+    [enableMultiplayer, isOnline, state.players],
+  );
+
+  /**
+   * Subscribe to room updates
+   */
+  const subscribeToRoom = useCallback(
+    (roomId: string): (() => void) => {
+      if (!enableMultiplayer) {
+        return () => {};
+      }
+
+      const setupSubscription = async () => {
+        try {
+          const client = await createRealtimeClient();
+          if (!client) return;
+
+          // Clean up existing channel
+          if (channelRef.current) {
+            await client.removeChannel(channelRef.current);
+          }
+
+          // Create new channel for the room
+          const channel = client
+            .channel(`room:${roomId}`)
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'rooms',
+                filter: `id=eq.${roomId}`,
+              },
+              payload => {
+                if (payload.new) {
+                  setState(prev => ({ ...prev, room: payload.new as Room }));
+                }
+              },
+            )
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'room_players',
+                filter: `room_id=eq.${roomId}`,
+              },
+              () => {
+                // Refresh players when changes occur
+                getRoomPlayers(roomId);
+              },
+            )
+            .subscribe();
+
+          channelRef.current = channel;
+        } catch (error) {
+          console.error('[useUnifiedRooms] Failed to subscribe to room:', error);
+        }
+      };
+
+      setupSubscription();
+
+      return () => {
+        if (channelRef.current) {
+          createRealtimeClient().then(client => {
+            if (client && channelRef.current) {
+              client.removeChannel(channelRef.current);
+            }
+          });
+        }
+      };
+    },
+    [enableMultiplayer],
+  );
+
+  /**
+   * Get players in a room
+   */
+  const getRoomPlayers = useCallback(
+    async (roomId: string): Promise<Player[]> => {
+      if (!enableMultiplayer) {
+        return [];
+      }
+
+      try {
+        const client = await createRealtimeClient();
+        if (!client) {
+          return [];
+        }
+
+        const { data, error } = await client
+          .from('room_players')
+          .select('*, profiles:player_id(username, display_name)')
+          .eq('room_id', roomId)
+          .is('left_at', null);
+
+        if (error) throw error;
+
+        const players: Player[] = data.map((p: any) => ({
+          id: p.player_id,
+          name: p.is_bot
+            ? `AI Player ${p.position}`
+            : p.profiles?.display_name || p.profiles?.username || 'Unknown',
+          position: p.position,
+          teamId: p.team_id,
+          isReady: p.is_ready,
+          isBot: p.is_bot,
+          botConfig: p.is_bot
+            ? {
+                difficulty: p.bot_difficulty || 'medium',
+                personality: p.bot_personality || 'balanced',
+              }
+            : undefined,
+          connectionStatus: p.connection_status,
+        }));
+
+        setState(prev => ({ ...prev, players }));
+        return players;
+      } catch (error) {
+        console.error('[useUnifiedRooms] Failed to get room players:', error);
+        return [];
+      }
+    },
+    [enableMultiplayer],
+  );
+
+  /**
+   * Update player ready status
+   */
+  const updateReadyStatus = useCallback(
+    async (roomId: string, playerId: string, isReady: boolean): Promise<void> => {
+      if (!enableMultiplayer) return;
+
+      try {
+        await connectionService.queueAction(
+          'UPDATE_READY_STATUS',
+          { roomId, playerId, isReady },
+          undefined,
+          isOnline,
+        );
+
+        // Optimistically update state
+        setState(prev => ({
+          ...prev,
+          players: prev.players.map(p => (p.id === playerId ? { ...p, isReady } : p)),
+        }));
+      } catch (error) {
+        console.error('[useUnifiedRooms] Failed to update ready status:', error);
+      }
+    },
+    [enableMultiplayer, isOnline],
+  );
+
+  /**
+   * Start the game (host only)
+   */
+  const startGame = useCallback(
+    async (roomId: string): Promise<void> => {
+      if (!enableMultiplayer) {
+        throw new Error('Multiplayer is disabled');
+      }
+
+      try {
+        await connectionService.queueAction('START_GAME', { roomId }, undefined, isOnline);
+
+        // Optimistically update room status
+        setState(prev => ({
+          ...prev,
+          room: prev.room ? { ...prev.room, status: 'playing' } : null,
+        }));
+      } catch (error) {
+        console.error('[useUnifiedRooms] Failed to start game:', error);
+        throw error;
+      }
+    },
+    [enableMultiplayer, isOnline],
+  );
+
+  // Return offline-safe defaults when multiplayer is disabled
+  if (!enableMultiplayer) {
+    return {
+      room: null,
+      players: [],
+      isLoading: false,
+      error: 'Multiplayer is disabled',
+      queuedActions: 0,
+      createFriendsRoom: async () => {
+        throw new Error('Multiplayer is disabled');
+      },
+      joinRoomByCode: async () => {
+        throw new Error('Multiplayer is disabled');
+      },
+      leaveRoom: async () => {},
+      addAIPlayer: async () => {
+        throw new Error('Multiplayer is disabled');
+      },
+      subscribeToRoom: () => () => {},
+      getRoomPlayers: async () => [],
+      updateReadyStatus: async () => {},
+      startGame: async () => {
+        throw new Error('Multiplayer is disabled');
+      },
+    };
+  }
+
+  return {
+    ...state,
+    createFriendsRoom,
+    joinRoomByCode,
+    leaveRoom,
+    addAIPlayer,
+    subscribeToRoom,
+    getRoomPlayers,
+    updateReadyStatus,
+    startGame,
   };
 }

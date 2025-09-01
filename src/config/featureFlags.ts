@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface FeatureFlags {
+  // Master switch for all multiplayer features - MUST be OFF for Hermes safety
+  enableMultiplayer: boolean;
+
+  // Individual Supabase features (require enableMultiplayer to be true)
   useSupabaseAuth: boolean;
   useSupabaseRooms: boolean;
   useSupabaseGame: boolean;
@@ -8,9 +12,17 @@ export interface FeatureFlags {
   useSupabaseFriends: boolean;
   useSupabaseVoice: boolean;
   useSupabaseStatistics: boolean;
+
+  // Additional feature flags from the multiplayer plan
+  enableVoiceChat: boolean;
+  enableTournaments: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
+  // CRITICAL: Keep OFF for Hermes safety - no Supabase imports at startup
+  enableMultiplayer: false,
+
+  // Individual Supabase features (ignored if enableMultiplayer is false)
   useSupabaseAuth: false,
   useSupabaseRooms: false,
   useSupabaseGame: false,
@@ -18,10 +30,18 @@ const DEFAULT_FLAGS: FeatureFlags = {
   useSupabaseFriends: false,
   useSupabaseVoice: false,
   useSupabaseStatistics: false,
+
+  // Additional features
+  enableVoiceChat: false,
+  enableTournaments: false,
 };
 
 // Keep all features OFF by default - enable one at a time for testing
 const DEVELOPMENT_FLAGS: FeatureFlags = {
+  // CRITICAL: Keep OFF for Hermes safety - no Supabase imports at startup
+  enableMultiplayer: false,
+
+  // Individual Supabase features (ignored if enableMultiplayer is false)
   useSupabaseAuth: false, // Enable when ready to test auth
   useSupabaseRooms: false, // Enable when ready to test rooms
   useSupabaseGame: false, // Enable when ready to test game
@@ -29,6 +49,10 @@ const DEVELOPMENT_FLAGS: FeatureFlags = {
   useSupabaseFriends: false, // Enable when ready to test friends
   useSupabaseVoice: false, // Enable when ready to test voice
   useSupabaseStatistics: false, // Enable when ready to test stats
+
+  // Additional features
+  enableVoiceChat: false,
+  enableTournaments: false,
 };
 
 class FeatureFlagManager {
@@ -101,6 +125,25 @@ class FeatureFlagManager {
 
 export const featureFlags = new FeatureFlagManager();
 
+/**
+ * Check if multiplayer features are available
+ * This is the master switch that controls all Supabase imports
+ */
+export function isMultiplayerEnabled(): boolean {
+  return featureFlags.getFlag('enableMultiplayer');
+}
+
+/**
+ * Check if a specific Supabase feature is available
+ * Returns false if multiplayer is disabled (master switch is off)
+ */
+export function isSupabaseFeatureEnabled(feature: keyof FeatureFlags): boolean {
+  if (!isMultiplayerEnabled()) {
+    return false;
+  }
+  return featureFlags.getFlag(feature);
+}
+
 // Hook to use feature flags in components
 import { useState, useEffect } from 'react';
 
@@ -109,7 +152,9 @@ export function useFeatureFlags(): FeatureFlags {
 
   useEffect(() => {
     // Initialize on mount
-    featureFlags.initialize();
+    featureFlags.initialize().catch(error => {
+      console.error('Failed to initialize feature flags:', error);
+    });
 
     // Subscribe to changes
     const unsubscribe = featureFlags.subscribe(setFlags);

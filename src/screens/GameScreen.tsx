@@ -85,6 +85,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     reorderPlayerHand,
     continueFromScoring,
     continueToNextPartida,
+    startVueltas,
     declareVictory,
     declareRenuncio,
     getValidCardsForCurrentPlayer,
@@ -649,43 +650,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     setSelectedRenuncioReason('');
   };
 
-  // Don't return early for scoring phase - let the game table remain visible
-  if (gameState.phase === 'scoring' && showGameEndCelebration) {
-    const team1 = gameState.teams[0];
-    const team2 = gameState.teams[1];
-    const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
-    let winnerTeamId: string | undefined;
-
-    if (gameState.isVueltas) {
-      const wt = determineVueltasWinner(gameState);
-      winnerTeamId = wt || undefined;
-    } else {
-      const wt = gameState.teams.find(t => t.score >= 101);
-      winnerTeamId = wt?.id;
-    }
-
-    const playerWon = winnerTeamId && playerTeam && winnerTeamId === playerTeam.id;
-
-    return (
-      <ScreenContainer orientation="landscape" style={styles.gameContainer}>
-        <GameEndCelebration
-          isWinner={!!playerWon}
-          finalScore={{ player: team1.score, opponent: team2.score }}
-          onComplete={() => {
-            setShowGameEndCelebration(false);
-            continueFromScoring();
-          }}
-          playSound={playerWon ? playVictorySound : playDefeatSound}
-          celebrationType={'partida'}
-          matchScore={gameState.matchScore}
-          onContinue={() => {
-            setShowGameEndCelebration(false);
-            continueFromScoring();
-          }}
-        />
-      </ScreenContainer>
-    );
-  }
+  // Don't show GameEndCelebration during scoring phase - only HandEndOverlay should appear
+  // GameEndCelebration will show in gameOver phase after the user clicks continue
 
   // Show game over screen
   if (gameState.phase === 'gameOver') {
@@ -695,33 +661,50 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     const team1 = gameState.teams[0];
     const team2 = gameState.teams[1];
 
-    if (showGameEndCelebration) {
-      // Determine celebration type based on match progress
+    // Check if we should show celebration for pending vueltas
+    if (gameState.pendingVueltas || showGameEndCelebration) {
+      // Determine celebration type based on context
       const matchScore = gameState.matchScore;
       let celebrationType: 'partida' | 'coto' | 'match' = 'partida';
 
-      if (gameState.phase === 'gameOver') {
+      if (!gameState.pendingVueltas && gameState.phase === 'gameOver') {
         celebrationType = 'match'; // Full match is complete
       } else if (matchScore && (matchScore.team1Cotos > 0 || matchScore.team2Cotos > 0)) {
         celebrationType = 'coto'; // A coto was just won
       }
 
+      // For pending vueltas, always show the celebration with custom handling
+      const isVueltasTransition = gameState.pendingVueltas;
+
       return (
         <ScreenContainer orientation="landscape" style={styles.gameContainer}>
           <GameEndCelebration
-            isWinner={playerWon}
+            isWinner={isVueltasTransition ? false : playerWon} // No winner yet for vueltas
             finalScore={{ player: team1.score, opponent: team2.score }}
             onComplete={() => {
-              setShowGameEndCelebration(false);
-              // After celebration completes, automatically continue if not match end
-              if (celebrationType !== 'match') {
-                continueToNextPartida();
+              if (isVueltasTransition) {
+                // Don't hide celebration, let onContinue handle it
+              } else {
+                setShowGameEndCelebration(false);
+                // After celebration completes, automatically continue if not match end
+                if (celebrationType !== 'match') {
+                  continueToNextPartida();
+                }
               }
             }}
-            playSound={playerWon ? playVictorySound : playDefeatSound}
-            celebrationType={celebrationType}
+            playSound={
+              isVueltasTransition ? undefined : playerWon ? playVictorySound : playDefeatSound
+            }
+            celebrationType={isVueltasTransition ? 'partida' : celebrationType}
             matchScore={matchScore}
-            onContinue={celebrationType !== 'match' ? continueToNextPartida : undefined}
+            onContinue={
+              isVueltasTransition
+                ? startVueltas
+                : celebrationType !== 'match'
+                ? continueToNextPartida
+                : undefined
+            }
+            isVueltasTransition={isVueltasTransition}
           />
         </ScreenContainer>
       );
@@ -1007,23 +990,9 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             isVueltas={gameState.isVueltas}
             shouldPlayVueltas={shouldStartVueltas(gameState)}
             onAutoAdvance={() => {
-              const team1 = gameState.teams[0];
-              const team2 = gameState.teams[1];
-              const hasWinner = team1.score >= 101 || team2.score >= 101;
-
-              // Hide overlay first
+              // Hide overlay and let continueFromScoring handle all logic
               setShowHandEndOverlay(false);
-
-              if (gameState.isVueltas && hasWinner) {
-                // Vueltas complete with winner - show celebration
-                console.log('🎉 Vueltas complete, showing victory celebration');
-                setShowGameEndCelebration(true);
-              } else {
-                // Either first hand (with or without 101) or vueltas without winner
-                // Let continueFromScoring handle the logic
-                console.log('➡️ Continuing to next phase');
-                continueFromScoring();
-              }
+              continueFromScoring();
             }}
           />
         )}

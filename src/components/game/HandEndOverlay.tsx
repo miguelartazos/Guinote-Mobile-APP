@@ -40,13 +40,15 @@ const ANIMATION_DURATIONS = {
 } as const;
 
 const CARD_DIMENSIONS = {
-  // Optimized for iPhone landscape
-  WIDTH_RATIO: 0.7, // Wider for landscape
-  MAX_WIDTH: 600, // Increased for better landscape use
-  HEIGHT_RATIO: 0.85, // Use more vertical space in landscape
-  MAX_HEIGHT: 400, // Better for iPhone landscape
-  SMALL_SCREEN_THRESHOLD: 380, // iPhone SE landscape height
-  SMALL_SCREEN_HEIGHT_RATIO: 0.9, // Use most of the height on small screens
+  // Responsive design for all iPhone sizes in landscape
+  WIDTH_RATIO: 0.75, // Use 75% of screen width
+  MAX_WIDTH: 700, // Max width for larger devices
+  MIN_WIDTH: 400, // Min width for smaller devices
+  HEIGHT_RATIO: 0.8, // Use 80% of screen height
+  MAX_HEIGHT: 450, // Max height for larger devices
+  MIN_HEIGHT: 300, // Min height for smaller devices
+  SMALL_SCREEN_THRESHOLD: 400, // iPhone SE/mini landscape height
+  MEDIUM_SCREEN_THRESHOLD: 450, // iPhone 14/15 landscape height
 } as const;
 
 // Utility function for color with opacity
@@ -86,18 +88,55 @@ export function HandEndOverlay({
   const team2ScoreAnim = useRef(new Animated.Value(0)).current;
 
   // Calculate dimensions with useMemo for performance
-  const { cardWidth, cardHeight, isSmallScreen } = useMemo(() => {
+  const { cardWidth, cardHeight, screenSize } = useMemo(() => {
     const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-    const isSmall = screenHeight < CARD_DIMENSIONS.SMALL_SCREEN_THRESHOLD;
+
+    let size: 'small' | 'medium' | 'large';
+    if (screenHeight < CARD_DIMENSIONS.SMALL_SCREEN_THRESHOLD) {
+      size = 'small';
+    } else if (screenHeight < CARD_DIMENSIONS.MEDIUM_SCREEN_THRESHOLD) {
+      size = 'medium';
+    } else {
+      size = 'large';
+    }
+
+    // Calculate responsive dimensions
+    const calculatedWidth = screenWidth * CARD_DIMENSIONS.WIDTH_RATIO;
+    const calculatedHeight = screenHeight * CARD_DIMENSIONS.HEIGHT_RATIO;
 
     return {
-      cardWidth: Math.min(screenWidth * CARD_DIMENSIONS.WIDTH_RATIO, CARD_DIMENSIONS.MAX_WIDTH),
-      cardHeight: isSmall
-        ? screenHeight * CARD_DIMENSIONS.SMALL_SCREEN_HEIGHT_RATIO
-        : Math.min(screenHeight * CARD_DIMENSIONS.HEIGHT_RATIO, CARD_DIMENSIONS.MAX_HEIGHT),
-      isSmallScreen: isSmall,
+      cardWidth: Math.max(
+        CARD_DIMENSIONS.MIN_WIDTH,
+        Math.min(calculatedWidth, CARD_DIMENSIONS.MAX_WIDTH),
+      ),
+      cardHeight: Math.max(
+        CARD_DIMENSIONS.MIN_HEIGHT,
+        Math.min(calculatedHeight, CARD_DIMENSIONS.MAX_HEIGHT),
+      ),
+      screenSize: size,
     };
   }, []); // Empty deps since screen dimensions don't change during component lifecycle
+
+  const isSmallScreen = screenSize === 'small';
+
+  // Calculate hand points from tricks with 10 de últimas bonus
+  const team1HandPointsCalculated = useMemo(
+    () =>
+      team1Tricks.length > 0
+        ? calculateHandPoints(team1Tricks) +
+          (team1Id ? getLastTrickBonus(lastTrickWinnerTeam, team1Id) : 0)
+        : 0,
+    [team1Tricks, lastTrickWinnerTeam, team1Id],
+  );
+
+  const team2HandPointsCalculated = useMemo(
+    () =>
+      team2Tricks.length > 0
+        ? calculateHandPoints(team2Tricks) +
+          (team2Id ? getLastTrickBonus(lastTrickWinnerTeam, team2Id) : 0)
+        : 0,
+    [team2Tricks, lastTrickWinnerTeam, team2Id],
+  );
 
   useEffect(() => {
     if (visible) {
@@ -236,12 +275,12 @@ export function HandEndOverlay({
                 </Animated.Text>
                 <Text style={styles.puntosLabel}>PUNTOS</Text>
               </View>
-              {team1Tricks.length > 0 && (
+              {team1HandPointsCalculated > 0 && (
                 <View style={styles.handPointsContainer}>
                   <Text
                     style={[styles.handPointsInfo, isSmallScreen && styles.handPointsInfoSmall]}
                   >
-                    +{calculateHandPoints(team1Tricks) + (team1Id === lastTrickWinnerTeam ? 10 : 0)}
+                    +{team1HandPointsCalculated}
                   </Text>
                   <Text style={styles.handPointsLabel}>esta mano</Text>
                 </View>
@@ -289,12 +328,12 @@ export function HandEndOverlay({
                 </Animated.Text>
                 <Text style={styles.puntosLabel}>PUNTOS</Text>
               </View>
-              {team2Tricks.length > 0 && (
+              {team2HandPointsCalculated > 0 && (
                 <View style={styles.handPointsContainer}>
                   <Text
                     style={[styles.handPointsInfo, isSmallScreen && styles.handPointsInfoSmall]}
                   >
-                    +{calculateHandPoints(team2Tricks) + (team2Id === lastTrickWinnerTeam ? 10 : 0)}
+                    +{team2HandPointsCalculated}
                   </Text>
                   <Text style={styles.handPointsLabel}>esta mano</Text>
                 </View>
@@ -352,7 +391,15 @@ export function HandEndOverlay({
               }}
               activeOpacity={0.8}
             >
-              <Text style={styles.continueButtonText}>CONTINUAR</Text>
+              <Text style={styles.continueButtonText}>
+                {
+                  team1Score >= 101 || team2Score >= 101
+                    ? 'VER RESULTADO' // Someone won the partida
+                    : shouldPlayVueltas
+                    ? 'CONTINUAR A VUELTAS' // Going to vueltas
+                    : 'CONTINUAR' // Default
+                }
+              </Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

@@ -1588,77 +1588,14 @@ export function useGameState({
     const hasWinner = team1Score >= WINNING_SCORE || team2Score >= WINNING_SCORE;
 
     if (hasWinner) {
-      // A team reached 101 points - start vueltas to continue playing
-      console.log('🎯 Team reached 101 points, starting vueltas phase', {
+      // A team reached 101 points - END PARTIDA IMMEDIATELY
+      console.log('🏆 Team reached 101 points, ending partida immediately', {
         team1Score,
         team2Score,
       });
 
-      setIsProcessingScoring(false);
-
-      // Start vueltas (continue playing until someone wins)
-      setGameState(prev => {
-        if (!prev) return null;
-
-        console.log('🔄 Transitioning to vueltas', {
-          team1Score: prev.teams[0].score,
-          team2Score: prev.teams[1].score,
-        });
-
-        // Store current scores
-        const initialScores = new Map(prev.teams.map(t => [t.id, t.score]));
-
-        // Determine last trick winner team
-        const lastWinner = prev.lastTrickWinner;
-        const lastWinnerTeam = lastWinner
-          ? prev.teams.find(t => t.playerIds.includes(lastWinner))?.id
-          : undefined;
-
-        // Create and shuffle deck for vueltas immediately
-        const deck = shuffleDeck(createDeck());
-        const { hands, remainingDeck } = dealInitialCards(
-          deck,
-          prev.players.map(p => p.id),
-        );
-        const trumpCard = remainingDeck[remainingDeck.length - 1];
-        const deckAfterTrump = remainingDeck.slice(0, -1);
-
-        return {
-          ...prev,
-          phase: 'dealing' as GamePhase, // Start with dealing phase to trigger animation
-          isVueltas: true,
-          initialScores,
-          lastTrickWinnerTeam: lastWinnerTeam,
-          canDeclareVictory: !!lastWinnerTeam,
-          matchScore: prev.matchScore, // Preserve match score through vueltas
-          deck: deckAfterTrump, // Deck with cards ready
-          hands, // Hands with cards ready for dealing animation
-          trumpCard, // Actual trump card
-          trumpSuit: trumpCard.suit, // Actual trump suit
-          currentTrick: [],
-          currentPlayerIndex: (prev.dealerIndex + 1) % 4,
-          dealerIndex: (prev.dealerIndex + 1) % 4,
-          trickCount: 0,
-          lastTrickWinner: undefined,
-          lastTrick: undefined,
-          canCambiar7: true,
-        };
-      });
-
-      // Reset dealing complete flag to trigger animation
-      setIsDealingComplete(false);
-
-      // Clear AI memory when starting vueltas
-      setAIMemory(clearMemory());
-    } else {
-      // CASE 3: No team reached 101 points - end partida immediately
-      console.log('🏁 No team reached 101 points, ending partida', {
-        team1Score,
-        team2Score,
-      });
-
-      // Determine winning team (higher score wins)
-      const winningTeamIndex = team1Score > team2Score ? 0 : 1;
+      // Determine winning team (team with 101+ points)
+      const winningTeamIndex = team1Score >= WINNING_SCORE ? 0 : 1;
       const currentMatchScore = gameState.matchScore || createInitialMatchScore();
 
       // Update match score and determine next phase
@@ -1667,32 +1604,105 @@ export function useGameState({
         currentMatchScore,
       );
 
-      // Start new partida or end match
+      // Transition to gameOver to show celebration
       setGameState(prev => {
         if (!prev) return null;
 
-        // If match is complete, stay in gameOver phase
-        if (phase === 'gameOver') {
-          return {
-            ...prev,
-            phase: 'gameOver',
-            matchScore: updatedMatchScore,
-          };
-        }
-
-        // Otherwise start new partida
-        return startNewPartida(prev, updatedMatchScore);
+        return {
+          ...prev,
+          phase: 'gameOver',
+          matchScore: updatedMatchScore,
+        };
       });
 
-      // Reset dealing complete flag to trigger animation
-      setIsDealingComplete(false);
+      setIsProcessingScoring(false);
+    } else {
+      // CASE 3: No team reached 101 points - Show celebration before vueltas
+      console.log('🎯 No team reached 101 points, showing celebration before vueltas', {
+        team1Score,
+        team2Score,
+      });
 
-      // Clear AI memory when starting new partida
-      setAIMemory(clearMemory());
+      // Transition to gameOver phase with pendingVueltas flag
+      setGameState(prev => {
+        if (!prev) return null;
+
+        console.log('🔄 Showing celebration screen before vueltas', {
+          team1Score: prev.teams[0].score,
+          team2Score: prev.teams[1].score,
+        });
+
+        return {
+          ...prev,
+          phase: 'gameOver',
+          pendingVueltas: true, // Flag to indicate vueltas should start after celebration
+          matchScore: prev.matchScore || createInitialMatchScore(),
+        };
+      });
 
       setIsProcessingScoring(false);
     }
   }, [gameState, isProcessingScoring]);
+
+  // Start vueltas after showing celebration
+  const startVueltas = useCallback(() => {
+    if (!gameState || !gameState.pendingVueltas) {
+      console.log('⚠️ Cannot start vueltas - no pending vueltas state');
+      return;
+    }
+
+    console.log('🎯 Starting vueltas phase after celebration');
+
+    setGameState(prev => {
+      if (!prev) return null;
+
+      // Store current scores
+      const initialScores = new Map(prev.teams.map(t => [t.id, t.score]));
+
+      // Determine last trick winner team
+      const lastWinner = prev.lastTrickWinner;
+      const lastWinnerTeam = lastWinner
+        ? prev.teams.find(t => t.playerIds.includes(lastWinner))?.id
+        : undefined;
+
+      // Create and shuffle deck for vueltas
+      const deck = shuffleDeck(createDeck());
+      const { hands, remainingDeck } = dealInitialCards(
+        deck,
+        prev.players.map(p => p.id),
+      );
+      const trumpCard = remainingDeck[remainingDeck.length - 1];
+      const deckAfterTrump = remainingDeck.slice(0, -1);
+
+      return {
+        ...prev,
+        phase: 'dealing' as GamePhase, // Start with dealing phase to trigger animation
+        isVueltas: true,
+        initialScores,
+        lastTrickWinnerTeam: lastWinnerTeam,
+        canDeclareVictory: !!lastWinnerTeam,
+        matchScore: prev.matchScore, // Preserve match score through vueltas
+        deck: deckAfterTrump, // Deck with cards ready
+        hands, // Hands with cards ready for dealing animation
+        trumpCard, // Actual trump card
+        trumpSuit: trumpCard.suit, // Actual trump suit
+        currentTrick: [],
+        currentPlayerIndex: (prev.dealerIndex + 1) % 4,
+        dealerIndex: (prev.dealerIndex + 1) % 4,
+        trickCount: 0,
+        lastTrickWinner: undefined,
+        lastTrick: undefined,
+        canCambiar7: true,
+        pendingVueltas: false, // Clear the flag
+      };
+    });
+
+    // Reset dealing complete flag to trigger animation
+    setIsDealingComplete(false);
+
+    // Clear AI memory when starting vueltas
+    setAIMemory(clearMemory());
+  }, [gameState?.pendingVueltas]);
 
   const declareVictory = useCallback(() => {
     if (!gameState?.isVueltas || gameState.currentTrick.length > 0) return false;
@@ -1812,7 +1822,7 @@ export function useGameState({
 
   // Continue to next partida after one team wins a partida/coto
   const continueToNextPartida = useCallback(() => {
-    if (!gameState || gameState.phase !== 'scoring') return;
+    if (!gameState || (gameState.phase !== 'scoring' && gameState.phase !== 'gameOver')) return;
 
     // Prevent double-tap using the same pattern as VoiceButton
     if (doubleTapGuardRef.current) {
@@ -1843,6 +1853,9 @@ export function useGameState({
       return startNewPartida(prev, currentMatchScore);
     });
 
+    // Reset dealing complete flag to trigger animation
+    setIsDealingComplete(false);
+
     // Clear AI memory for new partida
     setAIMemory(createMemory());
   }, []);
@@ -1865,6 +1878,7 @@ export function useGameState({
     reorderPlayerHand,
     continueFromScoring,
     continueToNextPartida,
+    startVueltas,
     declareVictory,
     declareRenuncio,
     selectedCard,

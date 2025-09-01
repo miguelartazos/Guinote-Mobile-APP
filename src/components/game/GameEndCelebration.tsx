@@ -33,6 +33,7 @@ type GameEndCelebrationProps = {
     team2Cotos: number;
   };
   onContinue?: () => void; // For continuing to next partida/coto
+  isVueltasTransition?: boolean; // True when transitioning to vueltas
 };
 
 type ConfettiPiece = {
@@ -51,6 +52,7 @@ export function GameEndCelebration({
   celebrationType = 'match',
   matchScore,
   onContinue,
+  isVueltasTransition = false,
 }: GameEndCelebrationProps) {
   const screenDimensions = Dimensions.get('window');
   const styles = useLandscapeStyles(portraitStyles, landscapeStyles);
@@ -326,6 +328,7 @@ export function GameEndCelebration({
           isWinner={isWinner}
           celebrationType={celebrationType}
           titleAnimation={titleAnimation}
+          isVueltasTransition={isVueltasTransition}
         />
 
         {/* Score cards - Traditional Spanish design */}
@@ -365,7 +368,9 @@ export function GameEndCelebration({
               <View style={styles.buttonInner}>
                 <Text style={styles.continueButtonText}>CONTINUAR</Text>
                 <Text style={styles.continueButtonSubtext}>
-                  {celebrationType === 'partida'
+                  {isVueltasTransition
+                    ? 'Jugar Vueltas'
+                    : celebrationType === 'partida'
                     ? 'Siguiente Partida'
                     : celebrationType === 'coto'
                     ? 'Siguiente Coto'
