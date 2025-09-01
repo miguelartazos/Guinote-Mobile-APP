@@ -1,5 +1,8 @@
 import { Easing } from 'react-native';
 
+// Standard easing function for consistent animations
+export const STANDARD_EASING = Easing.out(Easing.cubic);
+
 // Card animations
 export const CARD_DEAL_DURATION = 500; // 0.5s per card as requested
 export const CARD_DEAL_STAGGER = 80;
@@ -7,9 +10,9 @@ export const CARD_SHUFFLE_DURATION = 600;
 export const CARD_HOVER_SCALE = 1.05;
 export const CARD_DRAG_SCALE = 1.1;
 export const CARD_FLIP_DURATION = 400;
-export const CARD_PLAY_DURATION = 180; // Duration of card play animation - faster drop
+export const CARD_PLAY_DURATION = 280; // Duration of card play animation - smooth drop
 export const CARD_PLAY_DELAY = 300; // Delay before actuallyPlayCard is called
-export const CARD_PLAY_INITIAL_OPACITY = 0.95; // Initial opacity for card animation
+export const CARD_PLAY_INITIAL_OPACITY = 1; // Initial opacity for card animation
 
 // Trick collection
 export const TRICK_SLIDE_DURATION = 600;
@@ -38,12 +41,12 @@ export const REPLAY_TRANSITION_DURATION = 400;
 export const BUTTON_PRESS_SCALE = 0.95;
 export const BUTTON_PRESS_DURATION = 100;
 export const HAPTIC_LIGHT_DURATION = 10;
-export const TRANSITION_DURATION = 300;
+export const TRANSITION_DURATION = 280;
 
 // Easing functions
 export const SPRING_CONFIG = {
-  speed: 16,
-  bounciness: 8,
+  speed: 12,
+  bounciness: 4,
   useNativeDriver: true,
 };
 
@@ -54,12 +57,13 @@ export const BOUNCE_CONFIG = {
 };
 
 export const SMOOTH_EASING = Easing.bezier(0.25, 0.1, 0.25, 1);
+export { STANDARD_EASING as DEFAULT_EASING }; // Alias for backward compatibility
 export const BOUNCE_EASING = Easing.bounce;
 export const ELASTIC_EASING = Easing.elastic(1.2);
 
 // Hand animation constants
-export const HAND_ANIMATION_DURATION = 350;
-export const HAND_ANIMATION_STAGGER = 30;
+export const HAND_ANIMATION_DURATION = 280;
+export const HAND_ANIMATION_STAGGER = 25;
 
 // Animation presets
 export const FADE_IN = {

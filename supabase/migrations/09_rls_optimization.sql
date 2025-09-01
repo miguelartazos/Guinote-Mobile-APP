@@ -58,11 +58,12 @@ BEGIN
     CREATE POLICY game_state_read ON game_states
       FOR SELECT
       USING (
-        room_id IN (
-          SELECT rp.room_id 
+        EXISTS (
+          SELECT 1
           FROM room_players rp
           JOIN users u ON u.id = rp.user_id
           WHERE u.auth_user_id = auth.uid()
+            AND rp.room_id = game_states.room_id
         )
       );
   END IF;

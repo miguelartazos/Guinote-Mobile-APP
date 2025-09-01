@@ -1,0 +1,101 @@
+appId: com.guinote2
+---
+# Test: Multiplayer Game Flow
+# Tests room creation, AI addition, and game start
+
+- launchApp:
+    clearState: true
+
+# Wait for main screen
+- assertVisible: 'Jugar'
+
+# Navigate to multiplayer
+- tapOn: 'Jugar con Amigos'
+
+# Create a new room
+- tapOn: 'Crear Sala'
+
+# Verify room code is displayed
+- assertVisible:
+    text: 'Código: .*'
+    regex: true
+
+# Add AI players
+- tapOn: 'Añadir IA'
+
+# Select AI difficulty
+- runFlow:
+    when:
+      visible: 'Seleccionar Dificultad'
+    commands:
+      - tapOn: 'Medio'
+      - tapOn: 'Equilibrado'
+      - tapOn: 'Confirmar'
+
+# Add another AI player
+- tapOn: 'Añadir IA'
+- runFlow:
+    when:
+      visible: 'Seleccionar Dificultad'
+    commands:
+      - tapOn: 'Fácil'
+      - tapOn: 'Defensivo'
+      - tapOn: 'Confirmar'
+
+# Add third AI player to complete 4 players
+- tapOn: 'Añadir IA'
+- runFlow:
+    when:
+      visible: 'Seleccionar Dificultad'
+    commands:
+      - tapOn: 'Difícil'
+      - tapOn: 'Agresivo'
+      - tapOn: 'Confirmar'
+
+# Verify all players are shown
+- assertVisible: 'Jugador 1'
+- assertVisible: 'IA (Medio)'
+- assertVisible: 'IA (Fácil)'
+- assertVisible: 'IA (Difícil)'
+
+# Mark as ready
+- tapOn: 'Listo'
+
+# Start the game (host only)
+- tapOn: 'Iniciar Partida'
+
+# Verify game started
+- assertVisible: 'Tu turno'
+
+# Play a card (if it's our turn)
+- runFlow:
+    when:
+      visible: 'Tu turno'
+    commands:
+      - swipe:
+          start: [50%, 80%]
+          end: [50%, 50%]
+          duration: 500
+
+# Wait for AI moves
+- waitForAnimationToEnd
+- pause: 2000
+
+# Verify game is progressing
+- assertVisible:
+    text: 'Equipo [12]:'
+    regex: true
+
+# Test connection indicator
+- assertVisible: 'Conectado'
+
+# Exit game
+- pressKey: back
+- runFlow:
+    when:
+      visible: '¿Abandonar partida?'
+    commands:
+      - tapOn: 'Sí'
+
+# Return to main menu
+- assertVisible: 'Jugar'

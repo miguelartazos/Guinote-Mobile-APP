@@ -12,20 +12,26 @@ type Props = {
 };
 
 export function TeamTrickPile({ count, anchor, onCenterLayout }: Props) {
+  // Always call hooks first - before any conditional returns
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Only animate when count > 0
+    if (count > 0) {
+      pulse.setValue(0);
+      Animated.timing(pulse, { toValue: 1, duration: 260, useNativeDriver: true }).start();
+    }
+  }, [count, pulse]);
+
+  const scale = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.06, 1] });
+
+  // Return null AFTER hooks to avoid React 19 invariant violation
   if (!count || count <= 0) return null;
 
   const dims = getCardDimensions().small;
   // Increase depth with every trick up to a cap for perf; also change spread with count
   const depth = Math.min(8, Math.max(3, Math.ceil(count))); // noticeable change every trick (cap at 8 layers)
   const spread = Math.min(14, 6 + count); // influences offsets for thicker look
-
-  // Small bounce when a new trick is added
-  const pulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    pulse.setValue(0);
-    Animated.timing(pulse, { toValue: 1, duration: 260, useNativeDriver: true }).start();
-  }, [count]);
-  const scale = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.06, 1] });
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const { x, y, width, height } = e.nativeEvent.layout;

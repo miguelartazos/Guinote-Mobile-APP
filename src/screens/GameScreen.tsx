@@ -257,11 +257,13 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       // Show the overlay for scoring
       setShowHandEndOverlay(true);
 
-      // Check if there's a winner (team reached 101 points)
-      const hasWinner = gameState.teams.some(team => team.score >= 101);
+      // Check if there's a winner
+      const hasWinnerIdas = !gameState.isVueltas && gameState.teams.some(team => team.score >= 101);
+      const hasWinnerVueltas = gameState.isVueltas && determineVueltasWinner(gameState) !== null;
+      const hasWinner = hasWinnerIdas || hasWinnerVueltas;
 
-      // Set up 8-second auto-advance timer for offline games with a winner
-      if (hasWinner && gameMode === 'offline') {
+      // Set up 8-second auto-advance timer for non-online games with a winner
+      if (hasWinner && !isOnline) {
         console.log('🏆 Winner detected, setting up auto-advance timer');
         // Clear any existing timer
         if (autoAdvanceTimerRef.current) {
@@ -529,7 +531,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         ranking: player.ranking,
         avatar: player.avatar,
         cards: showCards
-          ? hand.map(card => ({ suit: card.suit, value: card.value }))
+          ? hand.map(card => ({ id: card.id, suit: card.suit, value: card.value }))
           : hand.map(() => ({ suit: 'oros' as const, value: 1 as const })), // Dummy cards for hidden hands
         isHidden: !showCards, // Mark cards as hidden for proper key generation
       };
@@ -620,7 +622,17 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     const playerHand = gameState?.hands.get(currentPlayer.id) || [];
     const validCards = getValidCardsForCurrentPlayer();
 
-    // Debug logging only in arrastre - removed for production
+    // Debug logging for arrastre phase
+    if (gameState?.phase === 'arrastre') {
+      console.log('📱 Frontend validation:', {
+        phase: gameState.phase,
+        playerId: currentPlayer.id,
+        playerHandSize: playerHand.length,
+        validCardsCount: validCards.length,
+        validCardIds: validCards.map(c => c.id),
+        allCardIds: playerHand.map(c => c.id),
+      });
+    }
 
     // Map valid cards to their indices in the player's hand
     const validIndices = playerHand
@@ -641,14 +653,15 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     // In local multiplayer, only human players can perform actions
     if (isLocalMultiplayer && currentPlayer.isBot) return;
 
+    const playerTeam = gameState.teams.find(t => t.playerIds.includes(currentPlayer.id));
+    if (!playerTeam) return;
+
     // Check if player's team won the last trick
     const lastWinner = gameState?.lastTrickWinner;
     if (!lastWinner) return; // No tricks won yet
 
     const lastWinnerTeam = gameState.teams.find(t => t.playerIds.includes(lastWinner));
-    const playerTeam = gameState.teams.find(t => t.playerIds.includes(currentPlayer.id));
-
-    if (!playerTeam || !lastWinnerTeam || playerTeam.id !== lastWinnerTeam.id) {
+    if (!lastWinnerTeam || playerTeam.id !== lastWinnerTeam.id) {
       return; // Player's team didn't win the last trick
     }
 
@@ -661,10 +674,10 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     // For now, cantar the first available suit
     if (cantableSuits.length > 0) {
       const suit = cantableSuits[0];
-      
+
       // Calculate points based on suit
       const points = suit === gameState.trumpSuit ? 40 : 20;
-      
+
       // Get player position (accounting for local multiplayer rotation)
       let displayIndex = gameState.currentPlayerIndex;
       if (isLocalMultiplayer) {
@@ -778,9 +791,16 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       matchScore: gameState.matchScore,
     });
 
-    const winningTeam = gameState.teams.find(t => t.score >= 101);
     const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
-    const playerWon = winningTeam?.id === playerTeam?.id;
+    // Determine winner (handle vueltas combined totals)
+    let playerWon = false;
+    if (gameState.isVueltas && gameState.initialScores) {
+      const winnerId = determineVueltasWinner(gameState);
+      playerWon = winnerId !== null && winnerId === playerTeam?.id;
+    } else {
+      const winningTeamDirect = gameState.teams.find(t => t.score >= 101);
+      playerWon = winningTeamDirect?.id === playerTeam?.id;
+    }
     const team1 = gameState.teams[0];
     const team2 = gameState.teams[1];
     const matchScore = gameState.matchScore;
@@ -814,7 +834,24 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         <ScreenContainer orientation="landscape" style={styles.gameContainer}>
           <GameEndCelebration
             isWinner={isVueltasTransition ? false : playerWon} // No winner yet for vueltas
-            finalScore={{ player: team1.score, opponent: team2.score }}
+            finalScore={{
+              player:
+                gameState.isVueltas && gameState.initialScores
+                  ? playerTeam?.id === team1.id
+                    ? (gameState.initialScores.get(team1.id as TeamId) || 0) + team1.score
+                    : (gameState.initialScores.get(team2.id as TeamId) || 0) + team2.score
+                  : playerTeam?.id === team1.id
+                  ? team1.score
+                  : team2.score,
+              opponent:
+                gameState.isVueltas && gameState.initialScores
+                  ? playerTeam?.id === team1.id
+                    ? (gameState.initialScores.get(team2.id as TeamId) || 0) + team2.score
+                    : (gameState.initialScores.get(team1.id as TeamId) || 0) + team1.score
+                  : playerTeam?.id === team1.id
+                  ? team2.score
+                  : team1.score,
+            }}
             onComplete={() => {
               if (isVueltasTransition) {
                 // Don't hide celebration, let onContinue handle it
@@ -1020,6 +1057,14 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           gamePhase={gameState?.phase}
           validCardIndices={getValidCardIndices()}
           isVueltas={gameState.isVueltas}
+          vueltasInitialScores={
+            gameState.isVueltas && gameState.initialScores
+              ? {
+                  team1: gameState.initialScores.get(gameState.teams[0].id) || 0,
+                  team2: gameState.initialScores.get(gameState.teams[1].id) || 0,
+                }
+              : undefined
+          }
           canDeclareVictory={gameState.canDeclareVictory}
           teamScores={{
             team1: gameState.teams[0].score,
@@ -1081,6 +1126,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
               ? {
                   playerId: gameState.cardPlayAnimation.playerId,
                   card: {
+                    id: gameState.cardPlayAnimation.card.id,
                     suit: gameState.cardPlayAnimation.card.suit,
                     value: gameState.cardPlayAnimation.card.value,
                   },
@@ -1187,6 +1233,23 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             team2Id={gameState.teams[1].id}
             isVueltas={gameState.isVueltas}
             shouldPlayVueltas={shouldStartVueltas(gameState)}
+            hasWinner={
+              !gameState.isVueltas
+                ? gameState.teams.some(t => t.score >= 101)
+                : determineVueltasWinner(gameState) !== null
+            }
+            winningTeamIsTeam1={((): boolean | undefined => {
+              if (!gameState.isVueltas) {
+                const t1 = gameState.teams[0].score;
+                const t2 = gameState.teams[1].score;
+                if (t1 >= 101) return true;
+                if (t2 >= 101) return false;
+                return undefined;
+              }
+              const winnerId = determineVueltasWinner(gameState);
+              if (!winnerId) return undefined;
+              return winnerId === gameState.teams[0].id;
+            })()}
             onAutoAdvance={() => {
               console.log('🎯 HandEndOverlay onAutoAdvance called', {
                 team1Score: gameState.teams[0].score,

@@ -1,0 +1,103 @@
+appId: com.guinote2
+---
+# Test: Friend System Flow
+# Tests friend requests, acceptance, and playing together
+
+- launchApp:
+    clearState: true
+
+# Wait for main screen
+- assertVisible: 'Jugar'
+
+# Navigate to friends
+- tapOn: 'Amigos'
+
+# Handle possible login requirement
+- runFlow:
+    when:
+      visible: 'Iniciar Sesión'
+    commands:
+      - tapOn: 'Cancelar'
+      - pressKey: back
+
+# If logged in, continue with friend flow
+- runFlow:
+    when:
+      visible: 'Mis Amigos'
+    commands:
+      # Search for a friend
+      - tapOn: 'Buscar Amigos'
+
+      # Enter friend code
+      - inputText: 'TEST123'
+
+      # Send friend request
+      - tapOn: 'Enviar Solicitud'
+
+      # Verify request sent
+      - assertVisible: 'Solicitud enviada'
+
+      # Go to pending requests
+      - tapOn: 'Solicitudes Pendientes'
+
+      # Check if we have incoming requests
+      - runFlow:
+          when:
+            visible: 'Aceptar'
+          commands:
+            - tapOn: 'Aceptar'
+            - assertVisible: 'Amigo añadido'
+
+      # Go back to friends list
+      - tapOn: 'Todos los Amigos'
+
+      # Check online friends
+      - tapOn: 'En Línea'
+
+      # Invite friend to play
+      - runFlow:
+          when:
+            visible: 'Invitar a Jugar'
+          commands:
+            - tapOn: 'Invitar a Jugar'
+
+            # Should navigate to room creation
+            - assertVisible: 'Crear Sala'
+
+            # Create room with friend
+            - tapOn: 'Crear Sala'
+
+            # Wait for friend to join
+            - assertVisible: 'Esperando jugadores'
+
+            # Add AI to complete the game
+            - tapOn: 'Añadir IA'
+            - tapOn: 'Añadir IA'
+
+            # Ready up
+            - tapOn: 'Listo'
+
+      # Return to main menu
+      - pressKey: back
+
+# Handle blocked users section
+- runFlow:
+    when:
+      visible: 'Usuarios Bloqueados'
+    commands:
+      # Check blocked users management
+      - tapOn: 'Usuarios Bloqueados'
+
+      # Unblock if any blocked users
+      - runFlow:
+          when:
+            visible: 'Desbloquear'
+          commands:
+            - tapOn: 'Desbloquear'
+            - assertVisible: 'Usuario desbloqueado'
+
+      - pressKey: back
+
+# Return to main menu
+- pressKey: back
+- assertVisible: 'Jugar'

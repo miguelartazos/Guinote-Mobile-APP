@@ -42,7 +42,6 @@ import {
   startNewPartida,
   isValidTeamIndex,
   processVueltasCompletion,
-  processTeamReached101,
   initializeVueltasState,
 } from '../utils/gameLogic';
 import { resetGameStateForVueltas } from '../utils/gameStateFactory';
@@ -686,15 +685,9 @@ export function useGameState({
               if (teamReached101FirstHand) {
                 phase = 'scoring';
               } else if (teamReached101InVueltas) {
-                // Team reached 101 during vueltas - combine scores and end the partida
-                // Update team scores to include initial scores from idas
-                if (prevState.initialScores) {
-                  newTeams = newTeams.map(team => ({
-                    ...team,
-                    score: team.score + (prevState.initialScores?.get(team.id) || 0),
-                  })) as [Team, Team];
-                }
-                phase = 'gameOver';
+                // Team reached 101 during vueltas - show Fin de Mano first
+                // Do NOT mutate team scores here; UI will display combined totals
+                phase = 'scoring';
               } else if (isGameOver({ ...prevState, teams: newTeams })) {
                 phase = 'gameOver';
               } else if (isLastTrick && !prevState.isVueltas) {
@@ -1445,8 +1438,7 @@ export function useGameState({
     return getValidCards(playerHand, gameState, currentPlayer.id);
   }, [gameState]);
 
-  // Declare victory in vueltas
-  // Continue from scoring phase (either to vueltas or game over)
+  // Continue from scoring phase (either to vueltas or end partida)
   const continueFromScoring = useCallback(() => {
     if (!gameState || gameState.phase !== 'scoring') {
       return;
@@ -1458,7 +1450,7 @@ export function useGameState({
     }
     setIsProcessingScoring(true);
 
-    // CASE 1: Completing vueltas
+    // CASE 1: Completing vueltas - check for winner and end partida
     if (gameState.isVueltas) {
       const newState = processVueltasCompletion(gameState);
       setGameState(newState);
@@ -1473,28 +1465,37 @@ export function useGameState({
       return;
     }
 
-    // CASE 2: Check if we need vueltas or immediate winner
+    // CASE 2: Just finished idas - decide whether partida ended or start vueltas
     const team1Score = gameState.teams[0].score;
     const team2Score = gameState.teams[1].score;
-    const hasWinner = team1Score >= WINNING_SCORE || team2Score >= WINNING_SCORE;
 
-    if (hasWinner) {
-      // A team reached 101 points - END PARTIDA IMMEDIATELY
-      const newState = processTeamReached101(gameState);
-      setGameState(newState);
+    if (team1Score >= WINNING_SCORE || team2Score >= WINNING_SCORE) {
+      // End partida now and update match score
+      setGameState(prev => {
+        if (!prev) return prev;
+        const currentMatchScore = prev.matchScore || createInitialMatchScore();
+        const winningTeamIndex = team1Score >= WINNING_SCORE ? 0 : 1;
+        const { matchScore: updatedMatchScore } = updateMatchScoreAndDeterminePhase(
+          winningTeamIndex,
+          currentMatchScore,
+        );
+
+        return {
+          ...prev,
+          phase: 'gameOver',
+          matchScore: updatedMatchScore,
+        };
+      });
       setIsProcessingScoring(false);
-    } else {
-      // CASE 3: No team reached 101 points - Need to play vueltas
-      if (shouldStartVueltas(gameState)) {
-        // Initialize vueltas directly
-        const newState = initializeVueltasState(gameState);
-        setGameState(newState);
-        setIsDealingComplete(false);
-        setAIMemory(clearMemory());
-      } else {
-        // Just stay in scoring phase - HandEndOverlay will remain visible
-        console.log('📊 Staying in scoring phase - waiting for user to continue to vueltas');
-      }
+      return;
+    }
+
+    // Otherwise, proceed to vueltas carrying idas scores
+    {
+      const newState = initializeVueltasState(gameState);
+      setGameState(newState);
+      setIsDealingComplete(false);
+      setAIMemory(clearMemory());
       setIsProcessingScoring(false);
     }
   }, [gameState, isProcessingScoring]);

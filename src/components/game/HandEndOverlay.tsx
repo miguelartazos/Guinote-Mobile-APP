@@ -28,6 +28,9 @@ type HandEndOverlayProps = {
   isVueltas: boolean;
   shouldPlayVueltas: boolean;
   onAutoAdvance: () => void;
+  // Winner awareness for vueltas: when total (idas+vueltas) determines a winner
+  hasWinner?: boolean;
+  winningTeamIsTeam1?: boolean;
 };
 
 // Constants
@@ -76,6 +79,8 @@ export function HandEndOverlay({
   isVueltas,
   shouldPlayVueltas,
   onAutoAdvance,
+  hasWinner,
+  winningTeamIsTeam1,
 }: HandEndOverlayProps) {
   const [showDetails, setShowDetails] = useState(true); // Show point breakdown initially
 
@@ -362,6 +367,16 @@ export function HandEndOverlay({
               <Text style={[styles.messageText, styles.loseMessage]} accessibilityRole="alert">
                 Derrota - Ellos ganan la partida
               </Text>
+            ) : typeof winningTeamIsTeam1 === 'boolean' && hasWinner ? (
+              winningTeamIsTeam1 ? (
+                <Text style={[styles.messageText, styles.winMessage]} accessibilityRole="alert">
+                  ¡Victoria! Ganamos la partida
+                </Text>
+              ) : (
+                <Text style={[styles.messageText, styles.loseMessage]} accessibilityRole="alert">
+                  Derrota - Ellos ganan la partida
+                </Text>
+              )
             ) : shouldPlayVueltas ? (
               <View style={styles.vueltasMessage}>
                 <Text style={styles.messageText}>Ningún equipo alcanzó 101 puntos</Text>
@@ -393,8 +408,8 @@ export function HandEndOverlay({
             >
               <Text style={styles.continueButtonText}>
                 {
-                  team1Score >= 101 || team2Score >= 101
-                    ? 'VER RESULTADO' // Someone won the partida
+                  team1Score >= 101 || team2Score >= 101 || hasWinner
+                    ? 'VER RESULTADO' // Someone won the partida (idas or vueltas)
                     : shouldPlayVueltas
                     ? 'CONTINUAR A VUELTAS' // Going to vueltas
                     : 'CONTINUAR' // Default

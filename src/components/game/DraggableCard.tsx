@@ -30,7 +30,7 @@ type DraggableCardProps = {
   isPlayerTurn?: boolean;
 };
 
-export function DraggableCard({
+export const DraggableCard = React.memo(function DraggableCard({
   card,
   index,
   style,
@@ -186,4 +186,4 @@ export function DraggableCard({
       </Animated.View>
     </PanGestureHandler>
   );
-}
+});

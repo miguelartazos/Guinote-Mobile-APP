@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Animated } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
-import { CARD_PLAY_DURATION } from '../../constants/animations';
+import { CARD_PLAY_DURATION, STANDARD_EASING } from '../../constants/animations';
 
 type CardPlayAnimationProps = {
   card: SpanishCardData;
@@ -40,14 +40,14 @@ export function CardPlayAnimation({
           Animated.timing(position, {
             toValue: toPosition,
             duration: CARD_PLAY_DURATION,
-            easing: Easing.linear, // Linear for direct path
+            easing: STANDARD_EASING,
             useNativeDriver: true,
           }),
           // Rotate to flat position on table
           Animated.timing(rotation, {
             toValue: 0,
             duration: CARD_PLAY_DURATION,
-            easing: Easing.linear, // Linear for consistent motion
+            easing: STANDARD_EASING,
             useNativeDriver: true,
           }),
         ]).start(() => resolve(null));

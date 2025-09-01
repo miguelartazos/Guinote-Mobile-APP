@@ -425,9 +425,34 @@ export function getValidCards(
   // In arrastre phase, filter cards based on strict rules
   if (phase === 'arrastre') {
     try {
-      const validCards = hand.filter(card =>
-        isValidPlay(card, hand, currentTrick, trumpSuit, phase, playerId, gameState),
-      );
+      // Debug: Log what we're validating
+      console.log('🎯 getValidCards called for arrastre:', {
+        playerId,
+        phase,
+        handSize: hand.length,
+        currentTrickSize: currentTrick.length,
+        trumpSuit,
+        leadCard:
+          currentTrick.length > 0
+            ? `${currentTrick[0].card.suit}_${currentTrick[0].card.value}`
+            : 'none',
+      });
+
+      const validCards = hand.filter(card => {
+        const isValid = isValidPlay(
+          card,
+          hand,
+          currentTrick,
+          trumpSuit,
+          phase,
+          playerId,
+          gameState,
+        );
+        console.log(`  Card ${card.suit}_${card.value}: ${isValid ? '✅ VALID' : '❌ INVALID'}`);
+        return isValid;
+      });
+
+      console.log(`🎯 Result: ${validCards.length}/${hand.length} cards are valid`);
 
       // If no cards are valid, use fallback logic
       if (validCards.length === 0 && hand.length > 0) {

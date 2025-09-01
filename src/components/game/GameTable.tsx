@@ -26,7 +26,11 @@ import {
 import { getTrickCardPositionWithinBoard } from '../../utils/trickCardPositions';
 import type { PlayerId } from '../../types/game.types';
 import { CardDealingAnimation } from './CardDealingAnimation';
-import { HAND_ANIMATION_DURATION, HAND_ANIMATION_STAGGER } from '../../constants/animations';
+import {
+  HAND_ANIMATION_DURATION,
+  HAND_ANIMATION_STAGGER,
+  STANDARD_EASING,
+} from '../../constants/animations';
 
 type Player = {
   id: string;
@@ -55,6 +59,7 @@ type GameTableProps = {
   gamePhase?: string;
   validCardIndices?: number[]; // Indices of valid cards for current player
   isVueltas?: boolean;
+  vueltasInitialScores?: { team1: number; team2: number }; // Idas scores to display
   canDeclareVictory?: boolean;
   teamScores?: { team1: number; team2: number };
   trickAnimating?: boolean;
@@ -96,7 +101,7 @@ type GameTableProps = {
   };
 };
 
-export function GameTable({
+export const GameTable = React.memo(function GameTable({
   players,
   currentPlayerIndex,
   trumpCard,
@@ -114,6 +119,7 @@ export function GameTable({
   gamePhase,
   validCardIndices,
   isVueltas = false,
+  vueltasInitialScores,
   canDeclareVictory = false,
   teamScores,
   trickAnimating = false,
@@ -133,6 +139,33 @@ export function GameTable({
   cardPlayAnimation,
 }: GameTableProps) {
   const [bottomPlayer, leftPlayer, topPlayer, rightPlayer] = players;
+  
+  // Create stable callback refs for memoization
+  const onCardPlayRef = useRef(onCardPlay);
+  const onCardReorderRef = useRef(onCardReorder);
+  const bottomPlayerIdRef = useRef(bottomPlayer.id);
+
+  // Update refs on each render
+  useEffect(() => {
+    onCardPlayRef.current = onCardPlay;
+    onCardReorderRef.current = onCardReorder;
+    bottomPlayerIdRef.current = bottomPlayer.id;
+  });
+
+  // Create stable callback wrappers
+  const stableOnCardPlay = useRef((index: number) => {
+    onCardPlayRef.current(index);
+  }).current;
+
+  const stableOnReorder = useRef((fromIndex: number, toIndex: number) => {
+    if (onCardReorderRef.current) {
+      onCardReorderRef.current(
+        bottomPlayerIdRef.current as unknown as PlayerId,
+        fromIndex,
+        toIndex,
+      );
+    }
+  }).current;
   const orientation = useOrientation();
   const landscape = orientation === 'landscape';
   const playAreaRef = useRef<View>(null);
@@ -232,8 +265,7 @@ export function GameTable({
   const rightPreviousCards = useRef<typeof rightPlayer.cards>(rightPlayer.cards);
 
   // Create unique keys for cards
-  // For visible cards: use suit and value for stable keys across animations
-  // For hidden cards: use index since all have dummy values
+  // Use card.id if available (for visible cards), otherwise fallback to suit/value or index
   const getCardKey = (
     card: SpanishCardData,
     index: number,
@@ -242,6 +274,10 @@ export function GameTable({
   ) => {
     if (isHidden) {
       return `${playerPrefix}_hidden_${index}`;
+    }
+    // Use card.id if available (visible cards from GameScreen include id)
+    if ('id' in card && card.id) {
+      return card.id as string;
     }
     return `${card.suit}_${card.value}`;
   };
@@ -426,9 +462,12 @@ export function GameTable({
         <View style={styles.topPlayerCardsContainer}>
           {topPlayer.cards.map((card, index) => {
             // Hide card during play animation
+            // For hidden hands (no id), match by index to avoid hiding all identical dummy cards
             const isAnimating =
               cardPlayAnimation?.playerId === topPlayer.id &&
-              cardPlayAnimation?.cardIndex === index;
+              ((('id' in cardPlayAnimation.card && 'id' in card &&
+                (cardPlayAnimation.card as any).id === (card as any).id)) ||
+                index === cardPlayAnimation.cardIndex);
 
             // If card is animating to table, render invisible placeholder to maintain spacing
             if (isAnimating) {
@@ -530,7 +569,7 @@ export function GameTable({
                 toValue: targetPosition.x,
                 duration: HAND_ANIMATION_DURATION,
                 delay: staggerDelay,
-                easing: Easing.out(Easing.cubic),
+                easing: STANDARD_EASING,
                 useNativeDriver: false,
               }).start(() => {
                 // Remove from active animations
@@ -581,10 +620,12 @@ export function GameTable({
         <View style={styles.leftPlayerCards}>
           {leftPlayer.cards.map((card, index) => {
             const currentCard = card; // Use currentCard to avoid unused variable warning
-            // Hide card during play animation
+            // Hide card during play animation - for hidden hands, match by index
             const isAnimating =
               cardPlayAnimation?.playerId === leftPlayer.id &&
-              cardPlayAnimation?.cardIndex === index;
+              ((('id' in cardPlayAnimation.card && 'id' in card &&
+                (cardPlayAnimation.card as any).id === (card as any).id)) ||
+                index === cardPlayAnimation.cardIndex);
 
             // If card is animating to table, render invisible placeholder to maintain spacing
             if (isAnimating) {
@@ -692,7 +733,7 @@ export function GameTable({
                 toValue: targetPosition.y,
                 duration: HAND_ANIMATION_DURATION,
                 delay: staggerDelay,
-                easing: Easing.out(Easing.cubic),
+                easing: STANDARD_EASING,
                 useNativeDriver: false,
               }).start(() => {
                 // Remove from active animations
@@ -743,10 +784,12 @@ export function GameTable({
         <View style={styles.rightPlayerCards}>
           {rightPlayer.cards.map((card, index) => {
             const currentCard = card; // Use currentCard to avoid unused variable warning
-            // Hide card during play animation
+            // Hide card during play animation - for hidden hands, match by index
             const isAnimating =
               cardPlayAnimation?.playerId === rightPlayer.id &&
-              cardPlayAnimation?.cardIndex === index;
+              ((('id' in cardPlayAnimation.card && 'id' in card &&
+                (cardPlayAnimation.card as any).id === (card as any).id)) ||
+                index === cardPlayAnimation.cardIndex);
 
             // If card is animating to table, render invisible placeholder to maintain spacing
             if (isAnimating) {
@@ -854,7 +897,7 @@ export function GameTable({
                 toValue: targetPosition.y,
                 duration: HAND_ANIMATION_DURATION,
                 delay: staggerDelay,
-                easing: Easing.out(Easing.cubic),
+                easing: STANDARD_EASING,
                 useNativeDriver: false,
               }).start(() => {
                 // Remove from active animations
@@ -1094,6 +1137,11 @@ export function GameTable({
       {isVueltas && (
         <View style={styles.vueltasIndicator}>
           <Text style={styles.vueltasText}>VUELTAS</Text>
+          {vueltasInitialScores && (
+            <Text style={styles.vueltasScoreText}>
+              Idas: {vueltasInitialScores.team1} – {vueltasInitialScores.team2}
+            </Text>
+          )}
         </View>
       )}
 
@@ -1128,10 +1176,15 @@ export function GameTable({
               card.suit === hideCardFromHand.suit &&
               card.value === hideCardFromHand.value;
 
-            // Hide card during play animation
+            // Hide card during play animation - prefer ID comparison
             const isAnimating =
               cardPlayAnimation?.playerId === bottomPlayer.id &&
-              cardPlayAnimation?.cardIndex === index;
+              ((('id' in cardPlayAnimation.card &&
+                'id' in card &&
+                cardPlayAnimation.card.id === card.id) ||
+                (cardPlayAnimation.card.suit === card.suit &&
+                  cardPlayAnimation.card.value === card.value)) ||
+                index === cardPlayAnimation.cardIndex);
 
             if (shouldHide) return null;
 
@@ -1194,7 +1247,7 @@ export function GameTable({
                 toValue: targetPosition,
                 duration: HAND_ANIMATION_DURATION,
                 delay: staggerDelay,
-                easing: Easing.out(Easing.cubic),
+                easing: STANDARD_EASING,
                 useNativeDriver: false,
               }).start();
 
@@ -1223,13 +1276,8 @@ export function GameTable({
                 <DraggableCard
                   card={card}
                   index={index}
-                  onCardPlay={onCardPlay}
-                  onReorder={
-                    onCardReorder
-                      ? (fromIndex, toIndex) =>
-                          onCardReorder(bottomPlayer.id as unknown as PlayerId, fromIndex, toIndex)
-                      : undefined
-                  }
+                  onCardPlay={stableOnCardPlay}
+                  onReorder={onCardReorder ? stableOnReorder : undefined}
                   dropZoneBounds={dropZoneBounds || undefined}
                   isEnabled={!isDealingBlocked && !!dropZoneBounds && isPlayerTurn && isValidCard}
                   isPlayerTurn={isPlayerTurn}
@@ -1262,7 +1310,7 @@ export function GameTable({
       />
     </View>
   );
-}
+});
 
 const getTableColor = (color: 'green' | 'blue' | 'red' | 'wood') => {
   return TABLE_COLORS[color] || TABLE_COLORS.green;
@@ -1447,6 +1495,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 1,
+  },
+  vueltasScoreText: {
+    color: colors.white,
+    fontSize: 14,
+    marginTop: 4,
+    opacity: 0.9,
   },
   declareText: {
     color: colors.white,
