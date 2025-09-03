@@ -20,18 +20,22 @@ describe('featureFlags', () => {
   });
 
   describe('default configuration', () => {
-    test('enableMultiplayer is OFF by default for Hermes safety', () => {
+    test('enableMultiplayer is ON in development mode', () => {
       const flags = featureFlags.getFlags();
-      expect(flags.enableMultiplayer).toBe(false);
+      // In development (__DEV__ is true in tests), multiplayer is enabled
+      expect(flags.enableMultiplayer).toBe(true);
     });
 
-    test('all Supabase features are OFF by default', () => {
+    test('essential Supabase features are enabled in development mode', () => {
       const flags = featureFlags.getFlags();
-      expect(flags.useSupabaseAuth).toBe(false);
-      expect(flags.useSupabaseRooms).toBe(false);
+      // In development, these essential features are enabled
+      expect(flags.useSupabaseAuth).toBe(true);
+      expect(flags.useSupabaseRooms).toBe(true);
+      expect(flags.useSupabaseFriends).toBe(true);
+
+      // These are disabled until ready for testing
       expect(flags.useSupabaseGame).toBe(false);
       expect(flags.useSupabaseMatchmaking).toBe(false);
-      expect(flags.useSupabaseFriends).toBe(false);
       expect(flags.useSupabaseVoice).toBe(false);
       expect(flags.useSupabaseStatistics).toBe(false);
     });
@@ -44,41 +48,51 @@ describe('featureFlags', () => {
   });
 
   describe('isMultiplayerEnabled', () => {
-    test('returns false when enableMultiplayer flag is off', () => {
-      expect(isMultiplayerEnabled()).toBe(false);
+    test('returns true in development mode by default', () => {
+      // In development, multiplayer is enabled by default
+      expect(isMultiplayerEnabled()).toBe(true);
     });
 
-    test('returns true when enableMultiplayer flag is on', async () => {
+    test('can be toggled with setFlag', async () => {
+      // Turn it off
+      await featureFlags.setFlag('enableMultiplayer', false);
+      expect(isMultiplayerEnabled()).toBe(false);
+
+      // Turn it back on
       await featureFlags.setFlag('enableMultiplayer', true);
       expect(isMultiplayerEnabled()).toBe(true);
-      // Clean up for next tests
-      await featureFlags.setFlag('enableMultiplayer', false);
     });
   });
 
   describe('isSupabaseFeatureEnabled', () => {
-    test('returns false for any feature when master flag is off', () => {
-      expect(isSupabaseFeatureEnabled('useSupabaseAuth')).toBe(false);
-      expect(isSupabaseFeatureEnabled('useSupabaseRooms')).toBe(false);
+    test('returns true for enabled features in development by default', () => {
+      // In development, multiplayer is on and some features are enabled
+      expect(isSupabaseFeatureEnabled('useSupabaseAuth')).toBe(true);
+      expect(isSupabaseFeatureEnabled('useSupabaseRooms')).toBe(true);
+      expect(isSupabaseFeatureEnabled('useSupabaseFriends')).toBe(true);
+
+      // But some features are still disabled for now
       expect(isSupabaseFeatureEnabled('useSupabaseGame')).toBe(false);
     });
 
-    test('returns false when master flag is on but specific feature is off', async () => {
+    test('returns false when master flag is turned off', async () => {
+      await featureFlags.setFlag('enableMultiplayer', false);
+
+      expect(isSupabaseFeatureEnabled('useSupabaseAuth')).toBe(false);
+      expect(isSupabaseFeatureEnabled('useSupabaseRooms')).toBe(false);
+
+      // Reset
       await featureFlags.setFlag('enableMultiplayer', true);
+    });
+
+    test('returns false when specific feature is turned off', async () => {
+      // Master flag is on by default in dev
       await featureFlags.setFlag('useSupabaseAuth', false);
 
       expect(isSupabaseFeatureEnabled('useSupabaseAuth')).toBe(false);
-    });
 
-    test('returns true when both master flag and specific feature are on', async () => {
-      await featureFlags.setFlag('enableMultiplayer', true);
+      // Reset
       await featureFlags.setFlag('useSupabaseAuth', true);
-
-      expect(isSupabaseFeatureEnabled('useSupabaseAuth')).toBe(true);
-
-      // Clean up
-      await featureFlags.setFlag('enableMultiplayer', false);
-      await featureFlags.setFlag('useSupabaseAuth', false);
     });
   });
 
@@ -95,10 +109,11 @@ describe('featureFlags', () => {
       await featureFlags.setFlag('enableDebugMode', false);
     });
 
-    test('loads flags from AsyncStorage on initialization', async () => {
+    test('ignores stored flags in development mode', async () => {
       const storedFlags: Partial<FeatureFlags> = {
         enableVoiceChat: true,
         enableTournaments: true,
+        enableMultiplayer: false, // Try to override development default
       };
 
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(storedFlags));
@@ -106,8 +121,10 @@ describe('featureFlags', () => {
       await featureFlags.initialize();
       const flags = featureFlags.getFlags();
 
-      expect(flags.enableVoiceChat).toBe(true);
-      expect(flags.enableTournaments).toBe(true);
+      // In development, stored flags are ignored
+      expect(flags.enableMultiplayer).toBe(true); // Should use DEVELOPMENT_FLAGS
+      expect(flags.enableVoiceChat).toBe(false); // Should use DEVELOPMENT_FLAGS
+      expect(flags.enableTournaments).toBe(false); // Should use DEVELOPMENT_FLAGS
 
       // Reset after test
       await featureFlags.resetFlags();
@@ -149,8 +166,8 @@ describe('featureFlags', () => {
 
   describe('Hermes safety', () => {
     test('no Supabase features are accessible when multiplayer is disabled', async () => {
-      // Reset to ensure clean state
-      await featureFlags.resetFlags();
+      // Manually disable multiplayer to test safety
+      await featureFlags.setFlag('enableMultiplayer', false);
 
       // Ensure master flag is off
       expect(isMultiplayerEnabled()).toBe(false);
@@ -160,6 +177,9 @@ describe('featureFlags', () => {
 
       // The safety check should still prevent access because master flag is off
       expect(isSupabaseFeatureEnabled('useSupabaseAuth')).toBe(false);
+
+      // Reset to development defaults
+      await featureFlags.resetFlags();
     });
   });
 });

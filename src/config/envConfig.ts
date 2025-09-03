@@ -4,17 +4,11 @@
  * to avoid issues with react-native-dotenv babel plugin
  */
 
-import {
-  EXPO_PUBLIC_SUPABASE_URL,
-  EXPO_PUBLIC_SUPABASE_ANON_KEY,
-} from '@env';
-
-// Properly type process.env
-declare const process: {
-  env: {
-    [key: string]: string | undefined;
-  };
-};
+// Direct imports from react-native-dotenv
+declare module '@env' {
+  export const EXPO_PUBLIC_SUPABASE_URL: string;
+  export const EXPO_PUBLIC_SUPABASE_ANON_KEY: string;
+}
 
 interface EnvironmentConfig {
   // Clerk/Convex removed
@@ -83,13 +77,16 @@ export const getEnvVar = (key: string): string => {
   throw new Error(`Missing required environment variable: ${key}`);
 };
 
+// Import environment variables
+import { EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY } from '@env';
+
 // Development configuration
 const DEV_CONFIG: EnvironmentConfig = {
   // Clerk/Convex removed
 
-  // Supabase Configuration - Now reading from @env module
-  SUPABASE_URL: EXPO_PUBLIC_SUPABASE_URL || getEnvVar('EXPO_PUBLIC_SUPABASE_URL'),
-  SUPABASE_ANON_KEY: EXPO_PUBLIC_SUPABASE_ANON_KEY || getEnvVar('EXPO_PUBLIC_SUPABASE_ANON_KEY'),
+  // Supabase Configuration - Consistent approach using @env module with validation
+  SUPABASE_URL: EXPO_PUBLIC_SUPABASE_URL || '',
+  SUPABASE_ANON_KEY: EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
 
   // Environment
   ENVIRONMENT: 'development',
@@ -110,8 +107,8 @@ const DEV_CONFIG: EnvironmentConfig = {
 // Production configuration - NO FALLBACKS
 const PROD_CONFIG: EnvironmentConfig = {
   // Supabase Configuration - Must use env vars in production
-  SUPABASE_URL: EXPO_PUBLIC_SUPABASE_URL || getEnvVar('EXPO_PUBLIC_SUPABASE_URL'),
-  SUPABASE_ANON_KEY: EXPO_PUBLIC_SUPABASE_ANON_KEY || getEnvVar('EXPO_PUBLIC_SUPABASE_ANON_KEY'),
+  SUPABASE_URL: EXPO_PUBLIC_SUPABASE_URL || '',
+  SUPABASE_ANON_KEY: EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
 
   // Environment
   ENVIRONMENT: 'production',

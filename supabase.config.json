@@ -1,0 +1,48 @@
+{
+  "projectId": "your-project-id",
+  "api": {
+    "url": "https://your-project.supabase.co",
+    "anonKey": "your-anon-key",
+    "serviceRoleKey": "your-service-role-key"
+  },
+  "db": {
+    "schema": ["public"],
+    "pooler": {
+      "enabled": true,
+      "mode": "transaction"
+    }
+  },
+  "auth": {
+    "site_url": "com.guinote2://",
+    "redirect_urls": [
+      "com.guinote2://auth-callback",
+      "com.guinote2://reset-password"
+    ],
+    "jwt_expiry": 3600,
+    "enable_signup": true,
+    "email": {
+      "enable_signup": true,
+      "enable_email_confirm": true
+    }
+  },
+  "storage": {
+    "avatars": {
+      "public": true,
+      "maxFileSize": "2MB",
+      "allowedMimeTypes": ["image/jpeg", "image/png", "image/webp"]
+    }
+  },
+  "realtime": {
+    "enabled": true,
+    "max_channels": 100,
+    "max_events_per_second": 10
+  },
+  "functions": {
+    "validate-move": {
+      "verify_jwt": true
+    },
+    "process-game-action": {
+      "verify_jwt": true
+    }
+  }
+}

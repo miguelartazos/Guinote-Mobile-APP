@@ -19,17 +19,17 @@ interface PlayerAvatarsProps {
   compact?: boolean;
 }
 
-export function PlayerAvatars({ players, currentPlayerId: _currentPlayerId, compact = false }: PlayerAvatarsProps) {
+export function PlayerAvatars({
+  players,
+  currentPlayerId: _currentPlayerId,
+  compact = false,
+}: PlayerAvatarsProps) {
   const avatarSize = compact ? 40 : 50;
 
   return (
     <>
       {players.map(player => (
-        <PlayerAvatar
-          key={player.id}
-          player={player}
-          avatarSize={avatarSize}
-        />
+        <PlayerAvatar key={player.id} player={player} avatarSize={avatarSize} />
       ))}
     </>
   );

@@ -5,6 +5,8 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { dimensions } from '../../constants/dimensions';
 import type { Friend, FriendRequest } from '../../types/friend.types';
+import { getLeagueFromElo } from '../../utils/leagueSystem';
+import type { EloRating } from '../../utils/eloCalculation';
 
 interface FriendCardProps {
   friend?: Friend;
@@ -44,6 +46,21 @@ export function FriendCard({
         <View style={styles.info}>
           <Text style={styles.username}>{user.username}</Text>
           {friend?.friendCode && <Text style={styles.friendCode}>#{friend.friendCode}</Text>}
+          {friend?.ranking && (
+            <View style={styles.rankingContainer}>
+              <Text style={styles.rankingText}>
+                {getLeagueFromElo(friend.ranking as EloRating).icon} ELO: {friend.ranking}
+              </Text>
+              <Text
+                style={[
+                  styles.leagueText,
+                  { color: getLeagueFromElo(friend.ranking as EloRating).color },
+                ]}
+              >
+                {getLeagueFromElo(friend.ranking as EloRating).name}
+              </Text>
+            </View>
+          )}
           {isPending && <Text style={styles.pendingText}>Solicitud pendiente</Text>}
           {isBlocked && <Text style={styles.blockedText}>Usuario bloqueado</Text>}
         </View>
@@ -214,5 +231,19 @@ const styles = StyleSheet.create({
   unblockButtonText: {
     color: colors.text,
     fontSize: typography.fontSize.sm,
+  },
+  rankingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: dimensions.spacing.xs,
+  },
+  rankingText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+  },
+  leagueText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
   },
 });

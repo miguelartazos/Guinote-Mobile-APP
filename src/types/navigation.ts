@@ -3,8 +3,8 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
 export type MainTabParamList = {
   Jugar: undefined;
-  Ranking: undefined;
-  Ajustes: undefined;
+  Torneos: undefined;
+  Social: undefined;
 };
 
 export type JugarStackParamList = {

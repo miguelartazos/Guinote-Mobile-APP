@@ -27,6 +27,7 @@ export function useUnifiedAuth(): UnifiedAuthReturn {
 
   useEffect(() => {
     let canceled = false;
+    let authSubscription: any = null;
 
     async function init() {
       if (!useSupabaseAuth) {
@@ -39,27 +40,51 @@ export function useUnifiedAuth(): UnifiedAuthReturn {
       try {
         const { getSupabaseClient } = await import('../lib/supabase');
         const supabase = await getSupabaseClient();
-        const { data, error } = await supabase.auth.getUser();
+
+        // First, try to get the session from storage
+        const { data: sessionData } = await supabase.auth.getSession();
+
         if (!canceled) {
-          if (error) {
-            setUser(null);
+          if (sessionData?.session?.user) {
+            const u = sessionData.session.user;
+            setUser({
+              id: u.id,
+              email: u.email,
+              username:
+                (u.user_metadata && (u.user_metadata as any).username) ||
+                (u.email ? u.email.split('@')[0] : 'Jugador'),
+            });
           } else {
-            const u = data.user;
-            setUser(
-              u
-                ? {
-                    id: u.id,
-                    email: u.email,
-                    username:
-                      (u.user_metadata && (u.user_metadata as any).username) ||
-                      (u.email ? u.email.split('@')[0] : 'Jugador'),
-                  }
-                : null,
-            );
+            // Only set to null if there's truly no session
+            // Don't clear user on temporary network errors
+            setUser(null);
           }
         }
+
+        // Set up auth state change listener for real-time updates
+        authSubscription = supabase.auth.onAuthStateChange((event, session) => {
+          if (canceled) return;
+
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+            const u = session?.user;
+            if (u) {
+              setUser({
+                id: u.id,
+                email: u.email,
+                username:
+                  (u.user_metadata && (u.user_metadata as any).username) ||
+                  (u.email ? u.email.split('@')[0] : 'Jugador'),
+              });
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+          }
+          // Ignore other events to prevent unwanted logouts
+        });
       } catch (e) {
-        if (!canceled) setUser(null);
+        // Don't clear user on initialization errors
+        // User might still have a valid session
+        console.error('Auth initialization error:', e);
       } finally {
         if (!canceled) setInitialized(true);
       }
@@ -68,6 +93,9 @@ export function useUnifiedAuth(): UnifiedAuthReturn {
     init();
     return () => {
       canceled = true;
+      if (authSubscription?.data?.subscription) {
+        authSubscription.data.subscription.unsubscribe();
+      }
     };
   }, [useSupabaseAuth, offline.user]);
 
@@ -149,7 +177,15 @@ export function useUnifiedAuth(): UnifiedAuthReturn {
         }
       },
     };
-  }, [useSupabaseAuth, offline.user, offline.isLoading, offline.isAuthenticated, initialized, loading, user]);
+  }, [
+    useSupabaseAuth,
+    offline.user,
+    offline.isLoading,
+    offline.isAuthenticated,
+    initialized,
+    loading,
+    user,
+  ]);
 
   return api;
 }

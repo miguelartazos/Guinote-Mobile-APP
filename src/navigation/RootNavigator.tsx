@@ -71,10 +71,7 @@ export function RootNavigator() {
   }, []);
 
   return (
-    <NavigationContainer
-      ref={navigationRef}
-      linking={isMultiplayerEnabled() ? linking : undefined}
-    >
+    <NavigationContainer ref={navigationRef} linking={isMultiplayerEnabled() ? linking : undefined}>
       <TabNavigator />
     </NavigationContainer>
   );

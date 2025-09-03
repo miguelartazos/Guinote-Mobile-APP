@@ -6,19 +6,25 @@ import { typography } from '../../constants/typography';
 import { dimensions } from '../../constants/dimensions';
 import { useUnifiedFriends } from '../../hooks/useUnifiedFriends';
 import { useUnifiedRooms } from '../../hooks/useUnifiedRooms';
+import { useUnifiedAuth } from '../../hooks/useUnifiedAuth';
+import { shareRoomViaWhatsApp } from '../../services/sharing/whatsappShare';
 import type { Friend } from '../../types/friend.types';
 
 export function OnlineFriends() {
   const { friends, removeFriend } = useUnifiedFriends();
   const { createFriendsRoom } = useUnifiedRooms();
+  const { user } = useUnifiedAuth();
 
   const onlineFriends = friends.filter(friend => friend.isOnline);
 
   const handleInvite = async (friendId: string) => {
-    const room = await createFriendsRoom(friendId);
+    if (!user?.id) {
+      return;
+    }
+    const room = await createFriendsRoom(user.id);
     if (room) {
-      // TODO: Send invitation to friend
-      console.log('Inviting friend', friendId, 'to room', room.id);
+      await shareRoomViaWhatsApp(room.code);
+      // In a more advanced flow, we’d also notify the friend via in-app invite
     }
   };
 

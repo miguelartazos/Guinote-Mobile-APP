@@ -23,8 +23,20 @@ describe('Match Flow - Complete Game Progression', () => {
         { id: 'p4' as any, name: 'Player 4', teamId: 'team2' as TeamId, isBot: true } as any,
       ],
       teams: [
-        { id: 'team1' as TeamId, playerIds: ['p1' as any, 'p3' as any], score: 0, cardPoints: 0, cantes: [] },
-        { id: 'team2' as TeamId, playerIds: ['p2' as any, 'p4' as any], score: 0, cardPoints: 0, cantes: [] },
+        {
+          id: 'team1' as TeamId,
+          playerIds: ['p1' as any, 'p3' as any],
+          score: 0,
+          cardPoints: 0,
+          cantes: [],
+        },
+        {
+          id: 'team2' as TeamId,
+          playerIds: ['p2' as any, 'p4' as any],
+          score: 0,
+          cardPoints: 0,
+          cantes: [],
+        },
       ],
       deck: [],
       hands: new Map(),
@@ -52,8 +64,20 @@ describe('Match Flow - Complete Game Progression', () => {
       const initialScore = createInitialMatchScore();
       const state = createMockGameState({
         teams: [
-          { id: 'team1' as TeamId, playerIds: ['p1' as any, 'p3' as any], score: 105, cardPoints: 95, cantes: [] },
-          { id: 'team2' as TeamId, playerIds: ['p2' as any, 'p4' as any], score: 65, cardPoints: 55, cantes: [] },
+          {
+            id: 'team1' as TeamId,
+            playerIds: ['p1' as any, 'p3' as any],
+            score: 105,
+            cardPoints: 95,
+            cantes: [],
+          },
+          {
+            id: 'team2' as TeamId,
+            playerIds: ['p2' as any, 'p4' as any],
+            score: 65,
+            cardPoints: 55,
+            cantes: [],
+          },
         ],
         matchScore: initialScore,
       });
@@ -68,13 +92,25 @@ describe('Match Flow - Complete Game Progression', () => {
     it('should start vueltas when no team reaches 101 in first hand', () => {
       const state = createMockGameState({
         teams: [
-          { id: 'team1' as TeamId, playerIds: ['p1' as any, 'p3' as any], score: 85, cardPoints: 75, cantes: [] },
-          { id: 'team2' as TeamId, playerIds: ['p2' as any, 'p4' as any], score: 75, cardPoints: 65, cantes: [] },
+          {
+            id: 'team1' as TeamId,
+            playerIds: ['p1' as any, 'p3' as any],
+            score: 85,
+            cardPoints: 75,
+            cantes: [],
+          },
+          {
+            id: 'team2' as TeamId,
+            playerIds: ['p2' as any, 'p4' as any],
+            score: 75,
+            cardPoints: 65,
+            cantes: [],
+          },
         ],
       });
 
       const vueltasState = initializeVueltasState(state);
-      
+
       expect(vueltasState.isVueltas).toBe(true);
       expect(vueltasState.phase).toBe('dealing');
       expect(vueltasState.initialScores?.get('team1' as TeamId)).toBe(85);
@@ -93,8 +129,20 @@ describe('Match Flow - Complete Game Progression', () => {
         isVueltas: true,
         initialScores,
         teams: [
-          { id: 'team1' as TeamId, playerIds: ['p1' as any, 'p3' as any], score: 20, cardPoints: 20, cantes: [] },
-          { id: 'team2' as TeamId, playerIds: ['p2' as any, 'p4' as any], score: 40, cardPoints: 40, cantes: [] },
+          {
+            id: 'team1' as TeamId,
+            playerIds: ['p1' as any, 'p3' as any],
+            score: 20,
+            cardPoints: 20,
+            cantes: [],
+          },
+          {
+            id: 'team2' as TeamId,
+            playerIds: ['p2' as any, 'p4' as any],
+            score: 40,
+            cardPoints: 40,
+            cantes: [],
+          },
         ],
       });
 
@@ -112,18 +160,30 @@ describe('Match Flow - Complete Game Progression', () => {
         isVueltas: true,
         initialScores,
         teams: [
-          { id: 'team1' as TeamId, playerIds: ['p1' as any, 'p3' as any], score: 20, cardPoints: 20, cantes: [] },
-          { id: 'team2' as TeamId, playerIds: ['p2' as any, 'p4' as any], score: 40, cardPoints: 40, cantes: [] },
+          {
+            id: 'team1' as TeamId,
+            playerIds: ['p1' as any, 'p3' as any],
+            score: 20,
+            cardPoints: 20,
+            cantes: [],
+          },
+          {
+            id: 'team2' as TeamId,
+            playerIds: ['p2' as any, 'p4' as any],
+            score: 40,
+            cardPoints: 40,
+            cantes: [],
+          },
         ],
         matchScore: createInitialMatchScore(),
       });
 
       const newState = processVueltasCompletion(state);
-      
+
       // Should have updated match score for team 2 winning
       expect(newState.matchScore?.team2Partidas).toBe(1);
       expect(newState.matchScore?.team1Partidas).toBe(0);
-      
+
       // Should start new partida
       expect(newState.phase).toBe('dealing');
       expect(newState.isVueltas).toBe(false);
@@ -135,16 +195,16 @@ describe('Match Flow - Complete Game Progression', () => {
   describe('Coto Progression', () => {
     it('should award coto when team wins 3 partidas', () => {
       let matchScore = createInitialMatchScore();
-      
+
       // Team 1 wins 3 partidas
       matchScore = updateMatchScoreForPartida(matchScore, 0);
       expect(matchScore.team1Partidas).toBe(1);
       expect(matchScore.team1Cotos).toBe(0);
-      
+
       matchScore = updateMatchScoreForPartida(matchScore, 0);
       expect(matchScore.team1Partidas).toBe(2);
       expect(matchScore.team1Cotos).toBe(0);
-      
+
       matchScore = updateMatchScoreForPartida(matchScore, 0);
       expect(matchScore.team1Partidas).toBe(0); // Reset
       expect(matchScore.team1Cotos).toBe(1); // Coto awarded!
@@ -152,15 +212,15 @@ describe('Match Flow - Complete Game Progression', () => {
 
     it('should reset partida count after coto is won', () => {
       let matchScore = createInitialMatchScore();
-      
+
       // Team 1 wins a coto
       matchScore = updateMatchScoreForPartida(matchScore, 0);
       matchScore = updateMatchScoreForPartida(matchScore, 0);
       matchScore = updateMatchScoreForPartida(matchScore, 0);
-      
+
       expect(matchScore.team1Cotos).toBe(1);
       expect(matchScore.team1Partidas).toBe(0); // Reset after coto
-      
+
       // Team 2 wins next partida
       matchScore = updateMatchScoreForPartida(matchScore, 1);
       expect(matchScore.team2Partidas).toBe(1);
@@ -171,14 +231,14 @@ describe('Match Flow - Complete Game Progression', () => {
   describe('Match Completion', () => {
     it('should complete match when team wins 2 cotos', () => {
       let matchScore = createInitialMatchScore();
-      
+
       // Team 1 wins first coto (3 partidas)
       for (let i = 0; i < 3; i++) {
         matchScore = updateMatchScoreForPartida(matchScore, 0);
       }
       expect(matchScore.team1Cotos).toBe(1);
       expect(isMatchComplete(matchScore)).toBe(false);
-      
+
       // Team 1 wins second coto (3 more partidas)
       for (let i = 0; i < 3; i++) {
         matchScore = updateMatchScoreForPartida(matchScore, 0);
@@ -189,20 +249,20 @@ describe('Match Flow - Complete Game Progression', () => {
 
     it('should handle mixed coto wins', () => {
       let matchScore = createInitialMatchScore();
-      
+
       // Team 1 wins first coto
       for (let i = 0; i < 3; i++) {
         matchScore = updateMatchScoreForPartida(matchScore, 0);
       }
       expect(matchScore.team1Cotos).toBe(1);
-      
+
       // Team 2 wins second coto
       for (let i = 0; i < 3; i++) {
         matchScore = updateMatchScoreForPartida(matchScore, 1);
       }
       expect(matchScore.team2Cotos).toBe(1);
       expect(isMatchComplete(matchScore)).toBe(false);
-      
+
       // Team 1 wins third coto - match complete
       for (let i = 0; i < 3; i++) {
         matchScore = updateMatchScoreForPartida(matchScore, 0);
@@ -220,7 +280,7 @@ describe('Match Flow - Complete Game Progression', () => {
       });
 
       const newPartidaState = startNewPartida(state, state.matchScore!);
-      
+
       // Dealer should rotate to next player
       expect(newPartidaState.dealerIndex).toBe(3);
       // Mano (first player) should be to dealer's right
@@ -234,7 +294,7 @@ describe('Match Flow - Complete Game Progression', () => {
       });
 
       const newPartidaState = startNewPartida(state, state.matchScore!);
-      
+
       // Dealer should wrap to 0
       expect(newPartidaState.dealerIndex).toBe(0);
       // Mano should be player 3 (to dealer's right)

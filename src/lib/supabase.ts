@@ -37,13 +37,19 @@ async function initializeSupabase(): Promise<SupabaseClient> {
   const supabaseUrl = SUPABASE_URL;
   const supabaseAnonKey = SUPABASE_ANON_KEY;
 
-  // Validate environment variables
+  // Validate environment variables with better error messages
   if (!supabaseUrl || supabaseUrl.trim() === '') {
-    throw new Error('Missing EXPO_PUBLIC_SUPABASE_URL environment variable');
+    throw new Error(
+      'Missing EXPO_PUBLIC_SUPABASE_URL environment variable. ' +
+      'Please add it to your .env file. Example: EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co'
+    );
   }
 
   if (!supabaseAnonKey || supabaseAnonKey.trim() === '') {
-    throw new Error('Missing EXPO_PUBLIC_SUPABASE_ANON_KEY environment variable');
+    throw new Error(
+      'Missing EXPO_PUBLIC_SUPABASE_ANON_KEY environment variable. ' +
+      'Please add it to your .env file. You can find this in your Supabase project settings.'
+    );
   }
 
   // Create the client

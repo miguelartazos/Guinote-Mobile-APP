@@ -40,19 +40,27 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
   } = useUnifiedRooms();
 
   const [localIsReady, setLocalIsReady] = useState(false);
+  const aiManagerRef = React.useRef<any>(null);
+
+  // If the hook knows the real UUID for the room, prefer it over the
+  // optimistic temp id passed via navigation.
+  const isUuid = (value: string | null | undefined) =>
+    !!value &&
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
+  const effectiveRoomId = isUuid(room?.id) ? (room!.id as string) : roomId;
 
   const isHost = room?.host_id === userId;
   const currentPlayer = players.find(p => p.id === userId);
   const allPlayersReady = players.length === 4 && players.every(p => p.isReady);
 
   useEffect(() => {
-    const unsubscribe = subscribeToRoom(roomId);
-    getRoomPlayers(roomId);
+    const unsubscribe = subscribeToRoom(effectiveRoomId);
+    getRoomPlayers(effectiveRoomId);
 
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [roomId, subscribeToRoom, getRoomPlayers]);
+  }, [effectiveRoomId, subscribeToRoom, getRoomPlayers]);
 
   useEffect(() => {
     if (currentPlayer) {
@@ -66,7 +74,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
     try {
       const newReadyStatus = !localIsReady;
       setLocalIsReady(newReadyStatus);
-      await updateReadyStatus(roomId, userId, newReadyStatus);
+      await updateReadyStatus(effectiveRoomId, userId, newReadyStatus);
     } catch (error) {
       setLocalIsReady(!localIsReady);
       Alert.alert('Error', 'No se pudo actualizar el estado');
@@ -86,7 +94,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
     }
 
     try {
-      await addAIPlayer(roomId, config);
+      await addAIPlayer(effectiveRoomId, config);
     } catch (error) {
       Alert.alert('Error', 'No se pudo añadir jugador IA');
     }
@@ -96,10 +104,10 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
     if (!isHost || !allPlayersReady) return;
 
     try {
-      await startGame(roomId);
+      await startGame(effectiveRoomId);
       navigation.navigate('Game', {
         gameMode: 'friends',
-        roomId,
+        roomId: effectiveRoomId,
         roomCode,
         players,
       });
@@ -116,7 +124,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
         style: 'destructive',
         onPress: async () => {
           try {
-            await leaveRoom(roomId);
+            await leaveRoom(effectiveRoomId);
             navigation.goBack();
           } catch (error) {
             Alert.alert('Error', 'No se pudo salir de la sala');
@@ -147,13 +155,24 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
       <ScrollView contentContainerStyle={styles.content}>
         <RoomHeader code={roomCode || roomId.slice(0, 6).toUpperCase()} onShare={handleShareRoom} />
 
-        <PlayerSlots players={players} onAddAI={() => {}} isHost={isHost} />
+        <PlayerSlots
+          players={players}
+          onAddAI={() => {
+            // Trigger the AIPlayerManager modal
+            if (aiManagerRef.current?.openModal) {
+              aiManagerRef.current.openModal();
+            }
+          }}
+          isHost={isHost}
+        />
 
         <AIPlayerManager
+          ref={aiManagerRef}
           players={players}
           roomId={roomId}
           isHost={isHost}
           onAddAI={handleAddAIPlayer}
+          onOpenModal={() => {}}
         />
 
         <TeamIndicator

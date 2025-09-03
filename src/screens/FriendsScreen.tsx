@@ -94,7 +94,11 @@ export function FriendsScreen() {
       </View>
 
       <View style={styles.content}>
-        {isLoading ? <LoadingOverlay visible={true} message="Cargando amigos..." /> : renderTabContent()}
+        {isLoading ? (
+          <LoadingOverlay visible={true} message="Cargando amigos..." />
+        ) : (
+          renderTabContent()
+        )}
       </View>
     </SafeAreaView>
   );

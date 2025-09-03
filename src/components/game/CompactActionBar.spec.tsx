@@ -28,21 +28,64 @@ describe('CompactActionBar', () => {
     phase: 'playing' as const,
     currentPlayerIndex: 0,
     players: [
-      { id: 'p1' as PlayerId, name: 'Player 1', isBot: false, teamId: 'team1' as TeamId, ranking: 1000, avatar: 'avatar1' },
-      { id: 'p2' as PlayerId, name: 'Player 2', isBot: true, teamId: 'team1' as TeamId, ranking: 1000, avatar: 'avatar2' },
-      { id: 'p3' as PlayerId, name: 'Player 3', isBot: true, teamId: 'team2' as TeamId, ranking: 1000, avatar: 'avatar3' },
-      { id: 'p4' as PlayerId, name: 'Player 4', isBot: true, teamId: 'team2' as TeamId, ranking: 1000, avatar: 'avatar4' },
+      {
+        id: 'p1' as PlayerId,
+        name: 'Player 1',
+        isBot: false,
+        teamId: 'team1' as TeamId,
+        ranking: 1000,
+        avatar: 'avatar1',
+      },
+      {
+        id: 'p2' as PlayerId,
+        name: 'Player 2',
+        isBot: true,
+        teamId: 'team1' as TeamId,
+        ranking: 1000,
+        avatar: 'avatar2',
+      },
+      {
+        id: 'p3' as PlayerId,
+        name: 'Player 3',
+        isBot: true,
+        teamId: 'team2' as TeamId,
+        ranking: 1000,
+        avatar: 'avatar3',
+      },
+      {
+        id: 'p4' as PlayerId,
+        name: 'Player 4',
+        isBot: true,
+        teamId: 'team2' as TeamId,
+        ranking: 1000,
+        avatar: 'avatar4',
+      },
     ],
     teams: [
-      { id: 'team1' as TeamId, playerIds: ['p1' as PlayerId, 'p2' as PlayerId], score: 0, cardPoints: 0, cantes: [] },
-      { id: 'team2' as TeamId, playerIds: ['p3' as PlayerId, 'p4' as PlayerId], score: 0, cardPoints: 0, cantes: [] },
+      {
+        id: 'team1' as TeamId,
+        playerIds: ['p1' as PlayerId, 'p2' as PlayerId],
+        score: 0,
+        cardPoints: 0,
+        cantes: [],
+      },
+      {
+        id: 'team2' as TeamId,
+        playerIds: ['p3' as PlayerId, 'p4' as PlayerId],
+        score: 0,
+        cardPoints: 0,
+        cantes: [],
+      },
     ],
     hands: new Map([
-      ['p1' as PlayerId, [
-        createCard('oros', 10), // Sota de oros
-        createCard('oros', 12), // Rey de oros
-        createCard('copas', 1),
-      ]],
+      [
+        'p1' as PlayerId,
+        [
+          createCard('oros', 10), // Sota de oros
+          createCard('oros', 12), // Rey de oros
+          createCard('copas', 1),
+        ],
+      ],
     ]),
     trumpSuit: 'espadas' as const,
     trumpCard: createCard('espadas', 1),
@@ -81,14 +124,14 @@ describe('CompactActionBar', () => {
       (canCambiar7 as jest.Mock).mockReturnValue(false);
 
       const gameState = createMockGameState();
-      
+
       const { getByText } = render(
         <CompactActionBar
           gameState={gameState}
           onCantar={mockOnCantar}
           onCambiar7={mockOnCambiar7}
           disabled={false}
-        />
+        />,
       );
 
       // Button should be visible
@@ -101,14 +144,14 @@ describe('CompactActionBar', () => {
       (canCambiar7 as jest.Mock).mockReturnValue(false);
 
       const gameState = createMockGameState();
-      
+
       const { queryByText } = render(
         <CompactActionBar
           gameState={gameState}
           onCantar={mockOnCantar}
           onCambiar7={mockOnCambiar7}
           disabled={false}
-        />
+        />,
       );
 
       // Button should not be visible
@@ -120,14 +163,14 @@ describe('CompactActionBar', () => {
       (canCambiar7 as jest.Mock).mockReturnValue(false);
 
       const gameState = createMockGameState();
-      
+
       const { getByText } = render(
         <CompactActionBar
           gameState={gameState}
           onCantar={mockOnCantar}
           onCambiar7={mockOnCambiar7}
           disabled={false}
-        />
+        />,
       );
 
       const cantarButton = getByText('Cantar');
@@ -141,14 +184,14 @@ describe('CompactActionBar', () => {
       (canCambiar7 as jest.Mock).mockReturnValue(false);
 
       const gameState = createMockGameState();
-      
+
       const { queryByText } = render(
         <CompactActionBar
           gameState={gameState}
           onCantar={mockOnCantar}
           onCambiar7={mockOnCambiar7}
           disabled={true}
-        />
+        />,
       );
 
       // Button should not be shown when disabled
@@ -162,14 +205,14 @@ describe('CompactActionBar', () => {
       (canCambiar7 as jest.Mock).mockReturnValue(true);
 
       const gameState = createMockGameState({ canCambiar7: true });
-      
+
       const { getByText } = render(
         <CompactActionBar
           gameState={gameState}
           onCantar={mockOnCantar}
           onCambiar7={mockOnCambiar7}
           disabled={false}
-        />
+        />,
       );
 
       // Button should be visible
@@ -182,14 +225,14 @@ describe('CompactActionBar', () => {
       (canCambiar7 as jest.Mock).mockReturnValue(true);
 
       const gameState = createMockGameState({ canCambiar7: true });
-      
+
       const { getByText } = render(
         <CompactActionBar
           gameState={gameState}
           onCantar={mockOnCantar}
           onCambiar7={mockOnCambiar7}
           disabled={false}
-        />
+        />,
       );
 
       const cambiarButton = getByText('Cambiar 7');
@@ -205,14 +248,14 @@ describe('CompactActionBar', () => {
       (canCambiar7 as jest.Mock).mockReturnValue(true);
 
       const gameState = createMockGameState({ canCambiar7: true });
-      
+
       const { getByText } = render(
         <CompactActionBar
           gameState={gameState}
           onCantar={mockOnCantar}
           onCambiar7={mockOnCambiar7}
           disabled={false}
-        />
+        />,
       );
 
       expect(getByText('Cantar')).toBeDefined();
@@ -224,14 +267,14 @@ describe('CompactActionBar', () => {
       (canCambiar7 as jest.Mock).mockReturnValue(false);
 
       const gameState = createMockGameState();
-      
+
       const { UNSAFE_root } = render(
         <CompactActionBar
           gameState={gameState}
           onCantar={mockOnCantar}
           onCambiar7={mockOnCambiar7}
           disabled={false}
-        />
+        />,
       );
 
       expect(UNSAFE_root.children.length).toBe(0);
@@ -241,17 +284,17 @@ describe('CompactActionBar', () => {
       (canCantar as jest.Mock).mockReturnValue(['oros']);
       (canCambiar7 as jest.Mock).mockReturnValue(true);
 
-      const gameState = createMockGameState({ 
+      const gameState = createMockGameState({
         currentPlayerIndex: 1, // Player 2 is a bot
       });
-      
+
       const { UNSAFE_root } = render(
         <CompactActionBar
           gameState={gameState}
           onCantar={mockOnCantar}
           onCambiar7={mockOnCambiar7}
           disabled={false}
-        />
+        />,
       );
 
       expect(UNSAFE_root.children.length).toBe(0);

@@ -56,7 +56,7 @@ export const CompactActionBar = React.memo(
       if (canPlayerCantar) {
         // Reset for bounce effect
         scaleAnimCantar.setValue(ANIMATION_CONFIG.INITIAL_SCALE);
-        
+
         Animated.parallel([
           Animated.timing(fadeAnimCantar, {
             toValue: 1,
@@ -101,7 +101,7 @@ export const CompactActionBar = React.memo(
       if (canPlayerCambiar7) {
         // Reset for bounce effect
         scaleAnimCambiar.setValue(ANIMATION_CONFIG.INITIAL_SCALE);
-        
+
         Animated.parallel([
           Animated.timing(fadeAnimCambiar, {
             toValue: 1,

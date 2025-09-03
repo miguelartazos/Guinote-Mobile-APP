@@ -1,3 +1,4 @@
+import { Dimensions } from 'react-native';
 import type { Team, Cante, GameState } from '../types/game.types';
 import type { SpanishSuit } from '../types/cardTypes';
 
@@ -34,11 +35,14 @@ export function detectNewCante(teams: readonly Team[], previousTotalCantes: numb
 }
 
 export function getPlayerPositionForIndex(playerIndex: number): { x: number; y: number } {
+  const { width, height } = Dimensions.get('window');
+
+  // Calculate responsive positions based on screen dimensions
   const positions = [
-    { x: 400, y: 550 }, // Bottom (player 0)
-    { x: 700, y: 350 }, // Right (player 1)
-    { x: 400, y: 150 }, // Top (player 2)
-    { x: 100, y: 350 }, // Left (player 3)
+    { x: width * 0.5, y: height * 0.75 }, // Bottom (player 0)
+    { x: width * 0.85, y: height * 0.5 }, // Right (player 1)
+    { x: width * 0.5, y: height * 0.25 }, // Top (player 2)
+    { x: width * 0.15, y: height * 0.5 }, // Left (player 3)
   ];
 
   return positions[playerIndex] || positions[0];
@@ -50,8 +54,6 @@ export function createCanteAnimationData(
 ): CanteAnimationData | null {
   const declaringPlayer = gameState.players[gameState.currentPlayerIndex];
   if (!declaringPlayer) return null;
-
-  const playerPosition = getPlayerPositionForIndex(gameState.currentPlayerIndex);
 
   return {
     suit: cante.suit,

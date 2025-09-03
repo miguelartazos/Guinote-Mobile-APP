@@ -70,11 +70,51 @@ export function OnlineLobbyScreen() {
   };
 
   const handleCreateRoom = async () => {
-    Alert.alert('No disponible', 'Crear sala en línea deshabilitado.');
+    if (!isAuthenticated || !userId) {
+      Alert.alert('Error', 'Por favor inicia sesión para crear una sala');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const room = await rooms.createFriendsRoom(userId);
+      console.log('Room created:', room);
+
+      // Navigate to the room lobby
+      navigation.navigate('FriendsLobby', {
+        roomCode: room.code,
+        isHost: true,
+      });
+    } catch (error) {
+      console.error('Failed to create room:', error);
+      Alert.alert('Error', 'No se pudo crear la sala. Por favor intenta de nuevo.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleJoinRoom = async (roomCode: string) => {
-    Alert.alert('No disponible', 'Unirse a sala en línea deshabilitado.');
+    if (!isAuthenticated || !userId) {
+      Alert.alert('Error', 'Por favor inicia sesión para unirte a una sala');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const room = await rooms.joinRoomByCode(roomCode, userId);
+      console.log('Joined room:', room);
+
+      // Navigate to the room lobby
+      navigation.navigate('FriendsLobby', {
+        roomCode: room.code,
+        isHost: false,
+      });
+    } catch (error) {
+      console.error('Failed to join room:', error);
+      Alert.alert('Error', 'No se pudo unir a la sala. Por favor verifica el código.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const renderQuickMatch = () => {
@@ -135,7 +175,7 @@ export function OnlineLobbyScreen() {
           onPress={handleCreateRoom}
           disabled={isLoading}
         >
-          <Text style={styles.createRoomButtonText}>Create New Room</Text>
+          <Text style={styles.createRoomButtonText}>Crear Nueva Sala</Text>
         </TouchableOpacity>
 
         {isLoading ? (

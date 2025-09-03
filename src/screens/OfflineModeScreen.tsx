@@ -55,148 +55,132 @@ export function OfflineModeScreen({ navigation }: JugarStackScreenProps<'Offline
 
   const selectedDiff = difficulties.find(d => d.level === selectedDifficulty);
 
+  const handleStartGame = (resume: boolean = false) => {
+    if (hasSaved && !resume) {
+      Alert.alert('Nueva Partida', '¿Empezar una nueva partida? La partida guardada se perderá.', [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Nueva Partida',
+          onPress: () => {
+            clearGameState();
+            navigation.navigate('Game', {
+              gameMode: 'offline',
+              difficulty: selectedDifficulty,
+              playerName: user?.username || 'Jugador',
+              resumeGame: false,
+            });
+          },
+        },
+      ]);
+    } else {
+      navigation.navigate('Game', {
+        gameMode: 'offline',
+        difficulty: selectedDifficulty,
+        playerName: user?.username || 'Jugador',
+        resumeGame: resume,
+      });
+    }
+  };
+
   return (
     <ScreenContainer>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Modo Offline</Text>
-          <Text style={styles.subtitle}>Juega contra la IA</Text>
-          {user && (
-            <View style={styles.playerInfo}>
-              <Text style={styles.playerIcon}>👤</Text>
-              <Text style={styles.playerName}>{user.username || 'Jugador'}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Difficulty Selection */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Selecciona la Dificultad</Text>
-          <View style={styles.difficultySelector}>
-            {difficulties.map(difficulty => (
-              <TouchableOpacity
-                key={difficulty.level}
-                style={[
-                  styles.difficultyOption,
-                  selectedDifficulty === difficulty.level && styles.difficultyOptionSelected,
-                  selectedDifficulty === difficulty.level && { borderColor: difficulty.color },
-                ]}
-                onPress={() => setSelectedDifficulty(difficulty.level)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.difficultyIcon}>{difficulty.icon}</Text>
-                <Text
-                  style={[
-                    styles.difficultyText,
-                    selectedDifficulty === difficulty.level && styles.difficultyTextSelected,
-                  ]}
-                >
-                  {difficulty.title}
-                </Text>
-                <Text
-                  style={[
-                    styles.difficultyDescription,
-                    selectedDifficulty === difficulty.level && styles.difficultyDescriptionSelected,
-                  ]}
-                >
-                  {difficulty.description}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Difficulty Info Card */}
-        {selectedDiff && (
-          <Card elevated style={[styles.infoCard, { borderColor: selectedDiff.color }]}>
-            <View style={styles.infoHeader}>
-              <Text style={styles.infoIcon}>{selectedDiff.icon}</Text>
-              <View style={styles.infoContent}>
-                <Text style={[styles.infoTitle, { color: selectedDiff.color }]}>
-                  {selectedDiff.title}
-                </Text>
-                <Text style={styles.infoDescription}>{selectedDiff.description}</Text>
+      <View style={styles.container}>
+        {/* Main Content Area */}
+        <ScrollView
+          style={styles.scrollContainer}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header - Compact */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Modo Offline</Text>
+            <Text style={styles.subtitle}>Juega contra la IA</Text>
+            {user && (
+              <View style={styles.playerInfo}>
+                <Text style={styles.playerIcon}>👤</Text>
+                <Text style={styles.playerName}>{user.username || 'Jugador'}</Text>
               </View>
-            </View>
-          </Card>
-        )}
+            )}
+          </View>
 
-        {/* Action Buttons */}
-        <View style={styles.buttonContainer}>
-          {hasSaved && (
-            <TouchableOpacity
-              style={[styles.mainButton, styles.continueButton]}
-              onPress={() =>
-                navigation.navigate('Game', {
-                  gameMode: 'offline',
-                  difficulty: selectedDifficulty,
-                  playerName: user?.username || 'Jugador',
-                  resumeGame: true,
-                })
-              }
-              activeOpacity={0.8}
-            >
-              <Text style={styles.buttonIcon}>▶️</Text>
-              <Text style={styles.mainButtonText}>Continuar Partida Guardada</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[styles.mainButton, hasSaved ? styles.newGameButton : styles.startButton]}
-            onPress={() => {
-              if (hasSaved) {
-                Alert.alert(
-                  'Nueva Partida',
-                  '¿Empezar una nueva partida? La partida guardada se perderá.',
-                  [
-                    { text: 'Cancelar', style: 'cancel' },
-                    {
-                      text: 'Nueva Partida',
-                      onPress: () => {
-                        clearGameState();
-                        navigation.navigate('Game', {
-                          gameMode: 'offline',
-                          difficulty: selectedDifficulty,
-                          playerName: user?.username || 'Jugador',
-                          resumeGame: false,
-                        });
-                      },
+          {/* Compact Difficulty Selector */}
+          <View style={styles.difficultySection}>
+            <Text style={styles.sectionTitle}>Dificultad</Text>
+            <View style={styles.difficultyTabs}>
+              {difficulties.map(difficulty => (
+                <TouchableOpacity
+                  key={difficulty.level}
+                  style={[
+                    styles.difficultyTab,
+                    selectedDifficulty === difficulty.level && styles.difficultyTabSelected,
+                    selectedDifficulty === difficulty.level && {
+                      backgroundColor: difficulty.color,
                     },
-                  ],
-                );
-              } else {
-                navigation.navigate('Game', {
-                  gameMode: 'offline',
-                  difficulty: selectedDifficulty,
-                  playerName: user?.username || 'Jugador',
-                  resumeGame: false,
-                });
-              }
-            }}
+                  ]}
+                  onPress={() => setSelectedDifficulty(difficulty.level)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.difficultyTabIcon}>{difficulty.icon}</Text>
+                  <Text
+                    style={[
+                      styles.difficultyTabText,
+                      selectedDifficulty === difficulty.level && styles.difficultyTabTextSelected,
+                    ]}
+                  >
+                    {difficulty.title}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {selectedDiff && <Text style={styles.difficultyHint}>{selectedDiff.description}</Text>}
+          </View>
+
+          {/* Saved Game Section */}
+          {hasSaved && (
+            <Card elevated style={styles.savedGameCard}>
+              <View style={styles.savedGameContent}>
+                <Text style={styles.savedGameIcon}>💾</Text>
+                <View style={styles.savedGameInfo}>
+                  <Text style={styles.savedGameTitle}>Partida Guardada</Text>
+                  <Text style={styles.savedGameSubtitle}>Continúa donde lo dejaste</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.continueButton}
+                  onPress={() => handleStartGame(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.continueButtonText}>▶️</Text>
+                </TouchableOpacity>
+              </View>
+            </Card>
+          )}
+        </ScrollView>
+
+        {/* Fixed Bottom Action Area */}
+        <View style={styles.bottomActionArea}>
+          <TouchableOpacity
+            style={[
+              styles.primaryActionButton,
+              { backgroundColor: selectedDiff?.color || colors.accent },
+            ]}
+            onPress={() => handleStartGame(false)}
             activeOpacity={0.8}
           >
-            <Text style={styles.buttonIcon}>🎮</Text>
-            <Text style={styles.mainButtonText}>
+            <Text style={styles.primaryActionIcon}>🎮</Text>
+            <Text style={styles.primaryActionText}>
               {hasSaved ? 'Nueva Partida' : 'Comenzar Partida'}
             </Text>
           </TouchableOpacity>
 
-          <Button
-            variant="secondary"
+          <TouchableOpacity
+            style={styles.secondaryActionButton}
             onPress={() => navigation.goBack()}
-            icon="⬅️"
-            size="large"
-            style={styles.backButton}
+            activeOpacity={0.7}
           >
-            Volver
-          </Button>
+            <Text style={styles.secondaryActionText}>⬅️ Volver</Text>
+          </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </ScreenContainer>
   );
 }
@@ -205,162 +189,189 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollContainer: {
+    flex: 1,
+  },
   scrollContent: {
     paddingHorizontal: dimensions.spacing.lg,
-    paddingBottom: dimensions.spacing.xxl,
+    paddingBottom: dimensions.spacing.lg,
   },
   header: {
     alignItems: 'center',
-    paddingTop: dimensions.spacing.xl,
-    paddingBottom: dimensions.spacing.lg,
+    paddingTop: dimensions.spacing.lg,
+    paddingBottom: dimensions.spacing.md,
   },
   title: {
-    fontSize: typography.fontSize.xxxl,
+    fontSize: typography.fontSize.xxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.accent,
     marginBottom: dimensions.spacing.xs,
   },
   subtitle: {
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.md,
     color: colors.textSecondary,
-    marginBottom: dimensions.spacing.md,
+    marginBottom: dimensions.spacing.sm,
   },
   playerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    paddingHorizontal: dimensions.spacing.lg,
-    paddingVertical: dimensions.spacing.sm,
-    borderRadius: dimensions.borderRadius.lg,
-    marginTop: dimensions.spacing.sm,
+    paddingHorizontal: dimensions.spacing.md,
+    paddingVertical: dimensions.spacing.xs,
+    borderRadius: dimensions.borderRadius.md,
+    marginTop: dimensions.spacing.xs,
     borderWidth: 1,
     borderColor: colors.accent,
   },
   playerIcon: {
-    fontSize: 20,
-    marginRight: dimensions.spacing.sm,
+    fontSize: 16,
+    marginRight: dimensions.spacing.xs,
   },
   playerName: {
-    fontSize: typography.fontSize.md,
+    fontSize: typography.fontSize.sm,
     color: colors.text,
     fontWeight: typography.fontWeight.medium,
   },
-  section: {
-    marginVertical: dimensions.spacing.lg,
+  difficultySection: {
+    marginTop: dimensions.spacing.lg,
+    marginBottom: dimensions.spacing.md,
   },
   sectionTitle: {
-    fontSize: typography.fontSize.xl,
+    fontSize: typography.fontSize.lg,
     color: colors.text,
     fontWeight: typography.fontWeight.bold,
     marginBottom: dimensions.spacing.md,
     textAlign: 'center',
   },
-  difficultySelector: {
+  difficultyTabs: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: dimensions.spacing.sm,
-  },
-  difficultyOption: {
-    flex: 1,
-    alignItems: 'center',
     backgroundColor: colors.surface,
-    paddingVertical: dimensions.spacing.lg,
     borderRadius: dimensions.borderRadius.lg,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    padding: dimensions.spacing.xs,
+    gap: dimensions.spacing.xs,
   },
-  difficultyOptionSelected: {
-    backgroundColor: colors.secondary,
-    borderWidth: 2,
+  difficultyTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: dimensions.spacing.md,
+    borderRadius: dimensions.borderRadius.md,
+    gap: dimensions.spacing.xs,
   },
-  difficultyIcon: {
-    fontSize: 32,
-    marginBottom: dimensions.spacing.xs,
+  difficultyTabSelected: {
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  difficultyText: {
-    fontSize: typography.fontSize.md,
+  difficultyTabIcon: {
+    fontSize: 20,
+  },
+  difficultyTabText: {
+    fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
     fontWeight: typography.fontWeight.medium,
-    marginBottom: dimensions.spacing.xs,
   },
-  difficultyTextSelected: {
-    color: colors.text,
+  difficultyTabTextSelected: {
+    color: colors.white,
     fontWeight: typography.fontWeight.bold,
   },
-  difficultyDescription: {
+  difficultyHint: {
     fontSize: typography.fontSize.sm,
     color: colors.textMuted,
     textAlign: 'center',
-    paddingHorizontal: dimensions.spacing.xs,
+    marginTop: dimensions.spacing.sm,
+    fontStyle: 'italic',
   },
-  difficultyDescriptionSelected: {
-    color: colors.textSecondary,
-  },
-  infoCard: {
-    marginVertical: dimensions.spacing.md,
-    borderWidth: 2,
+  savedGameCard: {
+    marginTop: dimensions.spacing.lg,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.success,
   },
-  infoHeader: {
+  savedGameContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: dimensions.spacing.md,
+    padding: dimensions.spacing.md,
   },
-  infoIcon: {
-    fontSize: 48,
+  savedGameIcon: {
+    fontSize: 32,
     marginRight: dimensions.spacing.md,
   },
-  infoContent: {
+  savedGameInfo: {
     flex: 1,
   },
-  infoTitle: {
-    fontSize: typography.fontSize.xl,
+  savedGameTitle: {
+    fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.bold,
+    color: colors.text,
     marginBottom: dimensions.spacing.xs,
   },
-  infoDescription: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
+  savedGameSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
   },
-  buttonContainer: {
-    marginTop: dimensions.spacing.xl,
-    paddingHorizontal: dimensions.spacing.sm,
+  continueButton: {
+    backgroundColor: colors.success,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  mainButton: {
+  continueButtonText: {
+    fontSize: 24,
+  },
+  bottomActionArea: {
+    backgroundColor: colors.background,
+    paddingHorizontal: dimensions.spacing.lg,
+    paddingTop: dimensions.spacing.md,
+    paddingBottom: dimensions.spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  primaryActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: dimensions.spacing.lg,
     paddingHorizontal: dimensions.spacing.xl,
     borderRadius: dimensions.borderRadius.lg,
-    marginBottom: dimensions.spacing.md,
+    marginBottom: dimensions.spacing.sm,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 8,
   },
-  continueButton: {
-    backgroundColor: colors.success,
-    borderWidth: 1,
-    borderColor: '#66BB6A',
-  },
-  startButton: {
-    backgroundColor: colors.accent,
-  },
-  newGameButton: {
-    backgroundColor: colors.cambiarBlue,
-  },
-  buttonIcon: {
+  primaryActionIcon: {
     fontSize: 24,
     marginRight: dimensions.spacing.sm,
   },
-  mainButtonText: {
+  primaryActionText: {
     fontSize: typography.fontSize.lg,
     color: colors.white,
     fontWeight: typography.fontWeight.bold,
   },
-  backButton: {
-    marginTop: dimensions.spacing.md,
+  secondaryActionButton: {
+    alignItems: 'center',
+    paddingVertical: dimensions.spacing.sm,
+  },
+  secondaryActionText: {
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
+    fontWeight: typography.fontWeight.medium,
   },
 });

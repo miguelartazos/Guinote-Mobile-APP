@@ -30,6 +30,8 @@ type CardDealingAnimationProps = {
   // Crossfade handoff controls from parent (GameTable)
   fadeOut?: boolean;
   onFadeOutComplete?: () => void;
+  // Optional: use parent-provided layout to avoid drift
+  layoutInfo?: LayoutInfo;
 };
 
 export function CardDealingAnimation({
@@ -42,6 +44,7 @@ export function CardDealingAnimation({
   firstPlayerIndex,
   fadeOut,
   onFadeOutComplete,
+  layoutInfo: layoutInfoFromParent,
 }: CardDealingAnimationProps) {
   const [dealingPhase, setDealingPhase] = useState<
     'shuffle' | 'deal1' | 'deal2' | 'trump' | 'complete'
@@ -50,17 +53,26 @@ export function CardDealingAnimation({
 
   // Use the same table layout logic as GameTable for pixel-perfect alignment
   const { layout, onTableLayout } = useTableLayout();
-  const layoutReady = layout.isReady && layout.table.width > layout.table.height; // wait for landscape
-  const parentWidth = layout.table.width || Dimensions.get('window').width;
-  const parentHeight = layout.table.height || Dimensions.get('window').height;
+  // Prefer parent-provided layoutInfo if present
+  const parentLayout = layoutInfoFromParent?.parentLayout || layout.table;
+  const boardLayout = layoutInfoFromParent?.boardLayout || layout.board;
+  const parentWidth = parentLayout?.width || Dimensions.get('window').width;
+  const parentHeight = parentLayout?.height || Dimensions.get('window').height;
   const layoutInfo: LayoutInfo = {
     parentLayout:
-      layout.table.width > 0
-        ? layout.table
+      layoutInfoFromParent?.parentLayout && layoutInfoFromParent.parentLayout.width > 0
+        ? layoutInfoFromParent.parentLayout
+        : parentLayout?.width && parentLayout.width > 0
+        ? parentLayout
         : { x: 0, y: 0, width: parentWidth, height: parentHeight },
     boardLayout:
-      layout.board.width > 0 ? layout.board : computeBoardLayout(parentWidth, parentHeight),
+      layoutInfoFromParent?.boardLayout && layoutInfoFromParent.boardLayout.width > 0
+        ? layoutInfoFromParent.boardLayout
+        : boardLayout?.width && boardLayout.width > 0
+        ? boardLayout
+        : computeBoardLayout(parentWidth, parentHeight),
   };
+  const layoutReady = !!layoutInfo.parentLayout && (layoutInfo.parentLayout.width || 0) > 0;
 
   // Animation values for each card
   const cardAnimations = useRef<
@@ -168,7 +180,7 @@ export function CardDealingAnimation({
         board: layout.board,
       });
     }
-  }, [layoutReady, layout]);
+  }, [layoutReady, layout, layoutInfoFromParent]);
 
   const performShuffleAnimation = async () => {
     playShuffleSound();
@@ -457,6 +469,9 @@ export function CardDealingAnimation({
                     { translateX: trumpAnimation.translateX },
                     { translateY: trumpAnimation.translateY },
                   ],
+                  backfaceVisibility: 'hidden',
+                  renderToHardwareTextureAndroid: true,
+                  shouldRasterizeIOS: true,
                 },
               ]}
             >
@@ -479,6 +494,9 @@ export function CardDealingAnimation({
                   { translateX: shuffleAnimation.translateX },
                   { translateY: shuffleAnimation.translateY },
                 ],
+                backfaceVisibility: 'hidden',
+                renderToHardwareTextureAndroid: true,
+                shouldRasterizeIOS: true,
               },
             ]}
           >

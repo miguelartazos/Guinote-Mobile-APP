@@ -16,6 +16,7 @@ type SpanishCardProps = {
   faceDown?: boolean;
   size?: 'small' | 'medium' | 'large';
   style?: StyleProp<ViewStyle>;
+  isDisabled?: boolean;
 };
 
 export const SpanishCard = React.memo(function SpanishCard({
@@ -23,6 +24,7 @@ export const SpanishCard = React.memo(function SpanishCard({
   faceDown = false,
   size = 'medium',
   style,
+  isDisabled = false,
 }: SpanishCardProps) {
   const cardDimensions = getCardDimensions();
   const cardSize = cardDimensions[size];
@@ -44,6 +46,18 @@ export const SpanishCard = React.memo(function SpanishCard({
         width={cardSize.width}
         height={cardSize.height}
       />
+      {isDisabled && (
+        <View
+          testID="disabled-overlay"
+          style={[
+            styles.disabledOverlay,
+            {
+              width: cardSize.width,
+              height: cardSize.height,
+            },
+          ]}
+        />
+      )}
     </View>
   );
 });
@@ -57,5 +71,16 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderRadius: dimensions.borderRadius.md,
     overflow: 'hidden',
+    // Improve animation stability
+    backfaceVisibility: 'hidden',
+    renderToHardwareTextureAndroid: true,
+    shouldRasterizeIOS: true,
+  },
+  disabledOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: dimensions.borderRadius.md,
   },
 });

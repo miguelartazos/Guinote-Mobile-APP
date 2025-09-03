@@ -74,6 +74,13 @@ export function useUnifiedRooms(): RoomState & RoomActions {
     queuedActions: 0,
   });
 
+  // Helper: strict UUID validation to avoid sending temp ids to Postgres
+  const isUuid = useCallback((value: string) => {
+    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+      value,
+    );
+  }, []);
+
   // Set up action executor for connection service
   useEffect(() => {
     if (!enableMultiplayer) return;
@@ -86,16 +93,52 @@ export function useUnifiedRooms(): RoomState & RoomActions {
 
       switch (action.type) {
         case 'CREATE_ROOM': {
+          // Refresh session to ensure we have a valid token
+          const { data: refreshData, error: refreshError } = await client.auth.refreshSession();
+
+          let currentSession = refreshData?.session;
+
+          if (refreshError || !currentSession) {
+            // Try to get existing session as fallback
+            const { data: sessionData, error: sessionError } = await client.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+              throw new Error('Not authenticated. Please sign in again.');
+            }
+            currentSession = sessionData.session;
+          }
+
           // Use RPC to create room with server-side constraints
           const { data, error } = await (client as any).rpc('create_room', {
             p_game_mode: 'friend',
             p_is_public: false,
           });
-          if (error) throw error;
+
+          if (error) {
+            console.error('[CREATE_ROOM] RPC error:', error.message);
+            throw error;
+          }
+
+          // Check if the RPC returned a success/error structure
+          if (data && typeof data === 'object' && 'success' in data) {
+            if (!data.success) {
+              throw new Error(data.error || 'Failed to create room on server');
+            }
+          }
+
           return data; // { success, room_id, code }
         }
 
         case 'JOIN_ROOM': {
+          // Refresh session to ensure we have a valid token
+          const { data: refreshData, error: refreshError } = await client.auth.refreshSession();
+          if (refreshError || !refreshData?.session) {
+            // Try to get existing session as fallback
+            const { data: sessionData, error: sessionError } = await client.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+              throw new Error('Not authenticated. Please sign in again.');
+            }
+          }
+
           const code = action.payload.code as string;
           const { data, error } = await (client as any).rpc('join_room', {
             p_room_code: code,
@@ -105,6 +148,16 @@ export function useUnifiedRooms(): RoomState & RoomActions {
         }
 
         case 'LEAVE_ROOM': {
+          // Refresh session to ensure we have a valid token
+          const { data: refreshData, error: refreshError } = await client.auth.refreshSession();
+          if (refreshError || !refreshData?.session) {
+            // Try to get existing session as fallback
+            const { data: sessionData, error: sessionError } = await client.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+              throw new Error('Not authenticated. Please sign in again.');
+            }
+          }
+
           const { error } = await (client as any).rpc('leave_room', {
             p_room_id: action.payload.roomId as string,
           });
@@ -113,6 +166,16 @@ export function useUnifiedRooms(): RoomState & RoomActions {
         }
 
         case 'ADD_AI_PLAYER': {
+          // Refresh session to ensure we have a valid token
+          const { data: refreshData, error: refreshError } = await client.auth.refreshSession();
+          if (refreshError || !refreshData?.session) {
+            // Try to get existing session as fallback
+            const { data: sessionData, error: sessionError } = await client.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+              throw new Error('Not authenticated. Please sign in again.');
+            }
+          }
+
           const config = action.payload.config as AIConfig;
           const { error } = await (client as any).rpc('add_ai_player', {
             p_room_id: action.payload.roomId as string,
@@ -178,63 +241,77 @@ export function useUnifiedRooms(): RoomState & RoomActions {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
 
       try {
-        // Generate room code
-        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        // If online, wait for real room from server
+        if (isOnline) {
+          const { result, queued } = await connectionService.queueAction<any>(
+            'CREATE_ROOM',
+            { hostId },
+            null, // No optimistic update when online
+            isOnline,
+          );
 
-        // Optimistic room creation
-        const optimisticRoom: Room = {
-          id: `temp_${Date.now()}` as string,
-          code,
-          host_id: hostId,
-          game_state: null,
-          status: 'waiting',
-          game_mode: 'friend',
-          max_players: 4,
-          current_players: 1,
-          is_public: false,
-          created_at: new Date().toISOString(),
-          started_at: null,
-          finished_at: null,
-          last_activity_at: new Date().toISOString(),
-        };
+          if (result && result.room_id) {
+            // Server returned real room data
+            const room: Room = {
+              id: result.room_id as string,
+              code: result.code as string,
+              host_id: hostId,
+              game_state: null,
+              status: 'waiting',
+              game_mode: 'friend',
+              max_players: 4,
+              current_players: 1,
+              is_public: false,
+              created_at: new Date().toISOString(),
+              started_at: null,
+              finished_at: null,
+              last_activity_at: new Date().toISOString(),
+            };
 
-        const { result, queued } = await connectionService.queueAction<any>(
-          'CREATE_ROOM',
-          { code, hostId },
-          optimisticRoom,
-          isOnline,
-        );
+            setState(prev => ({
+              ...prev,
+              room,
+              isLoading: false,
+              queuedActions: queued ? prev.queuedActions + 1 : prev.queuedActions,
+            }));
+            return room;
+          } else {
+            throw new Error('Failed to create room on server');
+          }
+        } else {
+          // Offline mode: create optimistic room with temp ID
+          const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+          const optimisticRoom: Room = {
+            id: `temp_${Date.now()}` as string,
+            code,
+            host_id: hostId,
+            game_state: null,
+            status: 'waiting',
+            game_mode: 'friend',
+            max_players: 4,
+            current_players: 1,
+            is_public: false,
+            created_at: new Date().toISOString(),
+            started_at: null,
+            finished_at: null,
+            last_activity_at: new Date().toISOString(),
+          };
 
-        if (result) {
-          // If RPC returned JSON with room_id/code, convert to Room shape for local state
-          const normalized: Room = (result && result.room_id)
-            ? {
-                id: result.room_id as string,
-                code: (result.code as string) || code,
-                host_id: hostId,
-                game_state: null,
-                status: 'waiting',
-                game_mode: 'friend',
-                max_players: 4,
-                current_players: 1,
-                is_public: false,
-                created_at: new Date().toISOString(),
-                started_at: null,
-                finished_at: null,
-                last_activity_at: new Date().toISOString(),
-              }
-            : (result as Room);
+          await connectionService.queueAction(
+            'CREATE_ROOM',
+            { code, hostId },
+            optimisticRoom,
+            isOnline,
+          );
 
           setState(prev => ({
             ...prev,
-            room: normalized,
+            room: optimisticRoom,
             isLoading: false,
-            queuedActions: queued ? prev.queuedActions + 1 : prev.queuedActions,
+            queuedActions: prev.queuedActions + 1,
           }));
-          return normalized;
+          return optimisticRoom;
         }
-
-        throw new Error('Failed to create room');
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to create room';
         setState(prev => ({ ...prev, error: errorMessage, isLoading: false }));
@@ -256,59 +333,80 @@ export function useUnifiedRooms(): RoomState & RoomActions {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
 
       try {
-        // For offline mode, create optimistic response
-        const optimisticRoom: Room = {
-          id: `temp_${Date.now()}` as string,
-          code,
-          host_id: null,
-          game_state: null,
-          status: 'waiting',
-          game_mode: 'friend',
-          max_players: 4,
-          current_players: 2,
-          is_public: false,
-          created_at: new Date().toISOString(),
-          started_at: null,
-          finished_at: null,
-          last_activity_at: new Date().toISOString(),
-        };
+        // If online, wait for real room from server
+        if (isOnline) {
+          const { result, queued } = await connectionService.queueAction<any>(
+            'JOIN_ROOM',
+            { code: code.toUpperCase() },
+            null, // No optimistic update when online
+            isOnline,
+          );
 
-        const { result, queued } = await connectionService.queueAction<any>(
-          'JOIN_ROOM',
-          { code, userId },
-          optimisticRoom,
-          isOnline,
-        );
+          if (result) {
+            if (!result.success) {
+              throw new Error(result.error || 'Failed to join room');
+            }
 
-        if (result) {
-          const normalized: Room = (result && result.room_id)
-            ? {
-                id: result.room_id as string,
-                code,
-                host_id: null,
-                game_state: null,
-                status: 'waiting',
-                game_mode: 'friend',
-                max_players: 4,
-                current_players: 2,
-                is_public: false,
-                created_at: new Date().toISOString(),
-                started_at: null,
-                finished_at: null,
-                last_activity_at: new Date().toISOString(),
-              }
-            : (result as Room);
+            // Server returned real room data
+            const room: Room = {
+              id: result.room_id as string,
+              code: result.code || code.toUpperCase(),
+              host_id: null, // Will be fetched via subscription
+              game_state: null,
+              status: 'waiting',
+              game_mode: 'friend',
+              max_players: 4,
+              current_players: 2,
+              is_public: false,
+              created_at: new Date().toISOString(),
+              started_at: null,
+              finished_at: null,
+              last_activity_at: new Date().toISOString(),
+            };
+
+            setState(prev => ({
+              ...prev,
+              room,
+              isLoading: false,
+              queuedActions: queued ? prev.queuedActions + 1 : prev.queuedActions,
+            }));
+            return room;
+          } else {
+            throw new Error('No response from server');
+          }
+        } else {
+          // Offline mode: create optimistic room with temp ID
+          const optimisticRoom: Room = {
+            id: `temp_${Date.now()}` as string,
+            code: code.toUpperCase(),
+            host_id: null,
+            game_state: null,
+            status: 'waiting',
+            game_mode: 'friend',
+            max_players: 4,
+            current_players: 2,
+            is_public: false,
+            created_at: new Date().toISOString(),
+            started_at: null,
+            finished_at: null,
+            last_activity_at: new Date().toISOString(),
+          };
+
+          await connectionService.queueAction(
+            'JOIN_ROOM',
+            { code: code.toUpperCase(), userId },
+            optimisticRoom,
+            isOnline,
+          );
 
           setState(prev => ({
             ...prev,
-            room: normalized,
+            room: optimisticRoom,
             isLoading: false,
-            queuedActions: queued ? prev.queuedActions + 1 : prev.queuedActions,
+            queuedActions: prev.queuedActions + 1,
           }));
-          return normalized;
+          return optimisticRoom;
         }
-
-        throw new Error('Failed to join room');
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to join room';
         setState(prev => ({ ...prev, error: errorMessage, isLoading: false }));
@@ -328,12 +426,7 @@ export function useUnifiedRooms(): RoomState & RoomActions {
       }
 
       try {
-        await connectionService.queueAction(
-          'LEAVE_ROOM',
-          { roomId },
-          undefined,
-          isOnline,
-        );
+        await connectionService.queueAction('LEAVE_ROOM', { roomId }, undefined, isOnline);
 
         // Clean up subscription
         if (channelRef.current) {
@@ -404,6 +497,14 @@ export function useUnifiedRooms(): RoomState & RoomActions {
         return () => {};
       }
 
+      // If roomId is a temporary client id, skip realtime subscription
+      if (!roomId || !isUuid(roomId)) {
+        if (__DEV__) {
+          console.warn('[useUnifiedRooms] subscribeToRoom skipped for non-UUID roomId:', roomId);
+        }
+        return () => {};
+      }
+
       const setupSubscription = async () => {
         try {
           const client = await createRealtimeClient();
@@ -464,7 +565,7 @@ export function useUnifiedRooms(): RoomState & RoomActions {
         }
       };
     },
-    [enableMultiplayer],
+    [enableMultiplayer, isUuid],
   );
 
   /**
@@ -477,6 +578,14 @@ export function useUnifiedRooms(): RoomState & RoomActions {
       }
 
       try {
+        // Avoid querying with temporary ids that are not valid UUIDs
+        if (!roomId || !isUuid(roomId)) {
+          if (__DEV__) {
+            console.warn('[useUnifiedRooms] getRoomPlayers skipped for non-UUID roomId:', roomId);
+          }
+          return [];
+        }
+
         const client = await createRealtimeClient();
         if (!client) {
           return [];
@@ -491,7 +600,9 @@ export function useUnifiedRooms(): RoomState & RoomActions {
 
         const players: Player[] = data.map((p: any) => ({
           id: p.user_id,
-          name: p.is_ai ? `AI Player ${p.position}` : p.users?.display_name || p.users?.username || 'Jugador',
+          name: p.is_ai
+            ? `AI Player ${p.position}`
+            : p.users?.display_name || p.users?.username || 'Jugador',
           position: p.position,
           teamId:
             p.team === null || p.team === undefined ? null : p.team % 2 === 0 ? 'team1' : 'team2',
@@ -513,7 +624,7 @@ export function useUnifiedRooms(): RoomState & RoomActions {
         return [];
       }
     },
-    [enableMultiplayer],
+    [enableMultiplayer, isUuid],
   );
 
   /**

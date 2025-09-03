@@ -6,21 +6,12 @@ import { ColorButton } from '../components/game/ColorButton';
 import { colors, TABLE_COLORS } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
-import { useVoiceSettings } from '../hooks/useVoiceSettings';
 import { useGameSettings } from '../hooks/useGameSettings';
 import type { MainTabScreenProps } from '../types/navigation';
 import type { DifficultyLevel } from '../types/game.types';
 import type { CardSize, TableColor } from '../utils/gameSettings';
 
 export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>) {
-  const {
-    globalVoiceEnabled,
-    autoPlay,
-    volume,
-    updateSettings: updateVoiceSettings,
-    resetSettings: resetVoiceSettings,
-  } = useVoiceSettings();
-
   const {
     settings: gameSettings,
     updateSettings: updateGameSettings,
@@ -31,28 +22,9 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
     return null;
   }
 
-  const handleGlobalVoiceToggle = async (enabled: boolean) => {
+  const handleMasterVolumeChange = async (newVolume: number) => {
     try {
-      await updateVoiceSettings({ globalVoiceEnabled: enabled });
-      await updateGameSettings({ globalVoiceEnabled: enabled });
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar la configuración');
-    }
-  };
-
-  const handleAutoPlayToggle = async (enabled: boolean) => {
-    try {
-      await updateVoiceSettings({ autoPlay: enabled });
-      await updateGameSettings({ autoPlay: enabled });
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar la configuración');
-    }
-  };
-
-  const handleVolumeChange = async (newVolume: number) => {
-    try {
-      await updateVoiceSettings({ volume: newVolume });
-      await updateGameSettings({ volume: newVolume });
+      await updateGameSettings({ masterVolume: newVolume });
     } catch (error) {
       Alert.alert('Error', 'No se pudo actualizar el volumen');
     }
@@ -74,6 +46,22 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
     }
   };
 
+  const handleVoiceMessagesToggle = async (enabled: boolean) => {
+    try {
+      await updateGameSettings({ voiceMessagesEnabled: enabled });
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo actualizar los mensajes de voz');
+    }
+  };
+
+  const handleBackgroundMusicToggle = async (enabled: boolean) => {
+    try {
+      await updateGameSettings({ backgroundMusicEnabled: enabled });
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo actualizar la música de fondo');
+    }
+  };
+
   const handleCardSizeChange = async (size: CardSize) => {
     try {
       await updateGameSettings({ cardSize: size });
@@ -90,74 +78,6 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
     }
   };
 
-  const handleResetSettings = async () => {
-    try {
-      await resetVoiceSettings();
-      await resetGameSettings();
-      Alert.alert('Éxito', 'Configuración restablecida correctamente');
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo restablecer la configuración');
-    }
-  };
-
-  const handleBackgroundMusicToggle = async (enabled: boolean) => {
-    try {
-      await updateGameSettings({ backgroundMusicEnabled: enabled });
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar la música de fondo');
-    }
-  };
-
-  const handleMusicVolumeChange = async (newVolume: number) => {
-    try {
-      await updateGameSettings({ musicVolume: newVolume });
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar el volumen de música');
-    }
-  };
-
-  const handleEffectsVolumeChange = async (newVolume: number) => {
-    try {
-      await updateGameSettings({ effectsVolume: newVolume });
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar el volumen de efectos');
-    }
-  };
-
-  const handleReactionsVolumeChange = async (newVolume: number) => {
-    try {
-      await updateGameSettings({ reactionsVolume: newVolume });
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar el volumen de reacciones');
-    }
-  };
-
-  const handleMusicTypeChange = async (
-    type: 'spanish_guitar' | 'cafe_ambiance' | 'nature_sounds',
-  ) => {
-    try {
-      await updateGameSettings({ backgroundMusicType: type });
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo cambiar el tipo de música');
-    }
-  };
-
-  const handleAccessibilityAudioToggle = async (enabled: boolean) => {
-    try {
-      await updateGameSettings({ accessibilityAudioCues: enabled });
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar las señales de audio');
-    }
-  };
-
-  const handleVoiceAnnouncementsToggle = async (enabled: boolean) => {
-    try {
-      await updateGameSettings({ voiceAnnouncements: enabled });
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar los anuncios de voz');
-    }
-  };
-
   const handleHighContrastToggle = async (enabled: boolean) => {
     try {
       await updateGameSettings({ highContrastMode: enabled });
@@ -166,62 +86,43 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
     }
   };
 
+  const handleResetSettings = async () => {
+    Alert.alert(
+      'Restablecer configuración',
+      '¿Estás seguro de que quieres restablecer toda la configuración?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Restablecer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await resetGameSettings();
+              Alert.alert('Éxito', 'Configuración restablecida correctamente');
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo restablecer la configuración');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <ScreenContainer>
       <View style={styles.container}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>Ajustes</Text>
-          <Text style={styles.subtitle}>Configuración del juego</Text>
+          <Text style={styles.subtitle}>Configura el juego a tu gusto</Text>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* GAMEPLAY SECTION */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Mensajes de Voz</Text>
-
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Activar mensajes de voz</Text>
-              <Switch
-                value={globalVoiceEnabled}
-                onValueChange={handleGlobalVoiceToggle}
-                trackColor={{
-                  false: colors.secondary,
-                  true: colors.accent,
-                }}
-                thumbColor={globalVoiceEnabled ? colors.white : colors.textMuted}
-              />
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionIcon}>🎮</Text>
+              <Text style={styles.sectionTitle}>Juego</Text>
             </View>
-
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Reproducción automática</Text>
-              <Switch
-                value={autoPlay}
-                onValueChange={handleAutoPlayToggle}
-                disabled={!globalVoiceEnabled}
-                trackColor={{
-                  false: colors.secondary,
-                  true: colors.accent,
-                }}
-                thumbColor={autoPlay && globalVoiceEnabled ? colors.white : colors.textMuted}
-              />
-            </View>
-
-            <View style={styles.settingColumn}>
-              <Text style={styles.settingLabel}>Volumen: {Math.round(volume * 100)}%</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={1}
-                value={volume}
-                onValueChange={handleVolumeChange}
-                disabled={!globalVoiceEnabled}
-                minimumTrackTintColor={colors.accent}
-                maximumTrackTintColor={colors.secondary}
-              />
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Configuración del Juego</Text>
 
             <View style={styles.settingColumn}>
               <Text style={styles.settingLabel}>Dificultad de la IA</Text>
@@ -275,19 +176,6 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Efectos de sonido</Text>
-              <Switch
-                value={gameSettings.soundEffectsEnabled}
-                onValueChange={handleSoundEffectsToggle}
-                trackColor={{
-                  false: colors.secondary,
-                  true: colors.accent,
-                }}
-                thumbColor={gameSettings.soundEffectsEnabled ? colors.white : colors.textMuted}
-              />
             </View>
 
             <View style={styles.settingColumn}>
@@ -355,8 +243,53 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
             </View>
           </View>
 
+          {/* AUDIO SECTION */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Configuración de Audio</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionIcon}>🔊</Text>
+              <Text style={styles.sectionTitle}>Audio</Text>
+            </View>
+
+            <View style={styles.settingColumn}>
+              <Text style={styles.settingLabel}>
+                Volumen general: {Math.round(gameSettings.masterVolume * 100)}%
+              </Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={1}
+                value={gameSettings.masterVolume}
+                onValueChange={handleMasterVolumeChange}
+                minimumTrackTintColor={colors.accent}
+                maximumTrackTintColor={colors.secondary}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Efectos de sonido</Text>
+              <Switch
+                value={gameSettings.soundEffectsEnabled}
+                onValueChange={handleSoundEffectsToggle}
+                trackColor={{
+                  false: colors.secondary,
+                  true: colors.accent,
+                }}
+                thumbColor={gameSettings.soundEffectsEnabled ? colors.white : colors.textMuted}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Mensajes de voz</Text>
+              <Switch
+                value={gameSettings.voiceMessagesEnabled}
+                onValueChange={handleVoiceMessagesToggle}
+                trackColor={{
+                  false: colors.secondary,
+                  true: colors.accent,
+                }}
+                thumbColor={gameSettings.voiceMessagesEnabled ? colors.white : colors.textMuted}
+              />
+            </View>
 
             <View style={styles.settingRow}>
               <Text style={styles.settingLabel}>Música de fondo</Text>
@@ -370,148 +303,22 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
                 thumbColor={gameSettings.backgroundMusicEnabled ? colors.white : colors.textMuted}
               />
             </View>
-
-            <View style={styles.settingColumn}>
-              <Text style={styles.settingLabel}>
-                Volumen de música: {Math.round(gameSettings.musicVolume * 100)}%
-              </Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={1}
-                value={gameSettings.musicVolume}
-                onValueChange={handleMusicVolumeChange}
-                disabled={!gameSettings.backgroundMusicEnabled}
-                minimumTrackTintColor={colors.accent}
-                maximumTrackTintColor={colors.secondary}
-              />
-            </View>
-
-            <View style={styles.settingColumn}>
-              <Text style={styles.settingLabel}>
-                Volumen de efectos: {Math.round(gameSettings.effectsVolume * 100)}%
-              </Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={1}
-                value={gameSettings.effectsVolume}
-                onValueChange={handleEffectsVolumeChange}
-                minimumTrackTintColor={colors.accent}
-                maximumTrackTintColor={colors.secondary}
-              />
-            </View>
-
-            <View style={styles.settingColumn}>
-              <Text style={styles.settingLabel}>
-                Volumen de reacciones: {Math.round(gameSettings.reactionsVolume * 100)}%
-              </Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={1}
-                value={gameSettings.reactionsVolume}
-                onValueChange={handleReactionsVolumeChange}
-                minimumTrackTintColor={colors.accent}
-                maximumTrackTintColor={colors.secondary}
-              />
-            </View>
-
-            <View style={styles.settingColumn}>
-              <Text style={styles.settingLabel}>Tipo de música</Text>
-              <View style={styles.buttonGroup}>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    gameSettings.backgroundMusicType === 'spanish_guitar' &&
-                      styles.optionButtonActive,
-                  ]}
-                  onPress={() => handleMusicTypeChange('spanish_guitar')}
-                  disabled={!gameSettings.backgroundMusicEnabled}
-                >
-                  <Text
-                    style={[
-                      styles.optionButtonText,
-                      gameSettings.backgroundMusicType === 'spanish_guitar' &&
-                        styles.optionButtonTextActive,
-                    ]}
-                  >
-                    Guitarra
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    gameSettings.backgroundMusicType === 'cafe_ambiance' &&
-                      styles.optionButtonActive,
-                  ]}
-                  onPress={() => handleMusicTypeChange('cafe_ambiance')}
-                  disabled={!gameSettings.backgroundMusicEnabled}
-                >
-                  <Text
-                    style={[
-                      styles.optionButtonText,
-                      gameSettings.backgroundMusicType === 'cafe_ambiance' &&
-                        styles.optionButtonTextActive,
-                    ]}
-                  >
-                    Café
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    gameSettings.backgroundMusicType === 'nature_sounds' &&
-                      styles.optionButtonActive,
-                  ]}
-                  onPress={() => handleMusicTypeChange('nature_sounds')}
-                  disabled={!gameSettings.backgroundMusicEnabled}
-                >
-                  <Text
-                    style={[
-                      styles.optionButtonText,
-                      gameSettings.backgroundMusicType === 'nature_sounds' &&
-                        styles.optionButtonTextActive,
-                    ]}
-                  >
-                    Naturaleza
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
           </View>
 
+          {/* ACCESSIBILITY SECTION */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Accesibilidad</Text>
-
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Señales de audio</Text>
-              <Switch
-                value={gameSettings.accessibilityAudioCues}
-                onValueChange={handleAccessibilityAudioToggle}
-                trackColor={{
-                  false: colors.secondary,
-                  true: colors.accent,
-                }}
-                thumbColor={gameSettings.accessibilityAudioCues ? colors.white : colors.textMuted}
-              />
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionIcon}>♿</Text>
+              <Text style={styles.sectionTitle}>Accesibilidad</Text>
             </View>
 
             <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Anuncios de voz</Text>
-              <Switch
-                value={gameSettings.voiceAnnouncements}
-                onValueChange={handleVoiceAnnouncementsToggle}
-                trackColor={{
-                  false: colors.secondary,
-                  true: colors.accent,
-                }}
-                thumbColor={gameSettings.voiceAnnouncements ? colors.white : colors.textMuted}
-              />
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Modo alto contraste</Text>
+              <View style={styles.settingRowText}>
+                <Text style={styles.settingLabel}>Modo alto contraste</Text>
+                <Text style={styles.settingDescription}>
+                  Mejora la visibilidad de las cartas y textos
+                </Text>
+              </View>
               <Switch
                 value={gameSettings.highContrastMode}
                 onValueChange={handleHighContrastToggle}
@@ -523,14 +330,13 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
               />
             </View>
 
-            <Text style={styles.accessibilityInfo}>
-              Las señales de audio proporcionan sonidos adicionales para eventos importantes del
-              juego. Los anuncios de voz describen las cartas y acciones para usuarios con
-              discapacidad visual.
+            <Text style={styles.accessibilityTip}>
+              💡 Tip: Usa "Cartas grandes" en la sección Juego para mejor visibilidad
             </Text>
           </View>
 
-          <View style={styles.section}>
+          {/* RESET BUTTON */}
+          <View style={styles.resetSection}>
             <TouchableOpacity
               style={styles.resetButton}
               onPress={handleResetSettings}
@@ -550,75 +356,77 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'space-between',
   },
   titleContainer: {
     alignItems: 'center',
     marginTop: dimensions.spacing.xxl,
+    marginBottom: dimensions.spacing.lg,
   },
   title: {
     fontSize: typography.fontSize.xxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.accent,
-    marginBottom: dimensions.spacing.sm,
+    marginBottom: dimensions.spacing.xs,
   },
   subtitle: {
-    fontSize: typography.fontSize.lg,
-    color: colors.text,
-    fontWeight: typography.fontWeight.medium,
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
   },
   content: {
     flex: 1,
     paddingHorizontal: dimensions.spacing.lg,
-    paddingTop: dimensions.spacing.xl,
   },
   section: {
-    marginBottom: dimensions.spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: dimensions.borderRadius.xl,
+    padding: dimensions.spacing.lg,
+    marginBottom: dimensions.spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: dimensions.spacing.lg,
+  },
+  sectionIcon: {
+    fontSize: 24,
+    marginRight: dimensions.spacing.sm,
   },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.text,
-    marginBottom: dimensions.spacing.md,
   },
   settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: dimensions.spacing.sm,
+    paddingVertical: dimensions.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.secondary,
+    borderBottomColor: colors.border,
+  },
+  settingRowText: {
+    flex: 1,
+    marginRight: dimensions.spacing.md,
   },
   settingColumn: {
-    paddingVertical: dimensions.spacing.sm,
+    paddingVertical: dimensions.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.secondary,
+    borderBottomColor: colors.border,
   },
   settingLabel: {
     fontSize: typography.fontSize.md,
     color: colors.text,
     fontWeight: typography.fontWeight.medium,
   },
+  settingDescription: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: dimensions.spacing.xs,
+  },
   slider: {
     width: '100%',
     height: 40,
-    marginTop: dimensions.spacing.xs,
-  },
-  resetButton: {
-    backgroundColor: colors.secondary,
-    borderRadius: dimensions.borderRadius.lg,
-    paddingVertical: dimensions.spacing.md,
-    paddingHorizontal: dimensions.spacing.lg,
-    alignItems: 'center',
-    marginTop: dimensions.spacing.lg,
-  },
-  resetButtonText: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-  },
-  buttonContainer: {
-    marginBottom: dimensions.spacing.xxl,
+    marginTop: dimensions.spacing.sm,
   },
   buttonGroup: {
     flexDirection: 'row',
@@ -631,8 +439,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: dimensions.spacing.md,
     borderRadius: dimensions.borderRadius.md,
     borderWidth: 2,
-    borderColor: colors.secondary,
+    borderColor: colors.border,
     alignItems: 'center',
+    backgroundColor: colors.background,
   },
   optionButtonActive: {
     borderColor: colors.accent,
@@ -651,11 +460,29 @@ const styles = StyleSheet.create({
     marginTop: dimensions.spacing.sm,
     gap: dimensions.spacing.md,
   },
-  accessibilityInfo: {
+  accessibilityTip: {
     fontSize: typography.fontSize.sm,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     marginTop: dimensions.spacing.md,
-    lineHeight: typography.fontSize.sm * 1.5,
     fontStyle: 'italic',
+    lineHeight: typography.fontSize.sm * 1.5,
+  },
+  resetSection: {
+    marginTop: dimensions.spacing.md,
+    marginBottom: dimensions.spacing.xl,
+  },
+  resetButton: {
+    backgroundColor: colors.error + '20',
+    borderRadius: dimensions.borderRadius.lg,
+    paddingVertical: dimensions.spacing.md,
+    paddingHorizontal: dimensions.spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+  resetButtonText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.error,
   },
 });

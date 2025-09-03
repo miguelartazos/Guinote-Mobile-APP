@@ -98,7 +98,7 @@ const portraitStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   scoreCard: {
     backgroundColor: colors.primary,
@@ -193,20 +193,21 @@ const landscapeStyles: Partial<typeof portraitStyles> = {
   container: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    marginBottom: 30,
+    marginBottom: 16,
+    marginTop: 8,
   },
   scoreCard: {
     backgroundColor: colors.background,
-    paddingVertical: 24,
-    paddingHorizontal: 36,
-    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: colors.goldDark,
-    minWidth: 200,
+    minWidth: 160,
     alignItems: 'center',
   },
   scoreText: {
-    fontSize: 64,
+    fontSize: 48,
     fontWeight: '900',
     color: colors.text,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
@@ -221,14 +222,14 @@ const landscapeStyles: Partial<typeof portraitStyles> = {
     fontWeight: '600',
   },
   scoreDivider: {
-    marginHorizontal: 24,
+    marginHorizontal: 16,
     justifyContent: 'center',
   },
   versusText: {
-    fontSize: 20,
+    fontSize: 16,
     color: colors.goldDark,
     fontWeight: '700',
-    marginVertical: 8,
+    marginVertical: 6,
     letterSpacing: 1,
   },
 };

@@ -8,7 +8,6 @@ import {
   isPlayerMuted,
   togglePlayerMuted,
   resetVoiceSettings,
-  getEffectiveVolume,
 } from '../utils/voiceSettings';
 
 type VoiceSettingsState = VoiceSettings & {
@@ -78,10 +77,6 @@ export function useVoiceSettings() {
     listenersRef.current.forEach(listener => listener());
   }, [refreshSettings]);
 
-  const getPlayerEffectiveVolume = useCallback((playerVolume: number = 1) => {
-    return getEffectiveVolume(playerVolume);
-  }, []);
-
   const isPlayerMutedById = useCallback((playerId: string): boolean => {
     return isPlayerMuted(playerId);
   }, []);
@@ -102,9 +97,7 @@ export function useVoiceSettings() {
 
   return {
     // Settings state
-    globalVoiceEnabled: settingsState.globalVoiceEnabled,
     autoPlay: settingsState.autoPlay,
-    volume: settingsState.volume,
     mutedPlayers: settingsState.mutedPlayers,
     isLoading: settingsState.isLoading,
 
@@ -119,7 +112,6 @@ export function useVoiceSettings() {
     isPlayerMuted: isPlayerMutedById,
 
     // Utilities
-    getEffectiveVolume: getPlayerEffectiveVolume,
     refreshSettings,
   };
 }

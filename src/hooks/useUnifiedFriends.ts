@@ -20,7 +20,8 @@ import type { Database } from '../types/database.types';
 import type { QueuedAction } from '../services/connectionService';
 
 // Types
-export type Profile = Database['public']['Tables']['profiles']['Row'];
+// Use users table as the source of profile data (no profiles table in schema)
+export type Profile = Database['public']['Tables']['users']['Row'];
 export type Friendship = Database['public']['Tables']['friendships']['Row'];
 export type FriendshipStatus = Friendship['status'];
 export type FriendRequestId = Brand<string, 'FriendRequestId'>;
@@ -381,7 +382,7 @@ export function useUnifiedFriends(): FriendsState & FriendActions {
             username,
             display_name,
             avatar_url,
-            ranking,
+            elo,
             is_online,
             last_seen_at
           )
@@ -397,7 +398,7 @@ export function useUnifiedFriends(): FriendsState & FriendActions {
         username: f.friend.username,
         displayName: f.friend.display_name,
         avatarUrl: f.friend.avatar_url,
-        ranking: f.friend.ranking,
+        ranking: f.friend.elo,
         isOnline: f.friend.is_online,
         lastSeenAt: f.friend.last_seen_at,
         friendshipId: f.id as FriendRequestId,
@@ -430,22 +431,59 @@ export function useUnifiedFriends(): FriendsState & FriendActions {
         return [];
       }
 
-      const { data, error } = await client.rpc('get_online_friends', {
+      // Try RPC first; if missing, fall back to direct query
+      let onlineFriends: Friend[] = [];
+      const rpc = await (client as any).rpc('get_online_friends', {
         p_user_id: auth.user.id,
       });
 
-      if (error) throw error;
+      if (!rpc.error && rpc.data) {
+        onlineFriends = (rpc.data || []).map((f: any) => ({
+          id: f.friend_id as UserId,
+          username: f.username,
+          displayName: f.display_name,
+          avatarUrl: f.avatar_url,
+          ranking: f.elo,
+          isOnline: true,
+          lastSeenAt: new Date().toISOString(),
+          friendshipId: '' as FriendRequestId,
+        }));
+      } else {
+        // Fallback: accepted friendships where friend user is online
+        const { data, error } = await client
+          .from('friendships')
+          .select(
+            `
+            *,
+            friend:friend_id(
+              id,
+              username,
+              display_name,
+              avatar_url,
+              elo,
+              is_online,
+              last_seen_at
+            )
+          `,
+          )
+          .eq('user_id', auth.user.id)
+          .eq('status', 'accepted');
 
-      const onlineFriends: Friend[] = (data || []).map((f: any) => ({
-        id: f.friend_id as UserId,
-        username: f.username,
-        displayName: f.display_name,
-        avatarUrl: f.avatar_url,
-        ranking: f.ranking,
-        isOnline: true,
-        lastSeenAt: new Date().toISOString(),
-        friendshipId: '' as FriendRequestId, // Will be filled by subscription
-      }));
+        if (error) throw error;
+
+        onlineFriends = (data || [])
+          .filter((f: any) => f.friend?.is_online)
+          .map((f: any) => ({
+            id: f.friend.id as UserId,
+            username: f.friend.username,
+            displayName: f.friend.display_name,
+            avatarUrl: f.friend.avatar_url,
+            ranking: f.friend.elo,
+            isOnline: true,
+            lastSeenAt: f.friend.last_seen_at,
+            friendshipId: f.id as FriendRequestId,
+          }));
+      }
 
       setState(prev => ({ ...prev, onlineFriends }));
       return onlineFriends;
@@ -471,7 +509,7 @@ export function useUnifiedFriends(): FriendsState & FriendActions {
         }
 
         const { data, error } = await client
-          .from('profiles')
+          .from('users')
           .select('*')
           .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
           .limit(20);
@@ -640,18 +678,18 @@ export function useUnifiedFriends(): FriendsState & FriendActions {
             {
               event: 'UPDATE',
               schema: 'public',
-              table: 'profiles',
+              table: 'users',
             },
             payload => {
               if (payload.new) {
                 // Update online status for friends
                 setState(prev => {
                   const updatedFriends = prev.friends.map(f =>
-                    f.id === payload.new.id
+                    f.id === (payload.new as any).id
                       ? {
                           ...f,
-                          isOnline: payload.new.is_online,
-                          lastSeenAt: payload.new.last_seen_at,
+                          isOnline: (payload.new as any).is_online,
+                          lastSeenAt: (payload.new as any).last_seen_at,
                         }
                       : f,
                   );

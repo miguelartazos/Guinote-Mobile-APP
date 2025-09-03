@@ -7,6 +7,7 @@ import {
   Dimensions,
   TouchableOpacity,
   Easing,
+  ScrollView,
 } from 'react-native';
 import Svg, { G, Rect } from 'react-native-svg';
 import { colors } from '../../constants/colors';
@@ -14,7 +15,10 @@ import { useLandscapeStyles } from '../../hooks/useLandscapeStyles';
 import { GameEndCelebrationTitle } from './GameEndCelebrationTitle';
 import { GameEndCelebrationScore } from './GameEndCelebrationScore';
 import { GameEndCelebrationProgress } from './GameEndCelebrationProgress';
+import { MatchVictoryTrophy } from './MatchVictoryTrophy';
+import { MatchVictoryStats } from './MatchVictoryStats';
 import { SCORE_COUNT_DURATION, ELASTIC_EASING } from '../../constants/animations';
+import type { GameState } from '../../types/game.types';
 
 const AnimatedG = Animated.createAnimatedComponent(G);
 
@@ -31,9 +35,14 @@ type GameEndCelebrationProps = {
     team2Partidas: number;
     team1Cotos: number;
     team2Cotos: number;
+    totalPartidasTeam1?: number;
+    totalPartidasTeam2?: number;
+    vueltasCount?: number;
   };
   onContinue?: () => void; // For continuing to next partida/coto
   isVueltasTransition?: boolean; // True when transitioning to vueltas
+  gameState?: GameState; // For match statistics
+  playerTeamIndex?: number; // 0 or 1
 };
 
 type ConfettiPiece = {
@@ -53,6 +62,8 @@ export function GameEndCelebration({
   matchScore,
   onContinue,
   isVueltasTransition = false,
+  gameState,
+  playerTeamIndex = 0,
 }: GameEndCelebrationProps) {
   const screenDimensions = Dimensions.get('window');
   const styles = useLandscapeStyles(portraitStyles, landscapeStyles);
@@ -83,9 +94,10 @@ export function GameEndCelebration({
     scale: new Animated.Value(0.95),
   }).current;
 
-  // Traditional confetti for winner celebration
+  // Enhanced confetti for match victories
+  const confettiCount = celebrationType === 'match' && isWinner ? 40 : isWinner ? 20 : 0;
   const confettiPieces = useRef<ConfettiPiece[]>(
-    Array.from({ length: isWinner ? 20 : 0 }, () => ({
+    Array.from({ length: confettiCount }, () => ({
       x: new Animated.Value(Math.random() * screenDimensions.width),
       y: new Animated.Value(-50),
       rotation: new Animated.Value(0),
@@ -108,6 +120,10 @@ export function GameEndCelebration({
   const matchScoreOpacity = useRef(new Animated.Value(0)).current;
   const matchScoreScale = useRef(new Animated.Value(0.9)).current;
 
+  // Trophy animation for match victories
+  const [showTrophy, setShowTrophy] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+
   useEffect(() => {
     const runAnimation = async () => {
       playSound?.();
@@ -118,20 +134,32 @@ export function GameEndCelebration({
       // 2. Show title elegantly
       await showTitle();
 
-      // 3. Show score cards with count
+      // 3. Show trophy for match victories
+      if (celebrationType === 'match') {
+        setShowTrophy(true);
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
+
+      // 4. Show score cards with count
       await Promise.all([showScoreCards(), countScores()]);
 
-      // 4. Animate match scores if partida ended
+      // 5. Animate match scores if partida ended
       if (celebrationType === 'partida' && matchScore) {
         await animateMatchScore();
       }
 
-      // 5. Celebration for winner
+      // 6. Show statistics for match victories
+      if (celebrationType === 'match' && gameState) {
+        setShowStats(true);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // 7. Celebration effects
       if (isWinner) {
         animateConfetti();
       }
 
-      // 6. Show continue button
+      // 8. Show continue button
       await showButton();
 
       // Complete after a brief pause - but NOT for vueltas transition
@@ -325,7 +353,17 @@ export function GameEndCelebration({
       />
 
       {/* Main content container - Traditional Spanish card game style */}
-      <View style={styles.contentContainer}>
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* Trophy for match victories */}
+        {celebrationType === 'match' && (
+          <MatchVictoryTrophy isWinner={isWinner} visible={showTrophy} />
+        )}
+
         {/* Title with traditional Spanish decorations */}
         <GameEndCelebrationTitle
           isWinner={isWinner}
@@ -349,6 +387,16 @@ export function GameEndCelebration({
             matchScoreOpacity={matchScoreOpacity}
             matchScoreScale={matchScoreScale}
             scoreCardAnimation={scoreCardAnimation}
+          />
+        )}
+
+        {/* Match statistics for final victory */}
+        {celebrationType === 'match' && gameState && matchScore && (
+          <MatchVictoryStats
+            gameState={gameState}
+            matchScore={matchScore}
+            visible={showStats}
+            playerTeamIndex={playerTeamIndex}
           />
         )}
 
@@ -377,13 +425,15 @@ export function GameEndCelebration({
                     ? 'Siguiente Partida'
                     : celebrationType === 'coto'
                     ? 'Siguiente Coto'
+                    : celebrationType === 'match'
+                    ? '🏆 Revancha 🏆'
                     : 'Nueva Partida'}
                 </Text>
               </View>
             </TouchableOpacity>
           </Animated.View>
         )}
-      </View>
+      </ScrollView>
 
       {/* Subtle confetti for winner */}
       {isWinner && (
@@ -425,14 +475,19 @@ const portraitStyles = StyleSheet.create({
   overlay: {
     backgroundColor: 'rgba(0, 0, 0, 0.9)',
   },
-  contentContainer: {
+  scrollContainer: {
     flex: 1,
+  },
+  contentContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingVertical: 40,
   },
   buttonContainer: {
-    marginTop: 16,
+    marginTop: 12,
+    marginBottom: 20,
   },
   continueButton: {
     backgroundColor: colors.gold,
@@ -469,14 +524,20 @@ const landscapeStyles: Partial<typeof portraitStyles> = {
   container: {
     flex: 1,
   },
-  contentContainer: {
+  scrollContainer: {
     flex: 1,
+  },
+  contentContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
+    paddingVertical: 20,
+    minHeight: '100%',
   },
   buttonContainer: {
-    marginTop: 24,
+    marginTop: 16,
+    marginBottom: 20,
   },
   continueButton: {
     backgroundColor: colors.gold,

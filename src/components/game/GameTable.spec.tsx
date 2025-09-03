@@ -384,4 +384,133 @@ describe('GameTable animations', () => {
       expect(timingSpy).not.toHaveBeenCalled();
     });
   });
+
+  describe('Vueltas Indicator', () => {
+    const defaultPlayers = [
+      createMockPlayer('p1', 3),
+      createMockPlayer('p2', 3),
+      createMockPlayer('p3', 3),
+      createMockPlayer('p4', 3),
+    ] as [any, any, any, any];
+
+    it('should not render when isVueltas is false', () => {
+      const { queryByText } = render(
+        <GameTable
+          players={defaultPlayers}
+          currentPlayerIndex={0}
+          onCardPlay={jest.fn()}
+          isVueltas={false}
+          teamScores={{ team1: 50, team2: 30 }}
+        />,
+      );
+
+      expect(queryByText('VUELTAS')).toBeNull();
+    });
+
+    it('should not render when teamScores is undefined', () => {
+      const { queryByText } = render(
+        <GameTable
+          players={defaultPlayers}
+          currentPlayerIndex={0}
+          onCardPlay={jest.fn()}
+          isVueltas={true}
+          teamScores={undefined}
+        />,
+      );
+
+      expect(queryByText('VUELTAS')).toBeNull();
+    });
+
+    it('should render with correct points remaining when in vueltas', () => {
+      const { getByText } = render(
+        <GameTable
+          players={defaultPlayers}
+          currentPlayerIndex={0}
+          onCardPlay={jest.fn()}
+          isVueltas={true}
+          teamScores={{ team1: 85, team2: 60 }}
+        />,
+      );
+
+      expect(getByText('VUELTAS')).toBeTruthy();
+      expect(getByText('Nosotros: 16 puntos')).toBeTruthy(); // 101 - 85 = 16
+      expect(getByText('Ellos: 41 puntos')).toBeTruthy(); // 101 - 60 = 41
+    });
+
+    it('should handle scores over 101 correctly', () => {
+      const { getByText } = render(
+        <GameTable
+          players={defaultPlayers}
+          currentPlayerIndex={0}
+          onCardPlay={jest.fn()}
+          isVueltas={true}
+          teamScores={{ team1: 110, team2: 95 }}
+        />,
+      );
+
+      expect(getByText('VUELTAS')).toBeTruthy();
+      expect(getByText('Nosotros: 0 puntos')).toBeTruthy(); // Math.max(0, 101 - 110) = 0
+      expect(getByText('Ellos: 6 puntos')).toBeTruthy(); // 101 - 95 = 6
+    });
+
+    it('should handle zero scores', () => {
+      const { getByText } = render(
+        <GameTable
+          players={defaultPlayers}
+          currentPlayerIndex={0}
+          onCardPlay={jest.fn()}
+          isVueltas={true}
+          teamScores={{ team1: 0, team2: 0 }}
+        />,
+      );
+
+      expect(getByText('VUELTAS')).toBeTruthy();
+      expect(getByText('Nosotros: 101 puntos')).toBeTruthy(); // 101 - 0 = 101
+      expect(getByText('Ellos: 101 puntos')).toBeTruthy(); // 101 - 0 = 101
+    });
+
+    it('should handle undefined team scores gracefully', () => {
+      const { getByText } = render(
+        <GameTable
+          players={defaultPlayers}
+          currentPlayerIndex={0}
+          onCardPlay={jest.fn()}
+          isVueltas={true}
+          teamScores={{ team1: undefined as any, team2: undefined as any }}
+        />,
+      );
+
+      expect(getByText('VUELTAS')).toBeTruthy();
+      expect(getByText('Nosotros: 101 puntos')).toBeTruthy(); // Falls back to 0
+      expect(getByText('Ellos: 101 puntos')).toBeTruthy(); // Falls back to 0
+    });
+
+    it('should update when scores change', () => {
+      const { getByText, rerender } = render(
+        <GameTable
+          players={defaultPlayers}
+          currentPlayerIndex={0}
+          onCardPlay={jest.fn()}
+          isVueltas={true}
+          teamScores={{ team1: 50, team2: 30 }}
+        />,
+      );
+
+      expect(getByText('Nosotros: 51 puntos')).toBeTruthy(); // 101 - 50 = 51
+      expect(getByText('Ellos: 71 puntos')).toBeTruthy(); // 101 - 30 = 71
+
+      rerender(
+        <GameTable
+          players={defaultPlayers}
+          currentPlayerIndex={0}
+          onCardPlay={jest.fn()}
+          isVueltas={true}
+          teamScores={{ team1: 75, team2: 60 }}
+        />,
+      );
+
+      expect(getByText('Nosotros: 26 puntos')).toBeTruthy(); // 101 - 75 = 26
+      expect(getByText('Ellos: 41 puntos')).toBeTruthy(); // 101 - 60 = 41
+    });
+  });
 });

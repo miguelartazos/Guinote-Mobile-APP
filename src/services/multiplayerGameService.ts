@@ -37,6 +37,13 @@ interface EventHandlers {
   conflict: Array<(event: ConflictDetectedEvent) => void>;
 }
 
+interface ReconnectionConfig {
+  maxAttempts: number;
+  baseDelay: number;
+  maxDelay: number;
+  currentAttempt: number;
+}
+
 export class MultiplayerGameService {
   private static instance: MultiplayerGameService;
 
@@ -48,6 +55,9 @@ export class MultiplayerGameService {
   private actionQueue: ActionQueueItem[] = [];
   private eventHandlers: EventHandlers;
   private rollbackStates: Map<string, RealtimeGameState> = new Map();
+  private reconnectionConfig: ReconnectionConfig;
+  private reconnectionTimer: NodeJS.Timeout | null = null;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
 
   private constructor() {
     this.connectionState = {
@@ -63,6 +73,13 @@ export class MultiplayerGameService {
       stateSync: [],
       conflict: [],
     };
+
+    this.reconnectionConfig = {
+      maxAttempts: 10,
+      baseDelay: 1000,
+      maxDelay: 30000,
+      currentAttempt: 0,
+    };
   }
 
   static getInstance(): MultiplayerGameService {
@@ -73,6 +90,7 @@ export class MultiplayerGameService {
   }
 
   reset(): void {
+    this.clearTimers();
     this.channel = null;
     this.roomId = null;
     this.playerId = null;
@@ -86,6 +104,18 @@ export class MultiplayerGameService {
       missedHeartbeats: 0,
       queuedActions: [],
     };
+    this.reconnectionConfig.currentAttempt = 0;
+  }
+
+  private clearTimers(): void {
+    if (this.reconnectionTimer) {
+      clearTimeout(this.reconnectionTimer);
+      this.reconnectionTimer = null;
+    }
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   async connect(roomId: RoomId, playerId: PlayerId): Promise<void> {
@@ -120,19 +150,36 @@ export class MultiplayerGameService {
       this.connectionState.isConnected = true;
       this.connectionState.isReconnecting = false;
       this.connectionState.lastHeartbeat = Date.now();
+      this.reconnectionConfig.currentAttempt = 0;
+      
+      // Start heartbeat monitoring
+      this.startHeartbeatMonitoring();
+      
+      // Process any queued actions
+      await this.processQueuedActions();
     } catch (error) {
       this.connectionState.isConnected = false;
+      
+      // Attempt reconnection with exponential backoff
+      await this.reconnectWithBackoff();
+      
       throw error;
     }
   }
 
   async disconnect(): Promise<void> {
+    this.clearTimers();
+    
     if (this.channel) {
-      await this.channel.unsubscribe();
+      try {
+        await this.channel.unsubscribe();
 
-      const client = await createRealtimeClient();
-      if (client) {
-        await client.removeChannel(this.channel);
+        const client = await createRealtimeClient();
+        if (client) {
+          await client.removeChannel(this.channel);
+        }
+      } catch (error) {
+        console.error('[MultiplayerGameService] Error during disconnect:', error);
       }
     }
 
@@ -144,6 +191,12 @@ export class MultiplayerGameService {
     if (!this.channel) return;
 
     this.channel
+      .on('broadcast', { event: 'heartbeat' }, ({ payload }) => {
+        // Update heartbeat timestamp when receiving heartbeats
+        if (payload.playerId !== this.playerId) {
+          this.connectionState.lastHeartbeat = Date.now();
+        }
+      })
       .on('broadcast', { event: 'game_action' }, ({ payload }) => {
         const event: GameActionEvent = {
           type: 'game_action',
@@ -205,10 +258,13 @@ export class MultiplayerGameService {
     if (isMultiplayerEnabled()) {
       try {
         const validationResponse = await this.validateMoveOnServer(action);
-        
+
         if (!validationResponse.valid) {
           // Validation failed - trigger rollback
-          await this.handleValidationFailure(action, validationResponse.reason || 'Validation failed');
+          await this.handleValidationFailure(
+            action,
+            validationResponse.reason || 'Validation failed',
+          );
           return { success: false, queued: false };
         }
       } catch (error) {
@@ -275,6 +331,82 @@ export class MultiplayerGameService {
       // On network error, allow the move optimistically
       return { valid: true };
     }
+  }
+
+  private async reconnectWithBackoff(): Promise<void> {
+    if (this.connectionState.isReconnecting) {
+      return;
+    }
+
+    this.connectionState.isReconnecting = true;
+    
+    const attempt = this.reconnectionConfig.currentAttempt;
+    
+    if (attempt >= this.reconnectionConfig.maxAttempts) {
+      console.error('[MultiplayerGameService] Max reconnection attempts reached');
+      this.connectionState.isReconnecting = false;
+      this.notifyConnectionLost();
+      return;
+    }
+
+    // Calculate exponential backoff delay
+    const delay = Math.min(
+      this.reconnectionConfig.baseDelay * Math.pow(2, attempt),
+      this.reconnectionConfig.maxDelay
+    );
+    
+    console.log(`[MultiplayerGameService] Reconnecting in ${delay}ms (attempt ${attempt + 1}/${this.reconnectionConfig.maxAttempts})`);
+    
+    this.reconnectionTimer = setTimeout(async () => {
+      this.reconnectionConfig.currentAttempt++;
+      
+      try {
+        if (this.roomId && this.playerId) {
+          await this.connect(this.roomId, this.playerId);
+          console.log('[MultiplayerGameService] Reconnection successful');
+        }
+      } catch (error) {
+        console.error('[MultiplayerGameService] Reconnection failed:', error);
+        // Will retry with next backoff
+        await this.reconnectWithBackoff();
+      }
+    }, delay);
+  }
+
+  private startHeartbeatMonitoring(): void {
+    this.clearTimers();
+    
+    // Send heartbeat every 30 seconds
+    this.heartbeatTimer = setInterval(() => {
+      if (this.channel && this.connectionState.isConnected) {
+        this.channel.send({
+          type: 'broadcast',
+          event: 'heartbeat',
+          payload: { playerId: this.playerId, timestamp: Date.now() },
+        });
+        
+        // Check if we've missed too many heartbeats
+        const timeSinceLastHeartbeat = Date.now() - this.connectionState.lastHeartbeat;
+        if (timeSinceLastHeartbeat > 60000) { // 60 seconds
+          console.warn('[MultiplayerGameService] Connection seems lost, attempting reconnection');
+          this.reconnectWithBackoff();
+        }
+      }
+    }, 30000);
+  }
+
+  private notifyConnectionLost(): void {
+    // Notify all event handlers about connection loss
+    this.eventHandlers.conflict.forEach(handler => {
+      handler({
+        type: 'conflict',
+        playerId: this.playerId || '',
+        conflictType: 'connection_lost',
+        localVersion: this.currentState?.version || { sequence: 0, timestamp: 0 },
+        serverVersion: { sequence: 0, timestamp: 0 },
+        resolution: 'local',
+      });
+    });
   }
 
   async processQueuedActions(): Promise<void> {

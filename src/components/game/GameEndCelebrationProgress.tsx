@@ -88,21 +88,21 @@ function colorWithOpacity(color: string, opacity: number): string {
 const portraitStyles = StyleSheet.create({
   container: {
     backgroundColor: colors.primary,
-    paddingVertical: 20,
-    paddingHorizontal: 32,
+    paddingVertical: 16,
+    paddingHorizontal: 28,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: colors.goldDark,
-    marginBottom: 24,
-    marginTop: 8,
+    marginBottom: 16,
+    marginTop: 4,
   },
   title: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.gold,
     textAlign: 'center',
-    marginBottom: 16,
-    letterSpacing: 2,
+    marginBottom: 12,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   content: {
@@ -131,10 +131,10 @@ const portraitStyles = StyleSheet.create({
     marginVertical: 4,
   },
   value: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '900',
     color: colors.gold,
-    marginRight: 8,
+    marginRight: 6,
   },
   label: {
     fontSize: 12,
@@ -144,21 +144,22 @@ const portraitStyles = StyleSheet.create({
   },
   divider: {
     width: 1,
-    height: 60,
+    height: 50,
     backgroundColor: colorWithOpacity(colors.goldDark, 0.3),
-    marginHorizontal: 20,
+    marginHorizontal: 16,
   },
 });
 
 const landscapeStyles: Partial<typeof portraitStyles> = {
   container: {
     backgroundColor: colors.background,
-    paddingVertical: 24,
-    paddingHorizontal: 40,
-    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: colors.goldDark,
-    marginBottom: 20,
-    marginTop: 8,
+    marginBottom: 12,
+    marginTop: 4,
+    maxWidth: 600,
   },
 };

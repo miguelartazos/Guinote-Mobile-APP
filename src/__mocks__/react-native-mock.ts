@@ -3,18 +3,16 @@ import React from 'react';
 // Mock FlatList to render its content
 export const mockFlatList = ({ data, renderItem, ListEmptyComponent }: any) => {
   if (!data || data.length === 0) {
-    return ListEmptyComponent ? React.createElement(React.Fragment, null, ListEmptyComponent()) : null;
+    return ListEmptyComponent
+      ? React.createElement(React.Fragment, null, ListEmptyComponent())
+      : null;
   }
   return React.createElement(
     React.Fragment,
     null,
     data.map((item: any, index: number) =>
-      React.createElement(
-        React.Fragment,
-        { key: item.id || index },
-        renderItem({ item, index })
-      )
-    )
+      React.createElement(React.Fragment, { key: item.id || index }, renderItem({ item, index })),
+    ),
   );
 };
 

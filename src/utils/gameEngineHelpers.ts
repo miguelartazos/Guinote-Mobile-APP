@@ -172,8 +172,18 @@ export function applyLastTrickBonus(
  * Determine the next game phase
  */
 export function determineNextPhase(gameState: GameState, isLastTrick: boolean): GameState {
+  // Debug logging for phase transitions
+  console.log('🎯 determineNextPhase called:', {
+    currentPhase: gameState.phase,
+    isLastTrick,
+    isVueltas: gameState.isVueltas,
+    team1Score: gameState.teams[0].score,
+    team2Score: gameState.teams[1].score,
+  });
+
   // Check if game is over
   if (isGameOver(gameState)) {
+    console.log('🏆 Transitioning to gameOver phase');
     return {
       ...gameState,
       phase: 'gameOver',
@@ -182,6 +192,7 @@ export function determineNextPhase(gameState: GameState, isLastTrick: boolean): 
 
   // Check if it's time for scoring phase
   if (isLastTrick && !gameState.isVueltas) {
+    console.log('📊 Transitioning to scoring phase (end of hand)');
     return {
       ...gameState,
       phase: 'scoring',
@@ -208,7 +219,19 @@ export function isLastTrick(
   deck: ReadonlyArray<Card>,
   hands: ReadonlyMap<PlayerId, ReadonlyArray<Card>>,
 ): boolean {
-  return deck.length === 0 && Array.from(hands.values()).every(hand => hand.length === 0);
+  const deckEmpty = deck.length === 0;
+  const allHandsEmpty = Array.from(hands.values()).every(hand => hand.length === 0);
+  const result = deckEmpty && allHandsEmpty;
+  
+  console.log('🃏 isLastTrick check:', {
+    deckLength: deck.length,
+    handSizes: Array.from(hands.values()).map(h => h.length),
+    deckEmpty,
+    allHandsEmpty,
+    isLastTrick: result,
+  });
+  
+  return result;
 }
 
 /**

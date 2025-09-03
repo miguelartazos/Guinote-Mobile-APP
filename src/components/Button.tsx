@@ -7,6 +7,8 @@ import {
   Animated,
   Platform,
   View,
+  Vibration,
+  ActivityIndicator,
 } from 'react-native';
 import { colors } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
@@ -35,41 +37,88 @@ export function Button({
   style,
   onPressIn,
   onPressOut,
+  onPress,
   ...props
 }: ButtonProps) {
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
   const opacityAnim = React.useRef(new Animated.Value(1)).current;
+  const rippleAnim = React.useRef(new Animated.Value(0)).current;
+  const iconRotateAnim = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (loading) {
+      Animated.loop(
+        Animated.timing(iconRotateAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ).start();
+    } else {
+      iconRotateAnim.setValue(0);
+    }
+  }, [loading, iconRotateAnim]);
 
   const handlePressIn = (e: any) => {
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 0.95,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 0.8,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    // Haptic feedback
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate(1);
+    }
+
+    Animated.parallel(
+      [
+        Animated.spring(scaleAnim, {
+          toValue: 0.96,
+          speed: 50,
+          bounciness: 4,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0.85,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        // Ripple effect for Android
+        Platform.OS === 'android' &&
+          Animated.timing(rippleAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+      ].filter(Boolean),
+    ).start();
     onPressIn?.(e);
   };
 
   const handlePressOut = (e: any) => {
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 3,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    Animated.parallel(
+      [
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 3,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Platform.OS === 'android' &&
+          Animated.timing(rippleAnim, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+      ].filter(Boolean),
+    ).start();
     onPressOut?.(e);
+  };
+
+  const handlePress = (e: any) => {
+    if (!disabled && !loading) {
+      onPress?.(e);
+    }
   };
 
   const getSizeStyles = () => {
@@ -94,6 +143,16 @@ export function Button({
     }
   };
 
+  const rippleScale = rippleAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.5, 1.5],
+  });
+
+  const iconRotation = iconRotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
   return (
     <Animated.View style={[{ transform: [{ scale: scaleAnim }], opacity: opacityAnim }, style]}>
       <TouchableOpacity
@@ -111,17 +170,51 @@ export function Button({
         activeOpacity={1}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
+        onPress={handlePress}
         {...props}
       >
-        {Platform.OS === 'android' && variant === 'primary' && (
-          <View style={styles.gradientOverlay} />
+        {Platform.OS === 'android' && (
+          <Animated.View
+            style={[
+              styles.rippleEffect,
+              {
+                transform: [{ scale: rippleScale }],
+                opacity: rippleAnim.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [0, 0.3, 0],
+                }),
+              },
+            ]}
+          />
         )}
+        {Platform.OS === 'ios' && variant === 'primary' && <View style={styles.gradientOverlay} />}
         <View style={styles.buttonContent}>
           {loading ? (
-            <Text style={[styles.buttonText, getTextSizeStyles()]}>⏳ Cargando...</Text>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator
+                size={size === 'small' ? 'small' : 'small'}
+                color={variant === 'white' ? colors.primary : colors.white}
+              />
+              <Text
+                style={[
+                  styles.buttonText,
+                  getTextSizeStyles(),
+                  styles.loadingText,
+                  variant === 'white' && styles.whiteButtonText,
+                ]}
+              >
+                Cargando...
+              </Text>
+            </View>
           ) : (
             <>
-              {icon && iconPosition === 'left' && <Text style={styles.buttonIcon}>{icon}</Text>}
+              {icon && iconPosition === 'left' && (
+                <Animated.Text
+                  style={[styles.buttonIcon, loading && { transform: [{ rotate: iconRotation }] }]}
+                >
+                  {icon}
+                </Animated.Text>
+              )}
               <Text
                 style={[
                   styles.buttonText,
@@ -135,7 +228,13 @@ export function Button({
               >
                 {children}
               </Text>
-              {icon && iconPosition === 'right' && <Text style={styles.buttonIcon}>{icon}</Text>}
+              {icon && iconPosition === 'right' && (
+                <Animated.Text
+                  style={[styles.buttonIcon, loading && { transform: [{ rotate: iconRotation }] }]}
+                >
+                  {icon}
+                </Animated.Text>
+              )}
             </>
           )}
         </View>
@@ -240,5 +339,24 @@ const styles = StyleSheet.create({
   buttonIcon: {
     fontSize: 20,
     marginHorizontal: dimensions.spacing.xs,
+  },
+  rippleEffect: {
+    position: 'absolute' as const,
+    top: '50%',
+    left: '50%',
+    width: 100,
+    height: 100,
+    marginLeft: -50,
+    marginTop: -50,
+    borderRadius: 50,
+    backgroundColor: colors.white,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginLeft: dimensions.spacing.sm,
   },
 });

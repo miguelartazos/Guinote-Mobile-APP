@@ -77,7 +77,8 @@ describe('PlayerSlots', () => {
       <PlayerSlots players={playersWithAI} onAddAI={mockOnAddAI} isHost={true} />,
     );
 
-    expect(getByText(/🤖/)).toBeTruthy();
+    // AI players now show 'IA' badge instead of robot emoji
+    expect(getByText('IA')).toBeTruthy();
   });
 
   test('shows human indicator for non-bot players', () => {
@@ -85,17 +86,20 @@ describe('PlayerSlots', () => {
       <PlayerSlots players={mockPlayers} onAddAI={mockOnAddAI} isHost={true} />,
     );
 
-    const humanIndicators = getAllByText(/👤/);
-    expect(humanIndicators).toHaveLength(2);
+    // Human players show different avatars based on position
+    const humanIndicators = getAllByText(/👤|🧑|👨|👩/);
+    expect(humanIndicators.length).toBeGreaterThanOrEqual(2);
   });
 
   test('shows ready status for players', () => {
-    const { getByText } = render(
+    const { getByText, getAllByText } = render(
       <PlayerSlots players={mockPlayers} onAddAI={mockOnAddAI} isHost={true} />,
     );
 
     // Player 1 is ready
-    expect(getByText('✅ Listo')).toBeTruthy();
+    expect(getByText('Listo')).toBeTruthy();
+    // Player 2 is not ready
+    expect(getAllByText('Esperando')[0]).toBeTruthy();
   });
 
   test('shows add AI button for empty slots when host', () => {

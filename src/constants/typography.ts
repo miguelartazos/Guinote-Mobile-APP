@@ -1,16 +1,16 @@
 export const typography = {
   fontSize: {
-    // Increased sizes for better readability for seniors
-    xs: 14, // Minimum size
-    sm: 16, // Small text
-    base: 18, // Base size
-    md: 20, // Body text
-    lg: 24, // Emphasized text
-    xl: 28, // Section headers
-    '2xl': 32, // Alternative large
-    '3xl': 36, // Alternative extra large
-    xxl: 32, // Page headers
-    xxxl: 40, // Main titles
+    // Optimized for 40+ demographic with WCAG compliance
+    xs: 14, // Absolute minimum (UI elements only)
+    sm: 16, // Minimum for body text (WCAG AA)
+    base: 18, // Large text threshold (WCAG relaxed contrast)
+    md: 20, // Comfortable reading size
+    lg: 24, // Section titles
+    xl: 28, // Page headers
+    '2xl': 32, // Major headers
+    '3xl': 36, // Display text
+    xxl: 32, // Alternative large headers
+    xxxl: 40, // Hero titles
   },
   fontWeight: {
     light: '300' as const,
@@ -22,25 +22,25 @@ export const typography = {
   },
   lineHeight: {
     tight: 1.3,
-    normal: 1.6,
-    relaxed: 1.8,
-    loose: 2.0,
+    normal: 1.5, // Optimal for readability (1.4-1.5x)
+    relaxed: 1.6, // For larger text blocks
+    loose: 1.8, // Maximum spacing for accessibility
   },
   body: {
-    fontSize: 20,
-    lineHeight: 1.6,
+    fontSize: 18, // WCAG large text standard
+    lineHeight: 1.5,
   },
   caption: {
-    fontSize: 16,
+    fontSize: 16, // Minimum readable size
     lineHeight: 1.4,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28, // Clear hierarchy
     fontWeight: '700' as const,
     lineHeight: 1.3,
   },
   button: {
-    fontSize: 20,
+    fontSize: 18, // Consistent with body
     fontWeight: '600' as const,
     lineHeight: 1.5,
   },
@@ -57,8 +57,24 @@ export function getResponsiveFontSize(size: keyof typeof typography.fontSize): n
   return typography.fontSize[size];
 }
 
-// Accessibility helpers
+// Accessibility helpers for 40+ users
 export const accessibleTextStyle = {
-  minHeight: 44, // Minimum touch target
-  lineHeight: typography.lineHeight.relaxed,
+  minHeight: 48, // Enhanced touch target (9mm physical)
+  lineHeight: typography.lineHeight.normal,
+  minFontSize: 16, // WCAG AA compliance
+  largeFontSize: 18, // WCAG relaxed contrast threshold
 };
+
+// Three-tier font system for reduced cognitive load
+export const fontHierarchy = {
+  primary: typography.fontSize.lg, // 24px - Headers
+  secondary: typography.fontSize.base, // 18px - Body
+  tertiary: typography.fontSize.sm, // 16px - Captions
+} as const;
+
+// Contrast requirements
+export const contrastRatios = {
+  normalText: 4.5, // WCAG AA for normal text
+  largeText: 3.0, // WCAG AA for 18pt+ text
+  uiComponents: 3.0, // WCAG AA for UI elements
+} as const;

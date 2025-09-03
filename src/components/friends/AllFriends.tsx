@@ -13,9 +13,9 @@ export function AllFriends() {
   const { friends, removeFriend } = useUnifiedFriends();
   const { createFriendsRoom } = useUnifiedRooms();
 
-  const filteredFriends = friends.filter(friend =>
-    friend.username.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredFriends = friends
+    .filter(friend => friend.username.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => (b.ranking || 0) - (a.ranking || 0));
 
   const handleInvite = async (friendId: string) => {
     const room = await createFriendsRoom(friendId);

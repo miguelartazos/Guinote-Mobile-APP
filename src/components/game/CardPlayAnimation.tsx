@@ -89,6 +89,9 @@ export function CardPlayAnimation({
               },
             ],
             opacity,
+            backfaceVisibility: 'hidden',
+            renderToHardwareTextureAndroid: true,
+            shouldRasterizeIOS: true,
           },
         ]}
       >

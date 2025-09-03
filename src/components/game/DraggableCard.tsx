@@ -181,7 +181,7 @@ export const DraggableCard = React.memo(function DraggableCard({
           activeOpacity={1}
           disabled={!canPlay}
         >
-          <SpanishCard card={card} size={cardSize} />
+          <SpanishCard card={card} size={cardSize} isDisabled={!canPlay} />
         </TouchableOpacity>
       </Animated.View>
     </PanGestureHandler>

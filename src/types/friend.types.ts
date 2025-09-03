@@ -9,6 +9,7 @@ export interface Friend {
   username: string;
   friendCode?: string;
   isOnline?: boolean;
+  ranking?: number;
 }
 
 export interface FriendRequest {

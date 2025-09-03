@@ -23,11 +23,11 @@ const mockAnimatedValueXY = {
 };
 
 const mockAnimatedTiming = jest.fn(() => ({
-  start: jest.fn((callback) => callback && callback()),
+  start: jest.fn(callback => callback && callback()),
 }));
 
 const mockAnimatedParallel = jest.fn(() => ({
-  start: jest.fn((callback) => callback && callback()),
+  start: jest.fn(callback => callback && callback()),
 }));
 
 // @ts-ignore - Mock the constructors
@@ -56,10 +56,8 @@ describe('CardPlayAnimation', () => {
   });
 
   test('should render with correct structure', () => {
-    const { getByTestId } = render(
-      <CardPlayAnimation {...defaultProps} />
-    );
-    
+    const { getByTestId } = render(<CardPlayAnimation {...defaultProps} />);
+
     // The component should render the animation wrapper
     // Since we don't have testID, we check that render doesn't throw
     expect(() => render(<CardPlayAnimation {...defaultProps} />)).not.toThrow();
@@ -67,16 +65,17 @@ describe('CardPlayAnimation', () => {
 
   test('should call playSound when provided', () => {
     const playSound = jest.fn();
-    render(
-      <CardPlayAnimation {...defaultProps} playSound={playSound} />
-    );
-    
+    render(<CardPlayAnimation {...defaultProps} playSound={playSound} />);
+
     // playSound should be called when animation starts
     expect(playSound).toHaveBeenCalledTimes(1);
   });
 
   test('should set initial rotation based on player position', () => {
-    const positions: Array<{ position: 'bottom' | 'left' | 'top' | 'right'; expectedRotation: number }> = [
+    const positions: Array<{
+      position: 'bottom' | 'left' | 'top' | 'right';
+      expectedRotation: number;
+    }> = [
       { position: 'bottom', expectedRotation: 0 },
       { position: 'left', expectedRotation: 90 },
       { position: 'top', expectedRotation: 0 },
@@ -85,25 +84,25 @@ describe('CardPlayAnimation', () => {
 
     positions.forEach(({ position }) => {
       // Render without errors for each position
-      expect(() => render(
-        <CardPlayAnimation {...defaultProps} playerPosition={position} />
-      )).not.toThrow();
+      expect(() =>
+        render(<CardPlayAnimation {...defaultProps} playerPosition={position} />),
+      ).not.toThrow();
     });
   });
 
   test('should start animations to move card to table', () => {
     render(<CardPlayAnimation {...defaultProps} />);
-    
+
     // Verify that parallel animation was called
     expect(mockAnimatedParallel).toHaveBeenCalled();
-    
+
     // Verify that timing animations were set up (2 animations: position and rotation)
     expect(mockAnimatedTiming).toHaveBeenCalledTimes(2);
   });
 
   test('should not call playSound if not provided', () => {
     render(<CardPlayAnimation {...defaultProps} />);
-    
+
     // No errors should occur when playSound is undefined
     expect(() => render(<CardPlayAnimation {...defaultProps} />)).not.toThrow();
   });

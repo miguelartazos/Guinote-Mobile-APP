@@ -64,13 +64,18 @@ class FeatureFlagManager {
     if (this.initialized) return;
 
     try {
-      // Load flags from AsyncStorage
-      const stored = await AsyncStorage.getItem('featureFlags');
-      if (stored) {
-        this.flags = { ...DEFAULT_FLAGS, ...JSON.parse(stored) };
-      } else if (__DEV__) {
-        // Use development flags in dev mode
+      if (__DEV__) {
+        // In development: ALWAYS use DEVELOPMENT_FLAGS
+        // Ignore stored flags to prevent dev environment issues
         this.flags = DEVELOPMENT_FLAGS;
+      } else {
+        // In production: Use stored flags or DEFAULT_FLAGS
+        const stored = await AsyncStorage.getItem('featureFlags');
+        if (stored) {
+          this.flags = { ...DEFAULT_FLAGS, ...JSON.parse(stored) };
+        } else {
+          this.flags = DEFAULT_FLAGS;
+        }
       }
       this.initialized = true;
     } catch (error) {
@@ -102,6 +107,13 @@ class FeatureFlagManager {
   async resetFlags() {
     this.flags = __DEV__ ? DEVELOPMENT_FLAGS : DEFAULT_FLAGS;
     await AsyncStorage.removeItem('featureFlags');
+    this.notifyListeners();
+  }
+
+  async clearStoredFlags() {
+    // Utility to clear stored flags (useful for debugging)
+    await AsyncStorage.removeItem('featureFlags');
+    await this.initialize();
     this.notifyListeners();
   }
 

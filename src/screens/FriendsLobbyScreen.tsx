@@ -5,39 +5,37 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
-  Clipboard,
+  Animated,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { JugarStackNavigationProp } from '../types/navigation';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
 import { dimensions } from '../constants/dimensions';
-import { Button } from '../components/Button';
 import { Card } from '../components/ui/Card';
 import { InputField } from '../components/ui/InputField';
 import { EmptyState } from '../components/ui/EmptyState';
-import { Divider } from '../components/ui/Divider';
 import { LoadingOverlay } from '../components/ui/LoadingOverlay';
+import { AuthModal } from '../components/ui/AuthModal';
 // Using unified hooks
 import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
 import { useUnifiedRooms } from '../hooks/useUnifiedRooms';
 import { useUnifiedFriends } from '../hooks/useUnifiedFriends';
+import { shareRoomViaWhatsApp } from '../services/sharing/whatsappShare';
+import { featureFlags } from '../config/featureFlags';
 
 export function FriendsLobbyScreen() {
   const navigation = useNavigation<JugarStackNavigationProp>();
   const [roomCode, setRoomCode] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
-
-  // Sign in state
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
-  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [selectedColumn, setSelectedColumn] = useState<'create' | 'join' | 'friends' | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'create' | 'join' | 'invite' | null>(null);
+  const [pendingFriendId, setPendingFriendId] = useState<string | null>(null);
+  const [showFriends, setShowFriends] = useState(false);
+  const friendsHeight = React.useRef(new Animated.Value(0)).current;
 
   // Auth hooks
   const { user, isAuthenticated, signIn, signUp } = useUnifiedAuth();
@@ -46,20 +44,26 @@ export function FriendsLobbyScreen() {
 
   // Unified hooks
   const rooms = useUnifiedRooms();
-  const { onlineFriends } = useUnifiedFriends(userId);
+  const { onlineFriends } = useUnifiedFriends();
+
+  // Clear stored flags in development to ensure proper dev settings
+  React.useEffect(() => {
+    if (__DEV__) {
+      featureFlags.clearStoredFlags().catch(() => {
+        // Silently handle any errors
+      });
+    }
+  }, []);
 
   const handleCreateRoom = async () => {
-    if (!profile) {
-      Alert.alert('Error', 'Debes iniciar sesión para crear una sala');
+    if (!profile || !userId) {
+      setPendingAction('create');
+      setShowAuthModal(true);
       return;
     }
 
     setIsCreating(true);
     try {
-      if (!userId) {
-        throw new Error('User not authenticated');
-      }
-
       const room = await rooms.createFriendsRoom(userId);
 
       navigation.navigate('GameRoom', {
@@ -67,29 +71,42 @@ export function FriendsLobbyScreen() {
         roomCode: room.code,
       });
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'No se pudo crear la sala');
+      const errorMessage = error instanceof Error ? error.message : 'No se pudo crear la sala';
+      console.error('[FriendsLobby] Create room error:', error);
+
+      // Provide more specific error messages
+      if (errorMessage.includes('Not authenticated')) {
+        Alert.alert('Error de Autenticación', 'Por favor inicia sesión primero');
+        setShowAuthModal(true);
+      } else if (errorMessage.includes('Multiplayer is disabled')) {
+        Alert.alert('Función No Disponible', 'El modo multijugador está deshabilitado');
+      } else if (errorMessage.includes('Failed to create room on server')) {
+        Alert.alert(
+          'Error de Conexión',
+          'No se pudo conectar con el servidor. Verifica tu conexión.',
+        );
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setIsCreating(false);
     }
   };
 
   const handleJoinRoom = async () => {
-    if (!profile) {
-      Alert.alert('Error', 'Debes iniciar sesión para unirte a una sala');
-      return;
-    }
-
     if (roomCode.length !== 6) {
       Alert.alert('Error', 'El código debe tener 6 caracteres');
       return;
     }
 
+    if (!profile || !userId) {
+      setPendingAction('join');
+      setShowAuthModal(true);
+      return;
+    }
+
     setIsJoining(true);
     try {
-      if (!userId) {
-        throw new Error('User not authenticated');
-      }
-
       const result = await rooms.joinRoomByCode(roomCode.toUpperCase(), userId);
 
       navigation.navigate('GameRoom', {
@@ -97,71 +114,119 @@ export function FriendsLobbyScreen() {
         roomCode: (result as any).code || roomCode.toUpperCase(),
       });
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'No se pudo unir a la sala');
+      const errorMessage = error instanceof Error ? error.message : 'No se pudo unir a la sala';
+      console.error('[FriendsLobby] Join room error:', error);
+
+      // Provide more specific error messages
+      if (errorMessage.includes('Not authenticated')) {
+        Alert.alert('Error de Autenticación', 'Por favor inicia sesión primero');
+        setShowAuthModal(true);
+      } else if (errorMessage.includes('Room not found')) {
+        Alert.alert('Código Inválido', 'No existe una sala con ese código');
+      } else if (errorMessage.includes('Room is full')) {
+        Alert.alert('Sala Llena', 'Esta sala ya tiene 4 jugadores');
+      } else if (errorMessage.includes('Game already started')) {
+        Alert.alert('Partida en Curso', 'Esta partida ya comenzó');
+      } else if (errorMessage.includes('Multiplayer is disabled')) {
+        Alert.alert('Función No Disponible', 'El modo multijugador está deshabilitado');
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setIsJoining(false);
     }
   };
 
-  const handleCopyCode = (code: string) => {
-    Clipboard.setString(code);
-    Alert.alert('Copiado', 'Código copiado al portapapeles');
+  const handleInviteFriend = async (friendId: string) => {
+    if (!profile || !userId) {
+      setPendingAction('invite');
+      setPendingFriendId(friendId);
+      setShowAuthModal(true);
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const room = await rooms.createFriendsRoom(userId);
+      await shareRoomViaWhatsApp(room.code);
+
+      navigation.navigate('GameRoom', {
+        roomId: (room as any).id || (room as any).roomId,
+        roomCode: room.code,
+      });
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'No se pudo crear/invitar a la sala');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const handleSignIn = async () => {
+  const handleSignIn = async (email: string, password: string) => {
     if (!email || !password) {
       Alert.alert('Error', 'Por favor completa todos los campos');
-      return;
+      throw new Error('Missing fields');
     }
 
-    setIsSigningIn(true);
     try {
       await signIn(email, password);
+      // After successful sign in, execute pending action
+      if (pendingAction === 'create') {
+        handleCreateRoom();
+      } else if (pendingAction === 'join') {
+        handleJoinRoom();
+      } else if (pendingAction === 'invite' && pendingFriendId) {
+        handleInviteFriend(pendingFriendId);
+      }
+      setPendingAction(null);
+      setPendingFriendId(null);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'No se pudo iniciar sesión');
-    } finally {
-      setIsSigningIn(false);
+      throw error;
     }
   };
 
-  const handleSignUp = async () => {
+  const handleSignUp = async (email: string, password: string, username: string) => {
     if (!email || !password || !username) {
       Alert.alert('Error', 'Por favor completa todos los campos');
-      return;
+      throw new Error('Missing fields');
     }
 
-    setIsSigningIn(true);
     try {
       await signUp(email, password, username);
       Alert.alert('Éxito', 'Cuenta creada exitosamente');
+      // After successful sign up, execute pending action
+      if (pendingAction === 'create') {
+        handleCreateRoom();
+      } else if (pendingAction === 'join') {
+        handleJoinRoom();
+      } else if (pendingAction === 'invite' && pendingFriendId) {
+        handleInviteFriend(pendingFriendId);
+      }
+      setPendingAction(null);
+      setPendingFriendId(null);
     } catch (error: any) {
-      // If signup fails due to database error, try to sign in instead
       if (error.message?.includes('Database error')) {
         Alert.alert(
           'Aviso',
           'El registro está temporalmente deshabilitado. Por favor, usa una cuenta existente o el botón de prueba rápida.',
-          [{ text: 'OK' }]
+          [{ text: 'OK' }],
         );
       } else {
         Alert.alert('Error', error.message || 'No se pudo crear la cuenta');
       }
-    } finally {
-      setIsSigningIn(false);
+      throw error;
     }
   };
 
   const handleQuickSignIn = async () => {
-    setIsSigningIn(true);
     try {
-      // Try to use a known test account first
       const knownTestAccounts = [
         { email: 'test@guinote.app', password: 'TestGuinote123!' },
         { email: 'demo@guinote.app', password: 'DemoGuinote123!' },
       ];
 
       let signedIn = false;
-      
-      // Try known accounts
+
       for (const account of knownTestAccounts) {
         try {
           await signIn(account.email, account.password);
@@ -173,282 +238,241 @@ export function FriendsLobbyScreen() {
       }
 
       if (!signedIn) {
-        // If no known accounts work, create a temporary offline session
         Alert.alert(
           'Modo de Prueba',
           'No se pudo conectar con el servidor. Usando modo offline temporal.',
-          [{ text: 'OK' }]
+          [{ text: 'OK' }],
         );
-        // The offline auth will be handled by useAuth fallback
+      } else {
+        // Execute pending action after successful sign in
+        if (pendingAction === 'create') {
+          handleCreateRoom();
+        } else if (pendingAction === 'join') {
+          handleJoinRoom();
+        } else if (pendingAction === 'invite' && pendingFriendId) {
+          handleInviteFriend(pendingFriendId);
+        }
+        setPendingAction(null);
+        setPendingFriendId(null);
       }
     } catch (error: any) {
       Alert.alert(
         'Modo Offline',
         'Usando modo offline para pruebas. Las salas multijugador no estarán disponibles.',
-        [{ text: 'OK' }]
+        [{ text: 'OK' }],
       );
-    } finally {
-      setIsSigningIn(false);
+      throw error;
     }
   };
 
+  const toggleFriends = () => {
+    const newValue = !showFriends;
+    setShowFriends(newValue);
+    setSelectedColumn(newValue ? 'friends' : null);
+
+    Animated.timing(friendsHeight, {
+      toValue: newValue ? 300 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
+
   const renderOnlineFriends = () => {
+    if (!showFriends) return null;
+
     if (!isAuthenticated || !user) {
       return (
-        <EmptyState
-          icon="🔒"
-          title="Inicia sesión"
-          message="Necesitas iniciar sesión para ver tus amigos"
-        />
+        <Animated.View style={[styles.friendsExpandedContent, { height: friendsHeight }]}>
+          <EmptyState
+            icon="🔒"
+            title="Inicia sesión"
+            message="Necesitas iniciar sesión para ver tus amigos"
+            actionLabel="Iniciar Sesión"
+            onAction={() => setShowAuthModal(true)}
+          />
+        </Animated.View>
       );
     }
 
     if (onlineFriends.length === 0) {
       return (
-        <EmptyState
-          icon="👥"
-          title="Sin amigos en línea"
-          message="Invita a tus amigos a jugar Guiñote"
-          actionLabel="Invitar Amigos"
-          onAction={() => {
-            // TODO: Implement share functionality
-            Alert.alert('Próximamente', 'Función de compartir en desarrollo');
-          }}
-        />
+        <Animated.View style={[styles.friendsExpandedContent, { height: friendsHeight }]}>
+          <EmptyState
+            icon="👥"
+            title="Sin amigos en línea"
+            message="Invita a tus amigos a jugar Guiñote"
+            actionLabel="Invitar Amigos"
+            onAction={() => {
+              Alert.alert('Próximamente', 'Función de compartir en desarrollo');
+            }}
+          />
+        </Animated.View>
       );
     }
 
     return (
-      <View style={styles.friendsList}>
-        {onlineFriends.map((friend: any) => (
-          <Card key={friend.id} style={styles.friendCard}>
-            <View style={styles.friendInfo}>
-              <View style={styles.avatarContainer}>
-                <Text style={styles.friendAvatar}>{friend.avatar || '👤'}</Text>
-                <View style={styles.onlineIndicator} />
-              </View>
-              <View style={styles.friendDetails}>
-                <Text style={styles.friendName}>{friend.displayName || friend.username}</Text>
-                <View style={styles.friendStats}>
-                  <Text style={styles.friendElo}>⭐ {friend.elo}</Text>
-                  <Text style={styles.friendStatus}>En línea</Text>
+      <Animated.View style={[styles.friendsExpandedContent, { height: friendsHeight }]}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={styles.friendsList}>
+            {onlineFriends.map((friend: any) => (
+              <TouchableOpacity
+                key={friend.id}
+                style={styles.friendCard}
+                onPress={() => handleInviteFriend(friend.id)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.friendInfo}>
+                  <View style={styles.avatarContainer}>
+                    <Text style={styles.friendAvatar}>{friend.avatarUrl || '👤'}</Text>
+                    <View style={styles.onlineIndicator} />
+                  </View>
+                  <View style={styles.friendDetails}>
+                    <Text style={styles.friendName}>{friend.displayName || friend.username}</Text>
+                    <Text style={styles.friendStatus}>⭐ {friend.ranking} • En línea</Text>
+                  </View>
                 </View>
-              </View>
-            </View>
-            <Button
-              variant="primary"
-              size="small"
-              onPress={() => {
-                Alert.alert('Próximamente', 'Función de invitación en desarrollo');
-              }}
-              icon="📨"
-            >
-              Invitar
-            </Button>
-          </Card>
-        ))}
-      </View>
+                <Text style={styles.inviteIcon}>📨</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </Animated.View>
     );
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Jugar con Amigos</Text>
-          <Text style={styles.headerSubtitle}>Crea o únete a una sala privada</Text>
-          {user && (
-            <View style={styles.userBadge}>
-              <Text style={styles.userIcon}>👤</Text>
-              <Text style={styles.userName}>{user.username || 'Jugador'}</Text>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Jugar con Amigos</Text>
+        {user && (
+          <View style={styles.userBadge}>
+            <Text style={styles.userIcon}>👤</Text>
+            <Text style={styles.userName}>{user.username || 'Jugador'}</Text>
+          </View>
+        )}
+      </View>
+
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Three Column Layout */}
+        <View style={styles.columnsContainer}>
+          {/* Create Room Column */}
+          <TouchableOpacity
+            style={[styles.columnCard, selectedColumn === 'create' && styles.columnCardActive]}
+            onPress={() => {
+              setSelectedColumn('create');
+              handleCreateRoom();
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.columnIcon}>🎮</Text>
+            <Text style={styles.columnTitle}>Crear</Text>
+            <Text style={styles.columnSubtitle}>Sala</Text>
+          </TouchableOpacity>
+
+          {/* Join Room Column */}
+          <TouchableOpacity
+            style={[styles.columnCard, selectedColumn === 'join' && styles.columnCardActive]}
+            onPress={() => setSelectedColumn('join')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.columnIcon}>🔑</Text>
+            <Text style={styles.columnTitle}>Unirse</Text>
+            <Text style={styles.columnSubtitle}>a Sala</Text>
+          </TouchableOpacity>
+
+          {/* Friends Column */}
+          <TouchableOpacity
+            style={[styles.columnCard, selectedColumn === 'friends' && styles.columnCardActive]}
+            onPress={toggleFriends}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.columnIcon}>👥</Text>
+            <Text style={styles.columnTitle}>Amigos</Text>
+            <View style={styles.friendsCount}>
+              <Text style={styles.friendsCountText}>
+                {isAuthenticated ? onlineFriends.length : 0}
+              </Text>
             </View>
-          )}
+          </TouchableOpacity>
         </View>
 
-        {/* Show sign-in form if not authenticated */}
-        {!isAuthenticated || !user ? (
-          <Card elevated style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardIcon}>🔐</Text>
-              <View style={styles.cardTitleContainer}>
-                <Text style={styles.cardTitle}>{isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}</Text>
-                <Text style={styles.cardDescription}>
-                  Necesitas una cuenta para jugar con amigos
-                </Text>
-              </View>
-            </View>
-
-            {isSignUp && (
-              <InputField
-                icon="👤"
-                value={username}
-                onChangeText={setUsername}
-                placeholder="Nombre de usuario"
-                autoCapitalize="none"
-                editable={!isSigningIn}
-                style={styles.authInput}
-              />
-            )}
-
+        {/* Join Room Input Section */}
+        {selectedColumn === 'join' && (
+          <Card elevated style={styles.actionCard}>
+            <Text style={styles.actionTitle}>Ingresa el código de invitación</Text>
             <InputField
-              icon="📧"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Email"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!isSigningIn}
-              style={styles.authInput}
+              icon="🎯"
+              value={roomCode}
+              onChangeText={text => setRoomCode(text.toUpperCase())}
+              placeholder="ABC123"
+              maxLength={6}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              style={styles.codeInput}
+              validation={{
+                isValid: roomCode.length === 6,
+                message: roomCode.length > 0 ? `${roomCode.length}/6 caracteres` : undefined,
+              }}
             />
-
-            <InputField
-              icon="🔑"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Contraseña"
-              secureTextEntry
-              editable={!isSigningIn}
-              style={styles.authInput}
-            />
-
-            <Button
-              variant="primary"
-              size="large"
-              onPress={isSignUp ? handleSignUp : handleSignIn}
-              loading={isSigningIn}
-              disabled={isSigningIn}
-              style={styles.mainButton}
-            >
-              {isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}
-            </Button>
-
             <TouchableOpacity
-              onPress={() => setIsSignUp(!isSignUp)}
-              disabled={isSigningIn}
-              style={styles.switchAuthMode}
+              style={[styles.actionButton, roomCode.length !== 6 && styles.actionButtonDisabled]}
+              onPress={handleJoinRoom}
+              disabled={isJoining || roomCode.length !== 6}
+              activeOpacity={0.8}
             >
-              <Text style={styles.switchAuthText}>
-                {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+              <Text style={styles.actionButtonText}>
+                {isJoining ? 'Uniéndose...' : 'Unirse a Sala'}
               </Text>
             </TouchableOpacity>
-
-            {__DEV__ && (
-              <Button
-                variant="secondary"
-                size="small"
-                onPress={handleQuickSignIn}
-                disabled={isSigningIn}
-                style={styles.devButton}
-                icon="🚀"
-              >
-                Quick Test Sign In (Dev)
-              </Button>
-            )}
           </Card>
-        ) : (
-          <>
-            {/* Create Room Section */}
-            <Card elevated style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardIcon}>🎮</Text>
-                <View style={styles.cardTitleContainer}>
-                  <Text style={styles.cardTitle}>Crear Nueva Sala</Text>
-                  <Text style={styles.cardDescription}>Invita hasta 3 amigos a jugar</Text>
-                </View>
-              </View>
-              <Button
-                variant="primary"
-                size="large"
-                onPress={handleCreateRoom}
-                loading={isCreating}
-                disabled={isCreating}
-                icon="➕"
-                style={styles.mainButton}
-              >
-                Crear Sala
-              </Button>
-              <Text style={styles.hint}>📍 Se generará un código único para compartir</Text>
-            </Card>
-
-            <Divider text="o" spacing="medium" />
-
-            {/* Join Room Section */}
-            <Card elevated style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardIcon}>🔑</Text>
-                <View style={styles.cardTitleContainer}>
-                  <Text style={styles.cardTitle}>Unirse a Sala</Text>
-                  <Text style={styles.cardDescription}>Ingresa el código de invitación</Text>
-                </View>
-              </View>
-
-              <InputField
-                icon="🎯"
-                value={roomCode}
-                onChangeText={text => setRoomCode(text.toUpperCase())}
-                placeholder="ABC123"
-                maxLength={6}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                style={styles.codeInput}
-                validation={{
-                  isValid: roomCode.length === 6,
-                  message: roomCode.length > 0 ? `${roomCode.length}/6 caracteres` : undefined,
-                }}
-              />
-
-              <View style={styles.buttonRow}>
-                <Button
-                  variant={roomCode.length === 6 ? 'primary' : 'secondary'}
-                  onPress={handleJoinRoom}
-                  loading={isJoining}
-                  disabled={isJoining || roomCode.length !== 6}
-                  icon="🚪"
-                  style={styles.joinButton}
-                >
-                  Unirse
-                </Button>
-                {roomCode.length === 6 && (
-                  <Button
-                    variant="secondary"
-                    size="small"
-                    onPress={() => handleCopyCode(roomCode)}
-                    icon="📋"
-                  >
-                    Copiar
-                  </Button>
-                )}
-              </View>
-            </Card>
-          </>
         )}
 
         {/* Friends List Section */}
-        <Card style={styles.friendsSection}>
-          <View style={styles.friendsHeader}>
-            <Text style={styles.friendsTitle}>👥 Amigos en Línea</Text>
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={() => {
-                // TODO: Refresh friends list
-              }}
-            >
-              <Text style={styles.refreshIcon}>🔄</Text>
-            </TouchableOpacity>
-          </View>
-          {renderOnlineFriends()}
-        </Card>
+        {renderOnlineFriends()}
+
+        {/* Info Cards */}
+        <View style={styles.infoSection}>
+          <Card style={styles.infoCard}>
+            <Text style={styles.infoIcon}>💡</Text>
+            <Text style={styles.infoText}>
+              Crea una sala para jugar con hasta 3 amigos usando un código privado
+            </Text>
+          </Card>
+        </View>
       </ScrollView>
 
+      {/* Authentication Modal */}
+      <AuthModal
+        visible={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false);
+          setPendingAction(null);
+          setPendingFriendId(null);
+        }}
+        onSignIn={handleSignIn}
+        onSignUp={handleSignUp}
+        onQuickSignIn={__DEV__ ? handleQuickSignIn : undefined}
+        title={
+          pendingAction === 'create'
+            ? 'Iniciar sesión para crear sala'
+            : pendingAction === 'join'
+            ? 'Iniciar sesión para unirse'
+            : 'Iniciar sesión para invitar'
+        }
+        message="Necesitas una cuenta para jugar con amigos"
+      />
+
+      {/* Loading Overlay */}
       <LoadingOverlay
         visible={isCreating || isJoining}
         message={isCreating ? 'Creando sala...' : 'Uniéndose a sala...'}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -457,26 +481,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  scrollContainer: {
+    flex: 1,
+  },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: dimensions.spacing.lg,
-    paddingBottom: dimensions.spacing.xxl,
+    paddingBottom: dimensions.spacing.xl,
   },
   header: {
     alignItems: 'center',
-    paddingTop: dimensions.spacing.xl,
-    paddingBottom: dimensions.spacing.lg,
+    paddingTop: dimensions.spacing.lg,
+    paddingBottom: dimensions.spacing.md,
+    paddingHorizontal: dimensions.spacing.lg,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: typography.fontSize.xxxl,
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.accent,
     marginBottom: dimensions.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: typography.fontSize.lg,
-    color: colors.textSecondary,
-    marginBottom: dimensions.spacing.md,
   },
   userBadge: {
     flexDirection: 'row',
@@ -498,12 +523,90 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: typography.fontWeight.medium,
   },
-  card: {
-    marginVertical: dimensions.spacing.md,
+  columnsContainer: {
+    flexDirection: 'row',
+    gap: dimensions.spacing.md,
+    marginTop: dimensions.spacing.lg,
+    marginBottom: dimensions.spacing.lg,
+  },
+  columnCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: dimensions.borderRadius.lg,
+    padding: dimensions.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    minHeight: 110,
+  },
+  columnCardActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.secondary,
+  },
+  columnIcon: {
+    fontSize: 32,
+    marginBottom: dimensions.spacing.xs,
+  },
+  columnTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+  },
+  columnSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+  },
+  friendsCount: {
+    position: 'absolute',
+    top: dimensions.spacing.sm,
+    right: dimensions.spacing.sm,
+    backgroundColor: colors.accent,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendsCountText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.white,
+    fontWeight: typography.fontWeight.bold,
+  },
+  actionCard: {
+    marginBottom: dimensions.spacing.lg,
     padding: dimensions.spacing.lg,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  actionTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: dimensions.spacing.md,
+    textAlign: 'center',
+  },
+  actionButton: {
+    backgroundColor: colors.accent,
+    paddingVertical: dimensions.spacing.md,
+    paddingHorizontal: dimensions.spacing.lg,
+    borderRadius: dimensions.borderRadius.lg,
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  actionButtonDisabled: {
+    backgroundColor: colors.disabled,
+    opacity: 0.6,
+  },
+  actionButtonText: {
+    fontSize: typography.fontSize.md,
+    color: colors.white,
+    fontWeight: typography.fontWeight.bold,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -518,30 +621,67 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    fontSize: typography.fontSize.xl,
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.text,
     marginBottom: dimensions.spacing.xs,
   },
   cardDescription: {
-    fontSize: typography.fontSize.md,
+    fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
+  },
+  primaryActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+    paddingVertical: dimensions.spacing.md,
+    paddingHorizontal: dimensions.spacing.lg,
+    borderRadius: dimensions.borderRadius.lg,
+    marginBottom: dimensions.spacing.sm,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  disabledButton: {
+    backgroundColor: colors.disabled,
+    opacity: 0.6,
+  },
+  actionButtonIcon: {
+    fontSize: 20,
+    marginRight: dimensions.spacing.sm,
+  },
+  actionButtonText: {
+    fontSize: typography.fontSize.md,
+    color: colors.white,
+    fontWeight: typography.fontWeight.bold,
   },
   mainButton: {
     marginBottom: dimensions.spacing.md,
   },
   hint: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     color: colors.textMuted,
     fontStyle: 'italic',
     textAlign: 'center',
+    marginTop: dimensions.spacing.xs,
   },
   codeInput: {
     marginBottom: dimensions.spacing.md,
-    fontSize: typography.fontSize.xxl,
-    letterSpacing: 4,
+    fontSize: typography.fontSize.xl,
+    letterSpacing: 3,
     textAlign: 'center',
     fontWeight: typography.fontWeight.bold,
+  },
+  friendsExpandedContent: {
+    backgroundColor: colors.surface,
+    borderRadius: dimensions.borderRadius.lg,
+    marginBottom: dimensions.spacing.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -550,43 +690,17 @@ const styles = StyleSheet.create({
   joinButton: {
     flex: 1,
   },
-  friendsSection: {
-    marginTop: dimensions.spacing.lg,
-    marginBottom: dimensions.spacing.xl,
-    minHeight: 200,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  friendsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: dimensions.spacing.lg,
-  },
-  friendsTitle: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-  },
-  refreshButton: {
-    padding: dimensions.spacing.sm,
-  },
-  refreshIcon: {
-    fontSize: 28,
-  },
   friendsList: {
-    gap: dimensions.spacing.sm,
+    padding: dimensions.spacing.md,
   },
   friendCard: {
-    marginBottom: dimensions.spacing.sm,
-    padding: dimensions.spacing.md,
-    backgroundColor: colors.secondary,
-    borderWidth: 1,
-    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: dimensions.spacing.md,
+    backgroundColor: colors.secondary,
+    borderRadius: dimensions.borderRadius.md,
+    marginBottom: dimensions.spacing.sm,
   },
   friendInfo: {
     flexDirection: 'row',
@@ -615,38 +729,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   friendName: {
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
     marginBottom: dimensions.spacing.xs,
   },
-  friendStats: {
-    flexDirection: 'row',
-    gap: dimensions.spacing.md,
-  },
-  friendElo: {
-    fontSize: typography.fontSize.md,
-    color: colors.accent,
-    fontWeight: typography.fontWeight.medium,
-  },
   friendStatus: {
-    fontSize: typography.fontSize.md,
-    color: colors.cantarGreen,
-    fontWeight: typography.fontWeight.medium,
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
   },
-  authInput: {
-    marginBottom: dimensions.spacing.md,
+  inviteIcon: {
+    fontSize: 20,
   },
-  switchAuthMode: {
+  infoSection: {
     marginTop: dimensions.spacing.lg,
+  },
+  infoCard: {
+    flexDirection: 'row',
     alignItems: 'center',
+    padding: dimensions.spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  switchAuthText: {
-    color: colors.accent,
-    fontSize: typography.fontSize.md,
+  infoIcon: {
+    fontSize: 24,
+    marginRight: dimensions.spacing.md,
   },
-  devButton: {
-    marginTop: dimensions.spacing.lg,
-    opacity: 0.7,
+  infoText: {
+    flex: 1,
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
 });

@@ -8,7 +8,9 @@
     "lint": "eslint .",
     "start": "react-native start --port 8083",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "supabase:types": "npx supabase gen types typescript --project-id $(grep EXPO_PUBLIC_SUPABASE_URL .env | cut -d'/' -f3 | cut -d'.' -f1) > src/types/database.generated.ts",
+    "supabase:migrate": "npx supabase db push --db-url $(grep DATABASE_URL .env | cut -d'=' -f2-)"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",

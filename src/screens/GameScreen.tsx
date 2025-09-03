@@ -186,6 +186,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   const lastCanteCountRef = useRef(0);
   // Debounce cante animations to prevent race conditions
   const canteAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Prevent multiple cante button presses
+  const [isProcessingCante, setIsProcessingCante] = useState(false);
 
   // Toast state
   const [toastConfig, setToastConfig] = useState<{
@@ -273,14 +275,16 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     if (!gameState) return;
 
     if (gameState.phase === 'scoring') {
-      console.log('📊 Entering scoring phase', {
+      console.log('📊 [FIN DE MANO] Entering scoring phase', {
         team1Score: gameState.teams[0].score,
         team2Score: gameState.teams[1].score,
         isVueltas: gameState.isVueltas,
+        showHandEndOverlay,
       });
 
       // Show the overlay for scoring
       setShowHandEndOverlay(true);
+      console.log('📄 [FIN DE MANO] HandEndOverlay should now be visible');
 
       // Check if there's a winner
       const hasWinnerIdas = !gameState.isVueltas && gameState.teams.some(team => team.score >= 101);
@@ -467,6 +471,15 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       gameState?.phase === 'gameOver' ||
       (gameState?.phase === 'scoring' && progressSignature > lastProgressRef.current);
 
+    console.log('🏆 [PARTIDA GANADA] Check celebration trigger:', {
+      phase: gameState?.phase,
+      shouldShowCelebration,
+      progressSignature,
+      lastProgress: lastProgressRef.current,
+      team1Score: gameState?.teams[0].score,
+      team2Score: gameState?.teams[1].score,
+    });
+
     if (shouldShowCelebration && gameState) {
       // Create a unique game session ID based on game start time and current state
       const gameSessionId = `${gameStartTime}-${gameState.teams[0].score}-${gameState.teams[1].score}`;
@@ -561,9 +574,10 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   const getRotatedPlayers = () => {
     const allPlayers = gameState.players.map((player, index) => {
       // During dealing phase, use pendingHands if available, otherwise use regular hands
-      const hand = gameState.phase === 'dealing' && gameState.pendingHands
-        ? (gameState.pendingHands.get(player.id) || [])
-        : (gameState.hands.get(player.id) || []);
+      const hand =
+        gameState.phase === 'dealing' && gameState.pendingHands
+          ? gameState.pendingHands.get(player.id) || []
+          : gameState.hands.get(player.id) || [];
 
       // In local multiplayer, only show cards for the current player
       const showCards = isLocalMultiplayer
@@ -703,6 +717,9 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   const handleCantar = () => {
     if (!isDealingComplete) return;
 
+    // Prevent multiple simultaneous cante attempts
+    if (isProcessingCante) return;
+
     // CANTAR: Can be done at start of game or after winning a trick
     const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
     if (!currentPlayer) return;
@@ -743,6 +760,9 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     if (cantableSuits.length > 0) {
       const suit = cantableSuits[0];
 
+      // Mark as processing to prevent repeated button presses
+      setIsProcessingCante(true);
+
       // Calculate points based on suit
       const points = suit === gameState.trumpSuit ? 40 : 20;
 
@@ -779,6 +799,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             } as any)
             .catch(() => {});
         }
+        // Re-enable button after cante is processed
+        setIsProcessingCante(false);
       }, 100);
     }
   };
@@ -872,13 +894,6 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
   // Show game over screen
   if (gameState.phase === 'gameOver') {
-    console.log('🎮 GameScreen: gameOver phase', {
-      showGameEndCelebration,
-      team1Score: gameState.teams[0].score,
-      team2Score: gameState.teams[1].score,
-      matchScore: gameState.matchScore,
-    });
-
     const playerTeam = gameState.teams.find(t => t.playerIds.includes(gameState.players[0].id));
     // Determine winner (handle vueltas combined totals)
     let playerWon = false;
@@ -892,6 +907,14 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     const team1 = gameState.teams[0];
     const team2 = gameState.teams[1];
     const matchScore = gameState.matchScore;
+
+    console.log('🎮 [PARTIDA GANADA] GameScreen: gameOver phase - SHOWING VICTORY/DEFEAT SCREEN', {
+      showGameEndCelebration,
+      team1Score: gameState.teams[0].score,
+      team2Score: gameState.teams[1].score,
+      matchScore: gameState.matchScore,
+      isWinner: playerWon,
+    });
 
     // Check if the match is truly complete (team reached 2 cotos)
     const isMatchReallyComplete =
@@ -958,6 +981,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             matchScore={matchScore}
             onContinue={!isMatchReallyComplete ? continueToNextPartida : undefined}
             isVueltasTransition={isVueltasTransition}
+            gameState={gameState}
+            playerTeamIndex={playerTeam?.id === team1.id ? 0 : 1}
           />
         </ScreenContainer>
       );
@@ -1139,14 +1164,6 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           gamePhase={gameState?.phase}
           validCardIndices={getValidCardIndices()}
           isVueltas={gameState.isVueltas}
-          vueltasInitialScores={
-            gameState.isVueltas && gameState.initialScores
-              ? {
-                  team1: gameState.initialScores.get(gameState.teams[0].id) || 0,
-                  team2: gameState.initialScores.get(gameState.teams[1].id) || 0,
-                }
-              : undefined
-          }
           canDeclareVictory={gameState.canDeclareVictory}
           teamScores={{
             team1:
@@ -1234,7 +1251,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             gameState={gameState}
             onCantar={handleCantar}
             onCambiar7={handleCambiar7}
-            disabled={!isPlayerTurn() || thinkingPlayer !== null}
+            disabled={!isPlayerTurn() || thinkingPlayer !== null || isProcessingCante}
           />
         )}
 
@@ -1350,6 +1367,16 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
               if (!winnerId) return undefined;
               return winnerId === gameState.teams[0].id;
             })()}
+            team1IdasScore={
+              gameState.isVueltas && gameState.initialScores
+                ? gameState.initialScores.get(gameState.teams[0].id)
+                : undefined
+            }
+            team2IdasScore={
+              gameState.isVueltas && gameState.initialScores
+                ? gameState.initialScores.get(gameState.teams[1].id)
+                : undefined
+            }
             onAutoAdvance={() => {
               console.log('🎯 HandEndOverlay onAutoAdvance called', {
                 team1Score: gameState.teams[0].score,

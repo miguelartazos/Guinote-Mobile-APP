@@ -140,27 +140,42 @@ describe('detectNewCante', () => {
 describe('getPlayerPositionForIndex', () => {
   it('returns correct position for player 0 (bottom)', () => {
     const position = getPlayerPositionForIndex(0);
-    expect(position).toEqual({ x: 400, y: 550 });
+    expect(position).toHaveProperty('x');
+    expect(position).toHaveProperty('y');
+    expect(position.x).toBeCloseTo(187.5, 1); // 50% of 375 (test width)
+    expect(position.y).toBeCloseTo(500.25, 1); // 75% of 667 (test height)
   });
 
   it('returns correct position for player 1 (right)', () => {
     const position = getPlayerPositionForIndex(1);
-    expect(position).toEqual({ x: 700, y: 350 });
+    expect(position).toHaveProperty('x');
+    expect(position).toHaveProperty('y');
+    expect(position.x).toBeCloseTo(318.75, 1); // 85% of 375
+    expect(position.y).toBeCloseTo(333.5, 1); // 50% of 667
   });
 
   it('returns correct position for player 2 (top)', () => {
     const position = getPlayerPositionForIndex(2);
-    expect(position).toEqual({ x: 400, y: 150 });
+    expect(position).toHaveProperty('x');
+    expect(position).toHaveProperty('y');
+    expect(position.x).toBeCloseTo(187.5, 1); // 50% of 375
+    expect(position.y).toBeCloseTo(166.75, 1); // 25% of 667
   });
 
   it('returns correct position for player 3 (left)', () => {
     const position = getPlayerPositionForIndex(3);
-    expect(position).toEqual({ x: 100, y: 350 });
+    expect(position).toHaveProperty('x');
+    expect(position).toHaveProperty('y');
+    expect(position.x).toBeCloseTo(56.25, 1); // 15% of 375
+    expect(position.y).toBeCloseTo(333.5, 1); // 50% of 667
   });
 
   it('returns default position for invalid index', () => {
     const position = getPlayerPositionForIndex(5);
-    expect(position).toEqual({ x: 400, y: 550 });
+    expect(position).toHaveProperty('x');
+    expect(position).toHaveProperty('y');
+    expect(position.x).toBeCloseTo(187.5, 1); // Same as player 0 (bottom)
+    expect(position.y).toBeCloseTo(500.25, 1); // Same as player 0 (bottom)
   });
 });
 

@@ -7,6 +7,7 @@ import {
   Animated,
   Dimensions,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import { colors } from '../../constants/colors';
 import type { TrickCard, TeamId } from '../../types/game.types';
@@ -31,6 +32,9 @@ type HandEndOverlayProps = {
   // Winner awareness for vueltas: when total (idas+vueltas) determines a winner
   hasWinner?: boolean;
   winningTeamIsTeam1?: boolean;
+  // Idas scores for vueltas phase
+  team1IdasScore?: number;
+  team2IdasScore?: number;
 };
 
 // Constants
@@ -47,8 +51,8 @@ const CARD_DIMENSIONS = {
   WIDTH_RATIO: 0.75, // Use 75% of screen width
   MAX_WIDTH: 700, // Max width for larger devices
   MIN_WIDTH: 400, // Min width for smaller devices
-  HEIGHT_RATIO: 0.8, // Use 80% of screen height
-  MAX_HEIGHT: 450, // Max height for larger devices
+  HEIGHT_RATIO: 0.85, // Use 85% of screen height for better fit
+  MAX_HEIGHT: 500, // Increased max height for Pro models
   MIN_HEIGHT: 300, // Min height for smaller devices
   SMALL_SCREEN_THRESHOLD: 400, // iPhone SE/mini landscape height
   MEDIUM_SCREEN_THRESHOLD: 450, // iPhone 14/15 landscape height
@@ -81,6 +85,8 @@ export function HandEndOverlay({
   onAutoAdvance,
   hasWinner,
   winningTeamIsTeam1,
+  team1IdasScore,
+  team2IdasScore,
 }: HandEndOverlayProps) {
   const [showDetails, setShowDetails] = useState(true); // Show point breakdown initially
 
@@ -223,7 +229,7 @@ export function HandEndOverlay({
             isSmallScreen && styles.cardSmall,
             {
               width: cardWidth,
-              minHeight: cardHeight,
+              maxHeight: cardHeight,
               opacity: fadeAnim,
               transform: [{ scale: scaleAnim }],
             },
@@ -231,133 +237,163 @@ export function HandEndOverlay({
           accessible={true}
           accessibilityRole="alert"
         >
-          {/* Header Section - Traditional Spanish style */}
-          <View style={[styles.headerSection, isSmallScreen && styles.headerSectionSmall]}>
-            {/* Decorative Spanish card suits */}
-            <View style={styles.suitsDecoration}>
-              <Text style={styles.suitIcon}>♠</Text>
-              <Text style={[styles.suitIcon, styles.suitRed]}>♥</Text>
-              <Text style={styles.suitIcon}>♣</Text>
-              <Text style={[styles.suitIcon, styles.suitRed]}>♦</Text>
-            </View>
-            <Text
-              style={[styles.title, isSmallScreen && styles.titleSmall]}
-              accessibilityRole="header"
-            >
-              FIN DE LA MANO
-            </Text>
-            {isVueltas && (
-              <View style={styles.vueltasBadge}>
-                <Text style={styles.vueltasBadgeText}>VUELTAS</Text>
-              </View>
-            )}
-            <View style={styles.decorativeLine} />
-          </View>
-
-          {/* Main Scores Section - Clean traditional layout */}
-          <View
-            style={[styles.mainContent, isSmallScreen && styles.mainContentSmall]}
-            accessible={true}
+          {/* Scrollable content area */}
+          <ScrollView
+            style={styles.scrollContainer}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
           >
-            {/* Team 1 - Traditional Spanish style */}
-            <View style={[styles.teamSection, styles.teamSectionLeft]}>
-              <View style={styles.teamHeader}>
-                <Text style={[styles.teamName, isSmallScreen && styles.teamNameSmall]}>
-                  NOSOTROS
-                </Text>
+            {/* Header Section - Traditional Spanish style */}
+            <View style={[styles.headerSection, isSmallScreen && styles.headerSectionSmall]}>
+              {/* Decorative Spanish card suits */}
+              <View style={styles.suitsDecoration}>
+                <Text style={styles.suitIcon}>♠</Text>
+                <Text style={[styles.suitIcon, styles.suitRed]}>♥</Text>
+                <Text style={styles.suitIcon}>♣</Text>
+                <Text style={[styles.suitIcon, styles.suitRed]}>♦</Text>
               </View>
-              <View style={styles.scoreContainer}>
-                <Animated.Text
-                  style={[styles.scoreNumber, isSmallScreen && styles.scoreNumberSmall]}
-                  accessibilityLabel={`Nosotros: ${team1Score} puntos`}
-                  accessibilityRole="text"
-                >
-                  {team1ScoreAnim.interpolate({
-                    inputRange: [0, team1Score],
-                    outputRange: ['0', team1Score.toString()],
-                    extrapolate: 'clamp',
-                  })}
-                </Animated.Text>
-                <Text style={styles.puntosLabel}>PUNTOS</Text>
-              </View>
-              {team1HandPointsCalculated > 0 && (
-                <View style={styles.handPointsContainer}>
-                  <Text
-                    style={[styles.handPointsInfo, isSmallScreen && styles.handPointsInfoSmall]}
-                  >
-                    +{team1HandPointsCalculated}
-                  </Text>
-                  <Text style={styles.handPointsLabel}>esta mano</Text>
+              <Text
+                style={[styles.title, isSmallScreen && styles.titleSmall]}
+                accessibilityRole="header"
+              >
+                FIN DE LA MANO
+              </Text>
+              {isVueltas && (
+                <View style={styles.vueltasBadge}>
+                  <Text style={styles.vueltasBadgeText}>VUELTAS</Text>
                 </View>
               )}
-              {team1Cantes > 0 && (
-                <View style={styles.cantesContainer}>
-                  <Text
-                    style={[styles.cantesInfo, isSmallScreen && styles.cantesInfoSmall]}
-                    accessibilityLabel={`más ${team1Cantes} puntos de cantes`}
-                  >
-                    +{team1Cantes}
-                  </Text>
-                  <Text style={styles.cantesLabel}>cantes</Text>
-                </View>
-              )}
+              <View style={styles.decorativeLine} />
             </View>
 
-            {/* Separator - Traditional ornamental */}
-            <View style={styles.separatorContainer}>
-              <View style={styles.ornamentalDivider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.separator} accessibilityElementsHidden={true}>
-                  VS
-                </Text>
-                <View style={styles.dividerLine} />
+            {/* Main Scores Section - Clean traditional layout */}
+            <View
+              style={[styles.mainContent, isSmallScreen && styles.mainContentSmall]}
+              accessible={true}
+            >
+              {/* Team 1 - Traditional Spanish style */}
+              <View style={[styles.teamSection, styles.teamSectionLeft]}>
+                <View style={styles.teamHeader}>
+                  <Text style={[styles.teamName, isSmallScreen && styles.teamNameSmall]}>
+                    NOSOTROS
+                  </Text>
+                </View>
+                <View style={styles.scoreContainer}>
+                  <Animated.Text
+                    style={[styles.scoreNumber, isSmallScreen && styles.scoreNumberSmall]}
+                    accessibilityLabel={`Nosotros: ${team1Score} puntos`}
+                    accessibilityRole="text"
+                  >
+                    {team1ScoreAnim.interpolate({
+                      inputRange: [0, team1Score],
+                      outputRange: ['0', team1Score.toString()],
+                      extrapolate: 'clamp',
+                    })}
+                  </Animated.Text>
+                  <Text style={styles.puntosLabel}>PUNTOS</Text>
+                </View>
+                {isVueltas && team1IdasScore !== undefined && (
+                  <View style={styles.idasScoreContainer}>
+                    <Text
+                      style={[styles.idasScoreInfo, isSmallScreen && styles.idasScoreInfoSmall]}
+                    >
+                      {team1IdasScore}
+                    </Text>
+                    <Text style={styles.idasScoreLabel}>de las idas</Text>
+                  </View>
+                )}
+                {team1HandPointsCalculated > 0 && (
+                  <View style={styles.handPointsContainer}>
+                    <Text
+                      style={[styles.handPointsInfo, isSmallScreen && styles.handPointsInfoSmall]}
+                    >
+                      +{team1HandPointsCalculated}
+                    </Text>
+                    <Text style={styles.handPointsLabel}>esta mano</Text>
+                  </View>
+                )}
+                {team1Cantes > 0 && (
+                  <View style={styles.cantesContainer}>
+                    <Text
+                      style={[styles.cantesInfo, isSmallScreen && styles.cantesInfoSmall]}
+                      accessibilityLabel={`más ${team1Cantes} puntos de cantes`}
+                    >
+                      +{team1Cantes}
+                    </Text>
+                    <Text style={styles.cantesLabel}>cantes</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Separator - Traditional ornamental */}
+              <View style={styles.separatorContainer}>
+                <View style={styles.ornamentalDivider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.separator} accessibilityElementsHidden={true}>
+                    VS
+                  </Text>
+                  <View style={styles.dividerLine} />
+                </View>
+              </View>
+
+              {/* Team 2 - Traditional Spanish style */}
+              <View style={[styles.teamSection, styles.teamSectionRight]}>
+                <View style={styles.teamHeader}>
+                  <Text style={[styles.teamName, isSmallScreen && styles.teamNameSmall]}>
+                    ELLOS
+                  </Text>
+                </View>
+                <View style={styles.scoreContainer}>
+                  <Animated.Text
+                    style={[styles.scoreNumber, isSmallScreen && styles.scoreNumberSmall]}
+                    accessibilityLabel={`Ellos: ${team2Score} puntos`}
+                    accessibilityRole="text"
+                  >
+                    {team2ScoreAnim.interpolate({
+                      inputRange: [0, team2Score],
+                      outputRange: ['0', team2Score.toString()],
+                      extrapolate: 'clamp',
+                    })}
+                  </Animated.Text>
+                  <Text style={styles.puntosLabel}>PUNTOS</Text>
+                </View>
+                {isVueltas && team2IdasScore !== undefined && (
+                  <View style={styles.idasScoreContainer}>
+                    <Text
+                      style={[styles.idasScoreInfo, isSmallScreen && styles.idasScoreInfoSmall]}
+                    >
+                      {team2IdasScore}
+                    </Text>
+                    <Text style={styles.idasScoreLabel}>de las idas</Text>
+                  </View>
+                )}
+                {team2HandPointsCalculated > 0 && (
+                  <View style={styles.handPointsContainer}>
+                    <Text
+                      style={[styles.handPointsInfo, isSmallScreen && styles.handPointsInfoSmall]}
+                    >
+                      +{team2HandPointsCalculated}
+                    </Text>
+                    <Text style={styles.handPointsLabel}>esta mano</Text>
+                  </View>
+                )}
+                {team2Cantes > 0 && (
+                  <View style={styles.cantesContainer}>
+                    <Text
+                      style={[styles.cantesInfo, isSmallScreen && styles.cantesInfoSmall]}
+                      accessibilityLabel={`más ${team2Cantes} puntos de cantes`}
+                    >
+                      +{team2Cantes}
+                    </Text>
+                    <Text style={styles.cantesLabel}>cantes</Text>
+                  </View>
+                )}
               </View>
             </View>
+          </ScrollView>
 
-            {/* Team 2 - Traditional Spanish style */}
-            <View style={[styles.teamSection, styles.teamSectionRight]}>
-              <View style={styles.teamHeader}>
-                <Text style={[styles.teamName, isSmallScreen && styles.teamNameSmall]}>ELLOS</Text>
-              </View>
-              <View style={styles.scoreContainer}>
-                <Animated.Text
-                  style={[styles.scoreNumber, isSmallScreen && styles.scoreNumberSmall]}
-                  accessibilityLabel={`Ellos: ${team2Score} puntos`}
-                  accessibilityRole="text"
-                >
-                  {team2ScoreAnim.interpolate({
-                    inputRange: [0, team2Score],
-                    outputRange: ['0', team2Score.toString()],
-                    extrapolate: 'clamp',
-                  })}
-                </Animated.Text>
-                <Text style={styles.puntosLabel}>PUNTOS</Text>
-              </View>
-              {team2HandPointsCalculated > 0 && (
-                <View style={styles.handPointsContainer}>
-                  <Text
-                    style={[styles.handPointsInfo, isSmallScreen && styles.handPointsInfoSmall]}
-                  >
-                    +{team2HandPointsCalculated}
-                  </Text>
-                  <Text style={styles.handPointsLabel}>esta mano</Text>
-                </View>
-              )}
-              {team2Cantes > 0 && (
-                <View style={styles.cantesContainer}>
-                  <Text
-                    style={[styles.cantesInfo, isSmallScreen && styles.cantesInfoSmall]}
-                    accessibilityLabel={`más ${team2Cantes} puntos de cantes`}
-                  >
-                    +{team2Cantes}
-                  </Text>
-                  <Text style={styles.cantesLabel}>cantes</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Bottom Message Section - Traditional finish */}
+          {/* Bottom Message Section - Traditional finish - Outside ScrollView to stay fixed */}
           <View style={[styles.bottomSection, isSmallScreen && styles.bottomSectionSmall]}>
             {team1Score >= 101 ? (
               <Text style={[styles.messageText, styles.winMessage]} accessibilityRole="alert">
@@ -379,7 +415,9 @@ export function HandEndOverlay({
               )
             ) : shouldPlayVueltas ? (
               <View style={styles.vueltasMessage}>
-                <Text style={styles.messageText}>Ningún equipo alcanzó 101 puntos</Text>
+                <Text style={[styles.messageText, styles.vueltasText]}>
+                  Ningún equipo alcanzó 101 puntos
+                </Text>
                 <Text style={styles.vueltasStarting}>¡Comenzando vueltas!</Text>
               </View>
             ) : null}
@@ -435,7 +473,6 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.primary, // Traditional dark green
     borderRadius: 16,
-    padding: 32,
     elevation: 24,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 12 },
@@ -443,17 +480,25 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     borderWidth: 2,
     borderColor: colors.goldDark,
+    overflow: 'hidden',
   },
   cardSmall: {
-    padding: 20,
     borderRadius: 12,
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 32,
+    paddingTop: 32,
+    paddingBottom: 16,
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   headerSectionSmall: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   suitsDecoration: {
     flexDirection: 'row',
@@ -506,10 +551,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'stretch',
-    paddingVertical: 20,
+    paddingVertical: 16,
   },
   mainContentSmall: {
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   teamSection: {
     flex: 1,
@@ -540,17 +585,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   scoreNumber: {
-    fontSize: 72,
+    fontSize: 64,
     fontWeight: '900',
     color: colors.gold,
-    lineHeight: 72,
+    lineHeight: 64,
     textShadowColor: 'rgba(0, 0, 0, 0.4)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   scoreNumberSmall: {
-    fontSize: 56,
-    lineHeight: 56,
+    fontSize: 48,
+    lineHeight: 48,
   },
   puntosLabel: {
     fontSize: 10,
@@ -572,6 +617,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   handPointsLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginLeft: 4,
+  },
+  idasScoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: 4,
+  },
+  idasScoreInfo: {
+    fontSize: 18,
+    color: colors.goldMedium,
+    fontWeight: '600',
+  },
+  idasScoreInfoSmall: {
+    fontSize: 14,
+  },
+  idasScoreLabel: {
     fontSize: 11,
     color: colors.textMuted,
     marginLeft: 4,
@@ -618,29 +681,36 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     alignItems: 'center',
-    marginTop: 20,
-    paddingTop: 16,
+    paddingHorizontal: 32,
+    paddingTop: 12,
+    paddingBottom: 20,
     borderTopWidth: 1,
     borderTopColor: colorWithOpacity(colors.goldDark, 0.2),
+    backgroundColor: colors.primary,
   },
   bottomSectionSmall: {
-    marginTop: 12,
-    paddingTop: 12,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   vueltasMessage: {
     alignItems: 'center',
+    marginBottom: 4,
   },
   messageText: {
     fontSize: 14,
     color: colors.text,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+  vueltasText: {
+    fontSize: 13,
+    marginBottom: 2,
   },
   vueltasStarting: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.gold,
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: 2,
   },
   winMessage: {
     color: colors.success,
@@ -739,21 +809,23 @@ const styles = StyleSheet.create({
   // Continue button styles
   continueButton: {
     backgroundColor: colors.accent,
-    paddingHorizontal: 32,
-    paddingVertical: 12,
+    paddingHorizontal: 28,
+    paddingVertical: 10,
     borderRadius: 8,
-    marginTop: 16,
+    marginTop: 12,
     elevation: 2,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 3,
+    minWidth: 180,
   },
   continueButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.primary,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
+    textAlign: 'center',
   },
 });

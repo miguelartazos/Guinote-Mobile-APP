@@ -7,50 +7,61 @@ export type CardSize = 'normal' | 'large';
 export type TableColor = 'green' | 'blue' | 'red' | 'wood';
 
 export type GameSettings = {
-  // Voice settings (already exist)
-  globalVoiceEnabled: boolean;
-  autoPlay: boolean;
-  volume: number;
-  // New game settings
+  // Gameplay settings
   difficulty: DifficultyLevel;
-  soundEffectsEnabled: boolean;
   cardSize: CardSize;
   tableColor: TableColor;
-  // Audio settings
+  // Audio settings (simplified)
+  masterVolume: number;
+  soundEffectsEnabled: boolean;
+  voiceMessagesEnabled: boolean;
   backgroundMusicEnabled: boolean;
-  musicVolume: number;
-  effectsVolume: number;
-  reactionsVolume: number;
-  backgroundMusicType: 'spanish_guitar' | 'cafe_ambiance' | 'nature_sounds';
   // Accessibility settings
-  accessibilityAudioCues: boolean;
-  voiceAnnouncements: boolean;
   highContrastMode: boolean;
 };
 
 const DEFAULT_SETTINGS: GameSettings = {
-  globalVoiceEnabled: true,
-  autoPlay: true,
-  volume: 0.8,
+  // Gameplay
   difficulty: 'medium',
-  soundEffectsEnabled: true,
   cardSize: 'normal',
   tableColor: 'green',
+  // Audio
+  masterVolume: 0.7,
+  soundEffectsEnabled: true,
+  voiceMessagesEnabled: true,
   backgroundMusicEnabled: false,
-  musicVolume: 0.3,
-  effectsVolume: 0.7,
-  reactionsVolume: 0.8,
-  backgroundMusicType: 'spanish_guitar',
-  accessibilityAudioCues: false,
-  voiceAnnouncements: false,
+  // Accessibility
   highContrastMode: false,
 };
+
+// Migration helper to convert old settings format to new
+function migrateSettings(oldSettings: any): GameSettings {
+  return {
+    // Gameplay settings remain the same
+    difficulty: oldSettings.difficulty || DEFAULT_SETTINGS.difficulty,
+    cardSize: oldSettings.cardSize || DEFAULT_SETTINGS.cardSize,
+    tableColor: oldSettings.tableColor || DEFAULT_SETTINGS.tableColor,
+    // Audio settings migration
+    masterVolume: oldSettings.volume || oldSettings.masterVolume || DEFAULT_SETTINGS.masterVolume,
+    soundEffectsEnabled: oldSettings.soundEffectsEnabled ?? DEFAULT_SETTINGS.soundEffectsEnabled,
+    voiceMessagesEnabled:
+      oldSettings.globalVoiceEnabled ??
+      oldSettings.voiceMessagesEnabled ??
+      DEFAULT_SETTINGS.voiceMessagesEnabled,
+    backgroundMusicEnabled:
+      oldSettings.backgroundMusicEnabled ?? DEFAULT_SETTINGS.backgroundMusicEnabled,
+    // Accessibility
+    highContrastMode: oldSettings.highContrastMode ?? DEFAULT_SETTINGS.highContrastMode,
+  };
+}
 
 export async function loadSettings(): Promise<GameSettings> {
   try {
     const storedSettings = await AsyncStorage.getItem(SETTINGS_KEY);
     if (storedSettings) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(storedSettings) };
+      const parsed = JSON.parse(storedSettings);
+      // Migrate old settings format if needed
+      return migrateSettings(parsed);
     }
   } catch (error) {
     console.error('Error loading settings:', error);

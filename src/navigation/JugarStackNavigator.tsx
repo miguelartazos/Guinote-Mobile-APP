@@ -1,6 +1,6 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import { JugarHomeScreen } from '../screens/JugarHomeScreen';
+import { JugarTab } from '../screens/JugarTab';
 import { QuickMatchScreen } from '../screens/QuickMatchScreen';
 import { FriendsLobbyScreen } from '../screens/FriendsLobbyScreen';
 import { GameRoomScreen } from '../screens/GameRoomScreen';
@@ -37,7 +37,7 @@ export function JugarStackNavigator() {
         },
       }}
     >
-      <Stack.Screen name="JugarHome" component={JugarHomeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="JugarHome" component={JugarTab} options={{ headerShown: false }} />
       <Stack.Screen
         name="QuickMatch"
         component={QuickMatchScreen}

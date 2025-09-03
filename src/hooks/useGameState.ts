@@ -670,9 +670,26 @@ export function useGameState({
             if (!prevState.isVueltas || !prevState.initialScores) return false;
             const team1 = newTeams[0];
             const team2 = newTeams[1];
-            const t1 = (prevState.initialScores.get(team1.id) || 0) + team1.score;
-            const t2 = (prevState.initialScores.get(team2.id) || 0) + team2.score;
-            return t1 >= WINNING_SCORE || t2 >= WINNING_SCORE;
+            const idasScore1 = prevState.initialScores.get(team1.id) || 0;
+            const idasScore2 = prevState.initialScores.get(team2.id) || 0;
+            const vueltasScore1 = team1.score;
+            const vueltasScore2 = team2.score;
+            const t1 = idasScore1 + vueltasScore1;
+            const t2 = idasScore2 + vueltasScore2;
+            
+            const shouldEnd = t1 >= WINNING_SCORE || t2 >= WINNING_SCORE;
+            
+            if (shouldEnd) {
+              console.log('🚨 [VUELTAS BUG CHECK] Early finish triggered:', {
+                team1: { idas: idasScore1, vueltas: vueltasScore1, total: t1 },
+                team2: { idas: idasScore2, vueltas: vueltasScore2, total: t2 },
+                WINNING_SCORE,
+                trickCount: prevState.trickCount,
+                isLastTrick,
+              });
+            }
+            
+            return shouldEnd;
           })();
 
           // Don't clear the trick immediately - show animation first
@@ -690,8 +707,11 @@ export function useGameState({
             lastTrickWinner: winnerId,
             lastTrick: newTrick,
             // If vueltas reached 101+, do not schedule post-trick dealing
-            pendingPostTrickDraws:
-              reached101InVueltas ? undefined : pendingDraws.length > 0 ? pendingDraws : undefined,
+            pendingPostTrickDraws: reached101InVueltas
+              ? undefined
+              : pendingDraws.length > 0
+              ? pendingDraws
+              : undefined,
             // Provide metadata for last trick overlay and points
             pendingTrickWinner: {
               playerId: winnerId,
@@ -703,7 +723,7 @@ export function useGameState({
             },
             phase: (() => {
               let phase: GamePhase;
-              
+
               // In vueltas, if combined totals reach 101+, end the hand immediately
               if (reached101InVueltas) {
                 phase = 'scoring';
@@ -941,7 +961,9 @@ export function useGameState({
           })();
 
           if (reached101InVueltas) {
-            console.log('🏁 Vueltas early finish via cante: combined totals reached 101+, entering scoring');
+            console.log(
+              '🏁 Vueltas early finish via cante: combined totals reached 101+, entering scoring',
+            );
           }
 
           return {
@@ -1198,10 +1220,10 @@ export function useGameState({
     setIsDealingComplete(true);
     setGameState(prev => {
       if (!prev) return prev;
-      
+
       // Move cards from pendingHands to actual hands
       const newHands = prev.pendingHands || prev.hands;
-      
+
       return {
         ...prev,
         phase: 'playing' as GamePhase,

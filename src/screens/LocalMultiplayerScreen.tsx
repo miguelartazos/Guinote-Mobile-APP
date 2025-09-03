@@ -1,16 +1,29 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  ScrollView,
+  Alert,
+  TouchableOpacity,
+} from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Button } from '../components/Button';
+import { TeamDiagram } from '../components/game/TeamDiagram';
 import { colors } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
 import type { JugarStackScreenProps } from '../types/navigation';
 
 export function LocalMultiplayerScreen({ navigation }: JugarStackScreenProps<'LocalMultiplayer'>) {
-  const [playerCount, setPlayerCount] = useState(4);
+  const [playerCount] = useState(4); // Always 4 players by default
   const [playerNames, setPlayerNames] = useState(['', '', '', '']);
-  const [selectedDealer, setSelectedDealer] = useState<number | null>(null);
+  const [showCustomNames, setShowCustomNames] = useState(false);
+
+  const getDefaultNames = () => {
+    return ['Jugador 1', 'Jugador 2', 'Jugador 3', 'Jugador 4'];
+  };
 
   const handlePlayerNameChange = (index: number, name: string) => {
     const newNames = [...playerNames];
@@ -18,41 +31,18 @@ export function LocalMultiplayerScreen({ navigation }: JugarStackScreenProps<'Lo
     setPlayerNames(newNames);
   };
 
-  const selectRandomDealer = () => {
-    const activePlayers = playerNames
-      .slice(0, playerCount)
-      .map((name, index) => ({ name: name || `Jugador ${index + 1}`, index }))
-      .filter(p => p.name.trim());
-
-    if (activePlayers.length < playerCount) {
-      Alert.alert('Nombres incompletos', 'Por favor, introduce todos los nombres de los jugadores');
-      return;
-    }
-
-    const randomIndex = Math.floor(Math.random() * playerCount);
-    setSelectedDealer(randomIndex);
-    Alert.alert(
-      '¡Dealer seleccionado!',
-      `${playerNames[randomIndex] || `Jugador ${randomIndex + 1}`} será el dealer`,
-    );
+  const startGameQuick = () => {
+    // Use default names for quick start
+    const defaultNames = getDefaultNames();
+    navigation.navigate('Game', {
+      gameMode: 'local',
+      playerNames: defaultNames,
+    });
   };
 
-  const startGame = () => {
-    const activePlayers = playerNames.slice(0, playerCount);
-    const hasAllNames = activePlayers.every(name => name.trim());
-
-    if (!hasAllNames) {
-      Alert.alert('Nombres incompletos', 'Por favor, introduce todos los nombres de los jugadores');
-      return;
-    }
-
-    if (selectedDealer === null) {
-      Alert.alert('Dealer no seleccionado', 'Por favor, selecciona quién será el dealer');
-      return;
-    }
-
-    // Fill empty slots with default names
-    const finalNames = activePlayers.map((name, index) => name.trim() || `Jugador ${index + 1}`);
+  const startGameCustom = () => {
+    // Use custom names or default if empty
+    const finalNames = playerNames.map((name, index) => name.trim() || `Jugador ${index + 1}`);
 
     navigation.navigate('Game', {
       gameMode: 'local',
@@ -60,105 +50,126 @@ export function LocalMultiplayerScreen({ navigation }: JugarStackScreenProps<'Lo
     });
   };
 
-  const getTeamInfo = (playerIndex: number) => {
-    if (playerCount === 2) {
-      return playerIndex === 0 ? 'Equipo 1' : 'Equipo 2';
-    }
-    // In 4-player Guiñote, players 0&2 are teammates, 1&3 are teammates
-    return playerIndex % 2 === 0 ? 'Equipo 1 (🟦)' : 'Equipo 2 (🟥)';
-  };
+  const displayNames = showCustomNames
+    ? playerNames.map((name, index) => name || `Jugador ${index + 1}`)
+    : getDefaultNames();
 
   return (
     <ScreenContainer>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>Paso y Juego</Text>
-          <Text style={styles.subtitle}>Configura los jugadores para la partida local</Text>
+          <Text style={styles.icon}>📱</Text>
+          <Text style={styles.title}>Juego Local</Text>
+          <Text style={styles.subtitle}>Pasa el dispositivo entre jugadores</Text>
         </View>
 
-        <View style={styles.content}>
-          {/* Player Count Selection */}
-          <View style={styles.playerCountContainer}>
-            <Text style={styles.sectionTitle}>Número de jugadores</Text>
-            <View style={styles.playerCountButtons}>
-              <Button
-                onPress={() => setPlayerCount(2)}
-                variant={playerCount === 2 ? 'primary' : 'secondary'}
-                style={styles.countButton}
-              >
-                2 Jugadores
+        {!showCustomNames ? (
+          <>
+            {/* Quick Start Section */}
+            <View style={styles.quickStartSection}>
+              <TeamDiagram playerNames={displayNames} playerCount={4} />
+
+              <Button onPress={startGameQuick} style={styles.quickStartButton} variant="primary">
+                <Text style={styles.buttonIcon}>🎮</Text>
+                <Text style={styles.buttonText}>Jugar Ahora</Text>
               </Button>
-              <Button
-                onPress={() => setPlayerCount(4)}
-                variant={playerCount === 4 ? 'primary' : 'secondary'}
-                style={styles.countButton}
+
+              <TouchableOpacity
+                style={styles.customizeButton}
+                onPress={() => setShowCustomNames(true)}
               >
-                4 Jugadores
+                <Text style={styles.customizeIcon}>✏️</Text>
+                <Text style={styles.customizeText}>Personalizar nombres</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            {/* Custom Names Section */}
+            <View style={styles.customSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Personalizar Jugadores</Text>
+                <TouchableOpacity
+                  onPress={() => setShowCustomNames(false)}
+                  style={styles.backButton}
+                >
+                  <Text style={styles.backButtonText}>← Volver</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TeamDiagram playerNames={displayNames} playerCount={4} />
+
+              <View style={styles.playersContainer}>
+                {playerNames.map((name, index) => {
+                  const teamNumber = index % 2 === 0 ? 1 : 2;
+                  const teamColor = teamNumber === 1 ? '#4FC3F7' : '#FF7043';
+
+                  return (
+                    <View key={index} style={styles.playerInputContainer}>
+                      <View style={styles.playerInputHeader}>
+                        <View style={styles.playerInfo}>
+                          <View
+                            style={[
+                              styles.teamBadge,
+                              { backgroundColor: teamColor + '20', borderColor: teamColor },
+                            ]}
+                          >
+                            <Text style={[styles.teamBadgeText, { color: teamColor }]}>
+                              Equipo {teamNumber}
+                            </Text>
+                          </View>
+                          <Text style={styles.playerLabel}>Jugador {index + 1}</Text>
+                        </View>
+                      </View>
+                      <TextInput
+                        style={[styles.nameInput, { borderColor: teamColor }]}
+                        value={name}
+                        onChangeText={text => handlePlayerNameChange(index, text)}
+                        placeholder={`Jugador ${index + 1}`}
+                        placeholderTextColor={colors.textMuted}
+                        maxLength={20}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+
+              <Button onPress={startGameCustom} style={styles.startButton} variant="primary">
+                <Text style={styles.buttonIcon}>🎮</Text>
+                <Text style={styles.buttonText}>Comenzar Partida</Text>
               </Button>
             </View>
-            {playerCount === 2 && (
-              <Text style={styles.modeInfo}>
-                ⚠️ Modo simplificado: cada jugador controla dos manos
-              </Text>
-            )}
-          </View>
+          </>
+        )}
 
-          {/* Player Names Input */}
-          <View style={styles.playersContainer}>
-            <Text style={styles.sectionTitle}>Nombres de los jugadores</Text>
-            {playerNames.slice(0, playerCount).map((name, index) => (
-              <View key={index} style={styles.playerInputContainer}>
-                <View style={styles.playerInputHeader}>
-                  <Text style={styles.playerLabel}>
-                    Jugador {index + 1} - {getTeamInfo(index)}
-                  </Text>
-                  {selectedDealer === index && <Text style={styles.dealerBadge}>DEALER</Text>}
-                </View>
-                <TextInput
-                  style={styles.nameInput}
-                  value={name}
-                  onChangeText={text => handlePlayerNameChange(index, text)}
-                  placeholder={`Jugador ${index + 1}`}
-                  placeholderTextColor={colors.textMuted}
-                  maxLength={20}
-                />
-              </View>
-            ))}
-          </View>
-
-          {/* Team Info */}
-          <View style={styles.teamInfoContainer}>
-            <Text style={styles.sectionTitle}>Información de equipos</Text>
-            <Text style={styles.teamInfo}>En Guiñote, los equipos son fijos:</Text>
-            {playerCount === 4 ? (
-              <>
-                <Text style={styles.teamDetail}>🟦 Equipo 1: Jugadores 1 y 3 (enfrentados)</Text>
-                <Text style={styles.teamDetail}>🟥 Equipo 2: Jugadores 2 y 4 (enfrentados)</Text>
-              </>
-            ) : (
-              <Text style={styles.teamDetail}>Cada jugador forma su propio equipo</Text>
-            )}
-          </View>
-
-          {/* Dealer Selection */}
-          <View style={styles.dealerContainer}>
-            <Text style={styles.sectionTitle}>Selección del dealer</Text>
-            <Text style={styles.dealerInfo}>
-              El dealer reparte las cartas. El jugador a su derecha empieza.
+        {/* Game Rules Info */}
+        <View style={styles.infoSection}>
+          <Text style={styles.infoTitle}>📖 Cómo funciona</Text>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoBullet}>•</Text>
+            <Text style={styles.infoText}>
+              Pasa el dispositivo al siguiente jugador después de cada turno
             </Text>
-            <Button onPress={selectRandomDealer} variant="secondary" style={styles.dealerButton}>
-              🎲 Seleccionar Dealer al Azar
-            </Button>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoBullet}>•</Text>
+            <Text style={styles.infoText}>Los jugadores 1 y 3 forman el equipo azul</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoBullet}>•</Text>
+            <Text style={styles.infoText}>Los jugadores 2 y 4 forman el equipo naranja</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoBullet}>•</Text>
+            <Text style={styles.infoText}>
+              El objetivo es llegar a 101 puntos antes que el otro equipo
+            </Text>
           </View>
         </View>
 
         <View style={styles.buttonContainer}>
-          <Button onPress={startGame} style={styles.startButton}>
-            Comenzar Partida
-          </Button>
-
           <Button variant="secondary" onPress={() => navigation.goBack()} style={styles.button}>
-            Volver
+            Volver al menú
           </Button>
         </View>
       </ScrollView>
@@ -175,118 +186,157 @@ const styles = StyleSheet.create({
     marginTop: dimensions.spacing.xl,
     marginBottom: dimensions.spacing.xl,
   },
+  icon: {
+    fontSize: 48,
+    marginBottom: dimensions.spacing.sm,
+  },
   title: {
     fontSize: typography.fontSize.xxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.accent,
-    marginBottom: dimensions.spacing.sm,
+    marginBottom: dimensions.spacing.xs,
   },
   subtitle: {
-    fontSize: typography.fontSize.lg,
-    color: colors.text,
-    fontWeight: typography.fontWeight.medium,
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
-  content: {
-    flex: 1,
+  quickStartSection: {
+    paddingHorizontal: dimensions.spacing.lg,
   },
-  playerCountContainer: {
-    marginBottom: dimensions.spacing.xl,
+  quickStartButton: {
+    minHeight: dimensions.touchTarget.large,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: dimensions.spacing.sm,
+    marginBottom: dimensions.spacing.md,
+  },
+  buttonIcon: {
+    fontSize: 20,
+  },
+  buttonText: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  customizeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: dimensions.spacing.sm,
+    paddingVertical: dimensions.spacing.md,
+  },
+  customizeIcon: {
+    fontSize: 16,
+  },
+  customizeText: {
+    fontSize: typography.fontSize.md,
+    color: colors.accent,
+    fontWeight: typography.fontWeight.medium,
+  },
+  customSection: {
+    paddingHorizontal: dimensions.spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: dimensions.spacing.lg,
   },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
-    color: colors.accent,
+    color: colors.text,
     fontWeight: typography.fontWeight.bold,
-    marginBottom: dimensions.spacing.md,
   },
-  playerCountButtons: {
-    flexDirection: 'row',
-    gap: dimensions.spacing.md,
+  backButton: {
+    paddingVertical: dimensions.spacing.xs,
+    paddingHorizontal: dimensions.spacing.sm,
   },
-  countButton: {
-    flex: 1,
-    minHeight: dimensions.touchTarget.comfortable,
-  },
-  modeInfo: {
+  backButtonText: {
     fontSize: typography.fontSize.sm,
-    color: colors.warning,
-    marginTop: dimensions.spacing.md,
-    fontStyle: 'italic',
+    color: colors.accent,
+    fontWeight: typography.fontWeight.medium,
   },
   playersContainer: {
     marginBottom: dimensions.spacing.xl,
   },
   playerInputContainer: {
-    marginBottom: dimensions.spacing.lg,
+    marginBottom: dimensions.spacing.md,
   },
   playerInputHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: dimensions.spacing.sm,
+  },
+  playerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: dimensions.spacing.sm,
+  },
+  teamBadge: {
+    paddingHorizontal: dimensions.spacing.sm,
+    paddingVertical: dimensions.spacing.xs,
+    borderRadius: dimensions.borderRadius.sm,
+    borderWidth: 1,
+  },
+  teamBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
   },
   playerLabel: {
     fontSize: typography.fontSize.md,
     color: colors.text,
-    fontWeight: typography.fontWeight.semibold,
-  },
-  dealerBadge: {
-    backgroundColor: colors.accent,
-    color: colors.white,
-    paddingHorizontal: dimensions.spacing.md,
-    paddingVertical: dimensions.spacing.xs,
-    borderRadius: dimensions.borderRadius.sm,
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.bold,
+    fontWeight: typography.fontWeight.medium,
   },
   nameInput: {
     backgroundColor: colors.surface,
     borderRadius: dimensions.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.secondary,
+    borderWidth: 2,
     paddingHorizontal: dimensions.spacing.lg,
     paddingVertical: dimensions.spacing.md,
-    fontSize: typography.fontSize.lg,
-    color: colors.text,
-    minHeight: dimensions.touchTarget.large,
-  },
-  teamInfoContainer: {
-    backgroundColor: colors.surface,
-    borderRadius: dimensions.borderRadius.lg,
-    padding: dimensions.spacing.lg,
-    marginBottom: dimensions.spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.secondary,
-  },
-  teamInfo: {
     fontSize: typography.fontSize.md,
     color: colors.text,
-    marginBottom: dimensions.spacing.md,
-  },
-  teamDetail: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    marginBottom: dimensions.spacing.sm,
-  },
-  dealerContainer: {
-    marginBottom: dimensions.spacing.xl,
-  },
-  dealerInfo: {
-    fontSize: typography.fontSize.md,
-    color: colors.textMuted,
-    marginBottom: dimensions.spacing.md,
-  },
-  dealerButton: {
     minHeight: dimensions.touchTarget.comfortable,
-  },
-  buttonContainer: {
-    marginBottom: dimensions.spacing.xxl,
-    marginTop: dimensions.spacing.xl,
   },
   startButton: {
     minHeight: dimensions.touchTarget.large,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: dimensions.spacing.sm,
+  },
+  infoSection: {
+    backgroundColor: colors.surface,
+    borderRadius: dimensions.borderRadius.lg,
+    padding: dimensions.spacing.lg,
+    marginTop: dimensions.spacing.xl,
+    marginHorizontal: dimensions.spacing.lg,
+  },
+  infoTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+    marginBottom: dimensions.spacing.md,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    marginBottom: dimensions.spacing.sm,
+  },
+  infoBullet: {
+    fontSize: typography.fontSize.md,
+    color: colors.accent,
+    marginRight: dimensions.spacing.sm,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: typography.fontSize.sm * 1.5,
+  },
+  buttonContainer: {
+    marginTop: dimensions.spacing.xl,
+    marginBottom: dimensions.spacing.xxl,
+    paddingHorizontal: dimensions.spacing.lg,
   },
   button: {
-    marginTop: dimensions.spacing.md,
+    minHeight: dimensions.touchTarget.comfortable,
   },
 });
