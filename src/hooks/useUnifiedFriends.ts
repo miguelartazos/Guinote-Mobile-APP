@@ -426,6 +426,20 @@ export function useUnifiedFriends(): FriendsState & FriendActions {
         return [];
       }
 
+      // Refresh session to ensure we have a valid token
+      const { data: refreshData, error: refreshError } = await client.auth.refreshSession();
+      if (refreshError || !refreshData?.session) {
+        // Try to get existing session as fallback
+        const { data: sessionData, error: sessionError } = await client.auth.getSession();
+        if (sessionError || !sessionData?.session) {
+          // Avoid React Native dev RedBox for expected unauthenticated state
+          if (__DEV__) {
+            console.warn('[useUnifiedFriends] Not authenticated');
+          }
+          return [];
+        }
+      }
+
       const { data: auth } = await client.auth.getUser();
       if (!auth?.user) {
         return [];
