@@ -41,8 +41,30 @@ export function useUnifiedAuth(): UnifiedAuthReturn {
         const { getSupabaseClient } = await import('../lib/supabase');
         const supabase = await getSupabaseClient();
 
-        // First, try to get the session from storage
-        const { data: sessionData } = await supabase.auth.getSession();
+        // Set up auth state change listener FIRST to capture all events
+        authSubscription = supabase.auth.onAuthStateChange((event, session) => {
+          if (canceled) return;
+
+          // Handle all events with valid sessions
+          if (session?.user) {
+            const u = session.user;
+            setUser({
+              id: u.id,
+              email: u.email,
+              username:
+                (u.user_metadata && (u.user_metadata as any).username) ||
+                (u.email ? u.email.split('@')[0] : 'Jugador'),
+            });
+          } else if (event === 'SIGNED_OUT') {
+            // Only clear user on explicit sign out
+            setUser(null);
+          }
+          // For all other events without session (including INITIAL_SESSION with no session),
+          // keep existing user state to prevent unwanted logouts
+        });
+
+        // Then try to get the session from storage
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
         if (!canceled) {
           if (sessionData?.session?.user) {
@@ -54,33 +76,18 @@ export function useUnifiedAuth(): UnifiedAuthReturn {
                 (u.user_metadata && (u.user_metadata as any).username) ||
                 (u.email ? u.email.split('@')[0] : 'Jugador'),
             });
-          } else {
-            // Only set to null if there's truly no session
-            // Don't clear user on temporary network errors
+
+            // Attempt to refresh the session in background (non-blocking)
+            supabase.auth.refreshSession().catch(() => {
+              // Ignore refresh errors - session might still be valid
+            });
+          } else if (!sessionError) {
+            // Only set to null if there was no error AND no session
+            // This means user is truly not logged in
             setUser(null);
           }
+          // If there was an error, keep existing user state
         }
-
-        // Set up auth state change listener for real-time updates
-        authSubscription = supabase.auth.onAuthStateChange((event, session) => {
-          if (canceled) return;
-
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-            const u = session?.user;
-            if (u) {
-              setUser({
-                id: u.id,
-                email: u.email,
-                username:
-                  (u.user_metadata && (u.user_metadata as any).username) ||
-                  (u.email ? u.email.split('@')[0] : 'Jugador'),
-              });
-            }
-          } else if (event === 'SIGNED_OUT') {
-            setUser(null);
-          }
-          // Ignore other events to prevent unwanted logouts
-        });
       } catch (e) {
         // Don't clear user on initialization errors
         // User might still have a valid session

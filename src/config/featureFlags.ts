@@ -16,6 +16,12 @@ export interface FeatureFlags {
   // Additional feature flags from the multiplayer plan
   enableVoiceChat: boolean;
   enableTournaments: boolean;
+  // Friends room: allow host to add AI bots
+  enableFriendsAIBots?: boolean;
+  // Allow any room member (not only host) to add/remove AI bots
+  enableAnyMemberAIBots?: boolean;
+  // Show online-only UI (timer, connection, floating avatars). Keep off for Offline parity
+  multiplayerDecorations?: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -34,6 +40,9 @@ const DEFAULT_FLAGS: FeatureFlags = {
   // Additional features
   enableVoiceChat: false,
   enableTournaments: false,
+  enableFriendsAIBots: true,
+  enableAnyMemberAIBots: true,
+  multiplayerDecorations: false,
 };
 
 // Keep all features OFF by default - enable one at a time for testing
@@ -53,6 +62,9 @@ const DEVELOPMENT_FLAGS: FeatureFlags = {
   // Additional features
   enableVoiceChat: false,
   enableTournaments: false,
+  enableFriendsAIBots: true,
+  enableAnyMemberAIBots: true,
+  multiplayerDecorations: false,
 };
 
 class FeatureFlagManager {

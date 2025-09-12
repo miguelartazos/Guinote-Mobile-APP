@@ -9,19 +9,20 @@ type Props = {
   count: number;
   anchor: Anchor;
   onCenterLayout?: (center: { x: number; y: number }) => void;
+  disablePulse?: boolean;
 };
 
-export function TeamTrickPile({ count, anchor, onCenterLayout }: Props) {
+export function TeamTrickPile({ count, anchor, onCenterLayout, disablePulse }: Props) {
   // Always call hooks first - before any conditional returns
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Only animate when count > 0
-    if (count > 0) {
+    // Only animate when count > 0 and not disabled (e.g., during trick overlay)
+    if (!disablePulse && count > 0) {
       pulse.setValue(0);
       Animated.timing(pulse, { toValue: 1, duration: 260, useNativeDriver: true }).start();
     }
-  }, [count, pulse]);
+  }, [count, pulse, disablePulse]);
 
   const scale = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.06, 1] });
 
@@ -87,12 +88,14 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   bottomLeft: {
-    left: 15,
-    bottom: 15,
+    left: 18,
+    // Lower further toward the bottom edge
+    bottom: 20,
   },
   topRight: {
-    right: 15,
-    top: 15,
+    right: 18,
+    // Lower slightly to fine-tune spacing under the top-right name tag
+    top: 24,
   },
   stackArea: {
     position: 'relative',

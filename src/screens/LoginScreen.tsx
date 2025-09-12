@@ -17,6 +17,8 @@ import { typography } from '../constants/typography';
 import { dimensions } from '../constants/dimensions';
 import { Button } from '../components/Button';
 import { InputField } from '../components/ui/InputField';
+import { AuthCard } from '../components/auth/AuthCard';
+import { SocialButton } from '../components/auth/SocialButton';
 import { LoadingOverlay } from '../components/ui/LoadingOverlay';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
@@ -119,140 +121,120 @@ export function LoginScreen() {
     Alert.alert('No disponible', 'Recuperación de contraseña no disponible en modo offline');
   };
 
-  const handleOAuthSignIn = async () => {
-    Alert.alert('No disponible', 'El inicio de sesión con proveedores está deshabilitado.');
+  const handleOAuthSignIn = async (provider: 'google' | 'apple' | 'facebook') => {
+    try {
+      const { startOAuth } = await import('../services/auth/oauth');
+      await startOAuth(provider);
+      // On success, navigate back like password sign-in
+      if (route.params?.returnTo) {
+        navigation.navigate(route.params.returnTo as never);
+      } else {
+        navigation.goBack();
+      }
+    } catch (e: any) {
+      console.error('OAuth error:', e);
+      Alert.alert('No se pudo iniciar sesión', e?.message || 'Inténtalo de nuevo');
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.headerContainer}>
-            <Text style={styles.title}>Guiñote</Text>
-            <Text style={styles.subtitle}>Inicia sesión para jugar</Text>
-          </View>
-
-          <View style={styles.formContainer}>
-            <InputField
-              label="Email"
-              icon="✉️"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="tu_email@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isLoading}
-              testID="email-input"
-              validation={{
-                isValid: email.includes('@') && email.includes('.'),
-                message: email.length > 0 ? 'Formato de email válido' : undefined,
-              }}
-            />
-
-            <InputField
-              label="Contraseña"
-              icon="🔒"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              secureTextEntry
-              showPasswordToggle
-              editable={!isLoading}
-              testID="password-input"
-            />
-
-            <View style={styles.rememberContainer}>
-              <Switch
-                value={rememberMe}
-                onValueChange={setRememberMe}
-                trackColor={{ false: colors.border, true: colors.accent }}
-                thumbColor={rememberMe ? colors.white : colors.textSecondary}
-                disabled={isLoading}
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <AuthCard
+            title="Guiñote+"
+            subtitle="Inicia sesión para jugar con amigos"
+            footerSlot={
+              <View style={styles.footerContainer}>
+                <Text style={styles.footerText}>Al continuar, aceptas nuestros </Text>
+                <View style={styles.footerLinks}>
+                  <TouchableOpacity>
+                    <Text style={styles.footerLink}>Términos de Servicio</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.footerText}> y </Text>
+                  <TouchableOpacity>
+                    <Text style={styles.footerLink}>Política de Privacidad</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            }
+          >
+            <View style={styles.formContainer}>
+              <InputField
+                label="Email"
+                icon="✉️"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="tu_email@example.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+                testID="email-input"
+                validation={{ isValid: email.includes('@') && email.includes('.'), message: email.length > 0 ? 'Formato de email válido' : undefined }}
               />
-              <Text style={styles.rememberText}>Recordarme</Text>
-            </View>
 
-            <TouchableOpacity
-              onPress={handleForgotPassword}
-              disabled={isLoading}
-              style={styles.forgotPasswordButton}
-            >
-              <Text style={styles.forgotPassword}>¿Olvidaste tu contraseña?</Text>
-            </TouchableOpacity>
+              <InputField
+                label="Contraseña"
+                icon="🔒"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                secureTextEntry
+                showPasswordToggle
+                editable={!isLoading}
+                testID="password-input"
+              />
 
-            <Button
-              variant="white"
-              onPress={handleSignIn}
-              disabled={isLoading || !isLoaded}
-              loading={isLoading}
-              style={styles.signInButton}
-              icon="➡️"
-              iconPosition="right"
-              testID="login-button"
-            >
-              {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
-            </Button>
+              <View style={styles.rememberContainer}>
+                <Switch
+                  value={rememberMe}
+                  onValueChange={setRememberMe}
+                  trackColor={{ false: colors.border, true: colors.accent }}
+                  thumbColor={rememberMe ? colors.white : colors.textSecondary}
+                  disabled={isLoading}
+                />
+                <Text style={styles.rememberText}>Recordarme</Text>
+              </View>
 
-            <View style={styles.orContainer}>
-              <View style={styles.orLine} />
-              <Text style={styles.orText}>o continúa con</Text>
-              <View style={styles.orLine} />
-            </View>
-
-            <View style={styles.socialButtonsContainer}>
-              <Button
-                variant="white"
-                onPress={() => handleOAuthSignIn('oauth_google')}
-                disabled={isLoading}
-                style={styles.socialButton}
-                icon="🌐"
-              >
-                Google
-              </Button>
+              <TouchableOpacity onPress={handleForgotPassword} disabled={isLoading} style={styles.forgotPasswordButton}>
+                <Text style={styles.forgotPassword}>¿Olvidaste tu contraseña?</Text>
+              </TouchableOpacity>
 
               <Button
                 variant="white"
-                onPress={() => handleOAuthSignIn('oauth_apple')}
-                disabled={isLoading}
-                style={styles.socialButton}
-                icon="🍎"
+                onPress={handleSignIn}
+                disabled={isLoading || !isLoaded}
+                loading={isLoading}
+                style={styles.signInButton}
+                icon="➡️"
+                iconPosition="right"
+                testID="login-button"
               >
-                Apple
+                {isLoading ? 'Iniciando sesión...' : 'Continuar'}
               </Button>
-            </View>
 
-            <View style={styles.divider} />
+              <View style={styles.orContainer}>
+                <View style={styles.orLine} />
+                <Text style={styles.orText}>o continúa con</Text>
+                <View style={styles.orLine} />
+              </View>
 
-            <TouchableOpacity
-              style={styles.registerButton}
-              onPress={handleSignUp}
-              disabled={isLoading}
-              testID="register-link"
-            >
-              <Text style={styles.registerButtonText}>¿No tienes cuenta? Regístrate</Text>
-            </TouchableOpacity>
-          </View>
+              <View style={styles.socialButtonsContainer}>
+                <SocialButton provider="google" onPress={() => handleOAuthSignIn('google')} disabled={isLoading} style={styles.socialButton} />
+                <SocialButton provider="apple" onPress={() => handleOAuthSignIn('apple')} disabled={isLoading} style={styles.socialButton} />
+              </View>
+              <View style={styles.socialButtonsContainer}>
+                <SocialButton provider="facebook" onPress={() => handleOAuthSignIn('facebook')} disabled={isLoading} style={styles.socialButton} />
+              </View>
 
-          <View style={styles.footerContainer}>
-            <Text style={styles.footerText}>Al continuar, aceptas nuestros </Text>
-            <View style={styles.footerLinks}>
-              <TouchableOpacity>
-                <Text style={styles.footerLink}>Términos de Servicio</Text>
-              </TouchableOpacity>
-              <Text style={styles.footerText}> y </Text>
-              <TouchableOpacity>
-                <Text style={styles.footerLink}>Política de Privacidad</Text>
+              <View style={styles.divider} />
+
+              <TouchableOpacity style={styles.registerButton} onPress={handleSignUp} disabled={isLoading} testID="register-link">
+                <Text style={styles.registerButtonText}>¿No tienes cuenta? Regístrate</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </AuthCard>
         </ScrollView>
       </KeyboardAvoidingView>
       <LoadingOverlay visible={isLoading} message="Iniciando sesión..." />

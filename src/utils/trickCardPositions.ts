@@ -22,29 +22,29 @@ export function getTrickCardPositionWithinBoard(
       // Bottom player - moved much higher to avoid overlap with hand cards
       {
         position: 'absolute',
-        left: Math.floor(centerX - dims.width / 2),
-        top: Math.floor(centerY - spreadY * 0.1), // Moved significantly higher - almost at center
+        left: Math.round(centerX - dims.width / 2),
+        top: Math.round(centerY - spreadY * 0.1), // Moved significantly higher - almost at center
         zIndex: 1,
       },
       // Left player - slightly left of center, moved up more
       {
         position: 'absolute',
-        left: Math.floor(centerX - spreadX - dims.width / 2),
-        top: Math.floor(centerY - dims.height / 2 - spreadY * 0.4), // More upward adjustment
+        left: Math.round(centerX - spreadX - dims.width / 2),
+        top: Math.round(centerY - dims.height / 2 - spreadY * 0.4), // More upward adjustment
         zIndex: 2,
       },
       // Top player - moved lower but still clearly separated
       {
         position: 'absolute',
-        left: Math.floor(centerX - dims.width / 2),
-        top: Math.floor(centerY - spreadY * 1.1 - dims.height), // Adjusted for new balance
+        left: Math.round(centerX - dims.width / 2),
+        top: Math.round(centerY - spreadY * 1.1 - dims.height), // Adjusted for new balance
         zIndex: 3,
       },
       // Right player - slightly right of center, moved up more
       {
         position: 'absolute',
-        left: Math.floor(centerX + spreadX - dims.width / 2),
-        top: Math.floor(centerY - dims.height / 2 - spreadY * 0.4), // More upward adjustment
+        left: Math.round(centerX + spreadX - dims.width / 2),
+        top: Math.round(centerY - dims.height / 2 - spreadY * 0.4), // More upward adjustment
         zIndex: 4,
       },
     ];

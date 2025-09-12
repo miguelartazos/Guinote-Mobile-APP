@@ -7,6 +7,7 @@ import { colors, TABLE_COLORS } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
 import { typography } from '../constants/typography';
 import { useGameSettings } from '../hooks/useGameSettings';
+import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
 import type { MainTabScreenProps } from '../types/navigation';
 import type { DifficultyLevel } from '../types/game.types';
 import type { CardSize, TableColor } from '../utils/gameSettings';
@@ -17,6 +18,8 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
     updateSettings: updateGameSettings,
     resetSettings: resetGameSettings,
   } = useGameSettings();
+
+  const auth = useUnifiedAuth();
 
   if (!gameSettings) {
     return null;
@@ -117,6 +120,37 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* ACCOUNT SECTION */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionIcon}>👤</Text>
+              <Text style={styles.sectionTitle}>Cuenta</Text>
+            </View>
+
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Estado</Text>
+              <Text style={styles.settingDescription}>
+                {auth.isAuthenticated ? auth.user?.email || 'Conectado' : 'No autenticado'}
+              </Text>
+            </View>
+
+            {auth.isAuthenticated && (
+              <TouchableOpacity
+                style={[styles.resetButton, { marginTop: 8 }]}
+                onPress={async () => {
+                  try {
+                    await auth.signOut();
+                    Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
+                  } catch (e: any) {
+                    Alert.alert('Error', e?.message || 'No se pudo cerrar sesión');
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.resetButtonText}>Cerrar sesión</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {/* GAMEPLAY SECTION */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>

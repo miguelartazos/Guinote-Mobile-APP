@@ -8,6 +8,9 @@ import type { SpanishSuit, CardValue } from '../../types/cardTypes';
 jest.mock('../../utils/gameLogic', () => ({
   canCantar: jest.fn(),
   canCambiar7: jest.fn(),
+  findPlayerTeam: jest.fn((pid, gs) => {
+    return gs?.teams.find(t => t.playerIds.includes(pid))?.id;
+  }),
 }));
 
 import { canCantar, canCambiar7 } from '../../utils/gameLogic';
@@ -119,11 +122,16 @@ describe('CompactActionBar', () => {
   });
 
   describe('cantar button animation', () => {
-    test('shows cantar button with pop animation when player can cantar', () => {
+    test('shows cantar at game start only for mano with Rey+Sota', () => {
       (canCantar as jest.Mock).mockReturnValue(['oros']);
       (canCambiar7 as jest.Mock).mockReturnValue(false);
 
-      const gameState = createMockGameState();
+      const gameState = createMockGameState({
+        trickCount: 0,
+        lastTrickWinner: null,
+        dealerIndex: 1, // mano is (dealer-1+4)%4 = 0
+        currentPlayerIndex: 0,
+      });
 
       const { getByText } = render(
         <CompactActionBar
@@ -139,11 +147,59 @@ describe('CompactActionBar', () => {
       expect(cantarButton).toBeDefined();
     });
 
-    test('hides cantar button when player cannot cantar', () => {
+    test('hides cantar for non-mano at game start even with Rey+Sota', () => {
+      (canCantar as jest.Mock).mockReturnValue(['oros']);
+      (canCambiar7 as jest.Mock).mockReturnValue(false);
+
+      const gameState = createMockGameState({
+        trickCount: 0,
+        lastTrickWinner: null,
+        dealerIndex: 2, // mano is 1
+        currentPlayerIndex: 0, // not mano
+      });
+
+      const { queryByText } = render(
+        <CompactActionBar
+          gameState={gameState}
+          onCantar={mockOnCantar}
+          onCambiar7={mockOnCambiar7}
+          disabled={false}
+        />,
+      );
+
+      expect(queryByText('Cantar')).toBeNull();
+    });
+
+    test('shows cantar after your team won the last trick', () => {
+      (canCantar as jest.Mock).mockReturnValue(['oros']);
+      (canCambiar7 as jest.Mock).mockReturnValue(false);
+
+      const gameState = createMockGameState({
+        trickCount: 3,
+        lastTrickWinner: 'p2', // teammate
+        currentPlayerIndex: 0,
+      });
+
+      const { getByText } = render(
+        <CompactActionBar
+          gameState={gameState}
+          onCantar={mockOnCantar}
+          onCambiar7={mockOnCambiar7}
+          disabled={false}
+        />,
+      );
+
+      expect(getByText('Cantar')).toBeDefined();
+    });
+
+    test('hides cantar if opponent won last trick', () => {
       (canCantar as jest.Mock).mockReturnValue([]);
       (canCambiar7 as jest.Mock).mockReturnValue(false);
 
-      const gameState = createMockGameState();
+      const gameState = createMockGameState({
+        trickCount: 2,
+        lastTrickWinner: 'p3', // opponent team
+      });
 
       const { queryByText } = render(
         <CompactActionBar

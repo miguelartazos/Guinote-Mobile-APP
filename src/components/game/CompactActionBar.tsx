@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { View, StyleSheet, Text, Animated } from 'react-native';
 import { AnimatedButton } from '../ui/AnimatedButton';
-import { canCantar, canCambiar7 } from '../../utils/gameLogic';
+import { canCantar, canCambiar7, findPlayerTeam } from '../../utils/gameLogic';
 import type { GameState } from '../../types/game.types';
 import { colors } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
@@ -45,7 +45,20 @@ export const CompactActionBar = React.memo(
       playerTeam?.cantes || [],
     );
 
-    const canPlayerCantar = cantableSuits.length > 0 && !disabled;
+    // Timing legality: trick not started AND (game start with mano OR team won last trick)
+    const trickNotStarted = (gameState?.currentTrick?.length || 0) === 0;
+    const isGameStart = !gameState?.lastTrickWinner && (gameState?.trickCount || 0) === 0;
+    const isFirstPlayer = gameState
+      ? gameState.currentPlayerIndex === (gameState.dealerIndex - 1 + 4) % 4
+      : false;
+    const lastWinnerTeamMatches = (() => {
+      if (!gameState || !playerTeam || !gameState.lastTrickWinner) return false;
+      const lwTeam = findPlayerTeam(gameState.lastTrickWinner, gameState);
+      return !!lwTeam && lwTeam === playerTeam.id;
+    })();
+    const canteTimingOk = trickNotStarted && (isGameStart ? isFirstPlayer : lastWinnerTeamMatches);
+
+    const canPlayerCantar = cantableSuits.length > 0 && canteTimingOk && !disabled;
     const canPlayerCambiar7 =
       gameState &&
       canCambiar7(currentPlayerHand, gameState.trumpCard, gameState.deck.length) &&
@@ -151,11 +164,12 @@ export const CompactActionBar = React.memo(
     }
 
     return (
-      <View style={styles.container}>
+      <View style={styles.container} pointerEvents="box-none">
         {canPlayerCantar && (
           <Animated.View
             style={[
               styles.buttonWrapper,
+              styles.rightWrapper,
               {
                 opacity: fadeAnimCantar,
                 transform: [{ scale: scaleAnimCantar }],
@@ -164,10 +178,10 @@ export const CompactActionBar = React.memo(
           >
             <AnimatedButton
               onPress={onCantar}
-              style={[styles.actionButton, styles.cantarButton]}
+              style={[styles.actionButton, styles.cantarButton, styles.cambiarButtonSmall]}
               hapticType="medium"
             >
-              <Text style={styles.buttonText}>Cantar</Text>
+              <Text style={[styles.buttonText, styles.cambiarTextSmall]}>Cantar</Text>
             </AnimatedButton>
           </Animated.View>
         )}
@@ -176,6 +190,7 @@ export const CompactActionBar = React.memo(
           <Animated.View
             style={[
               styles.buttonWrapper,
+              styles.leftWrapper,
               {
                 opacity: fadeAnimCambiar,
                 transform: [{ scale: scaleAnimCambiar }],
@@ -184,10 +199,10 @@ export const CompactActionBar = React.memo(
           >
             <AnimatedButton
               onPress={onCambiar7}
-              style={[styles.actionButton, styles.cambiarButton]}
+              style={[styles.actionButton, styles.cambiarButton, styles.cambiarButtonSmall]}
               hapticType="medium"
             >
-              <Text style={styles.buttonText}>Cambiar 7</Text>
+              <Text style={[styles.buttonText, styles.cambiarTextSmall]}>Cambiar 7</Text>
             </AnimatedButton>
           </Animated.View>
         )}
@@ -199,14 +214,34 @@ export const CompactActionBar = React.memo(
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
-    flexDirection: 'column',
-    gap: dimensions.spacing.sm,
+    left: 0,
+    right: 0,
+    // Align roughly with bottom-left name tag height
+    bottom: 12,
     zIndex: 50,
   },
   buttonWrapper: {
     // Wrapper for animation
+    position: 'absolute',
+    bottom: 0,
+  },
+  leftWrapper: {
+    // Place in the gap between bottom-left name tag and player's hand
+    left: dimensions.spacing.xl * 3 + dimensions.spacing.lg + dimensions.spacing.sm + 12,
+    // Raise slightly above the name tag line
+    bottom: dimensions.spacing.md,
+  },
+  rightWrapper: {
+    right:
+      dimensions.spacing.xl * 3 +
+      dimensions.spacing.lg +
+      dimensions.spacing.sm +
+      12 +
+      dimensions.spacing.xs +
+      dimensions.spacing.sm +
+      dimensions.spacing.md +
+      dimensions.spacing.sm,
+    bottom: dimensions.spacing.md,
   },
   actionButton: {
     paddingHorizontal: dimensions.spacing.md,
@@ -229,6 +264,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
+  cambiarButtonSmall: {
+    paddingHorizontal: dimensions.spacing.xs,
+    paddingVertical: 4,
+    minWidth: 64,
+  },
   buttonText: {
     color: colors.white,
     fontSize: typography.fontSize.sm,
@@ -238,4 +278,8 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
+  cambiarTextSmall: {
+    fontSize: typography.fontSize.xs,
+  },
+  // Keep both buttons visually symmetric in size and height
 });

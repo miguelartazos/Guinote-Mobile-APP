@@ -10,7 +10,7 @@
         "--project-ref=xewzprfamxswxtmzucbt"
       ],
       "env": {
-        "SUPABASE_ACCESS_TOKEN": "sbp_f043815f9c646af89f83ce55a385a6872037a95f"
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
       }
     }
   }

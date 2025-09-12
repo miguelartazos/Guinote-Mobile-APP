@@ -21,7 +21,8 @@ export function CardPlayAnimation({
   // Animation values
   const position = useRef(new Animated.ValueXY(fromPosition)).current;
   const rotation = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(1)).current; // Start fully opaque
+  const opacity = useRef(new Animated.Value(0)).current; // Start invisible to prevent flash
+  const scale = useRef(new Animated.Value(0.95)).current; // Start slightly smaller
 
   // No need to track completion since we're not calling onComplete
 
@@ -33,12 +34,18 @@ export function CardPlayAnimation({
       const initialRotation = playerPosition === 'left' ? 90 : playerPosition === 'right' ? -90 : 0;
       rotation.setValue(initialRotation);
 
-      // Animate card from hand to table
+      // Animate card from hand to table with smooth fade-in
       await new Promise(resolve => {
         Animated.parallel([
-          // Move to table position
-          Animated.timing(position, {
-            toValue: toPosition,
+          // Move to table position - animate X and Y separately for native driver
+          Animated.timing(position.x, {
+            toValue: toPosition.x,
+            duration: CARD_PLAY_DURATION,
+            easing: STANDARD_EASING,
+            useNativeDriver: true,
+          }),
+          Animated.timing(position.y, {
+            toValue: toPosition.y,
             duration: CARD_PLAY_DURATION,
             easing: STANDARD_EASING,
             useNativeDriver: true,
@@ -50,10 +57,26 @@ export function CardPlayAnimation({
             easing: STANDARD_EASING,
             useNativeDriver: true,
           }),
+          // Fade in smoothly
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: CARD_PLAY_DURATION * 0.6, // Fade in faster than movement
+            easing: STANDARD_EASING,
+            useNativeDriver: true,
+          }),
+          // Scale to normal size
+          Animated.timing(scale, {
+            toValue: 1,
+            duration: CARD_PLAY_DURATION,
+            easing: STANDARD_EASING,
+            useNativeDriver: true,
+          }),
         ]).start(() => {
           // Ensure final position is exactly at target to prevent any drift
           position.setValue(toPosition);
           rotation.setValue(0);
+          opacity.setValue(1);
+          scale.setValue(1);
           resolve(null);
         });
       });
@@ -87,15 +110,17 @@ export function CardPlayAnimation({
                   outputRange: ['-90deg', '0deg', '90deg'],
                 }),
               },
+              {
+                scale,
+              },
             ],
             opacity,
             backfaceVisibility: 'hidden',
-            renderToHardwareTextureAndroid: true,
-            shouldRasterizeIOS: true,
           },
         ]}
       >
-        <SpanishCard card={card} size={cardSize} />
+        {/* Force flying card to use the same pixel size as static trick (frozen medium) */}
+        <SpanishCard card={card} size={cardSize} style={{ shadowOpacity: 0 }} />
       </Animated.View>
     </View>
   );

@@ -203,7 +203,8 @@ export function getDeckPosition(
     const board = layoutInfo.boardLayout;
     return {
       x: board.x + leftRailWidth + safeMargin,
-      y: board.y + board.height / 2 - cardHeight / 2,
+      // Bias slightly below center to avoid overlapping side stacks in landscape
+      y: board.y + board.height * 0.6 - cardHeight / 2,
       rotation: 0,
       zIndex: 100,
     };
@@ -212,7 +213,8 @@ export function getDeckPosition(
   // Fallback with consistent positioning
   return {
     x: leftRailWidth + safeMargin,
-    y: screenHeight * 0.45 - cardHeight / 2,
+    // Below center in fallback as well
+    y: screenHeight * 0.58 - cardHeight / 2,
     rotation: 0,
     zIndex: 100,
   };

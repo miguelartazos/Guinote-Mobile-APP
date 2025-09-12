@@ -69,27 +69,34 @@ export const AIPlayerManager = React.forwardRef<{ openModal: () => void }, AIPla
 
     const aiPlayers = players.filter(p => p.isBot);
     const emptySlots = maxPlayers - players.length;
-    const canAddAI = isHost && emptySlots > 0;
+    // Allow any member to add when there are empty slots (host check handled at screen level)
+    const canAddAI = emptySlots > 0;
 
     const handleAddAI = async () => {
-      if (!canAddAI) return;
+      if (!canAddAI) {
+        console.log('[AIPlayerManager] Add IA blocked: canAddAI=false');
+        return;
+      }
 
       setIsAdding(true);
-      try {
-        const config: AIConfig = {
-          difficulty: selectedDifficulty,
-          personality: selectedPersonality.mapped,
-        };
+      const config: AIConfig = {
+        difficulty: selectedDifficulty,
+        personality: selectedPersonality.mapped,
+      };
 
-        await onAddAI(config);
-        setShowConfigModal(false);
-        setSelectedDifficulty('medium');
-        setSelectedPersonality(AI_PERSONALITIES[2]);
-      } catch (error) {
-        Alert.alert('Error', 'No se pudo añadir el jugador IA');
-      } finally {
-        setIsAdding(false);
-      }
+      // Close modal immediately and reset UI so user sees progress
+      setShowConfigModal(false);
+      setSelectedDifficulty('medium');
+      setSelectedPersonality(AI_PERSONALITIES[2]);
+
+      Promise.resolve(onAddAI(config))
+        .then(() => {
+          console.log('[AIPlayerManager] IA add requested');
+        })
+        .catch(() => {
+          Alert.alert('Error', 'No se pudo añadir el jugador IA');
+        })
+        .finally(() => setIsAdding(false));
     };
 
     const handleRemoveAI = async (playerId: string) => {
@@ -131,7 +138,8 @@ export const AIPlayerManager = React.forwardRef<{ openModal: () => void }, AIPla
             </View>
           </View>
           {isHost && onRemoveAI && (
-            <TouchableOpacity onPress={() => handleRemoveAI(player.id)} style={styles.removeButton}>
+            <TouchableOpacity onPress={() => handleRemoveAI(player.id)} style={styles.removeButton}
+            >
               <Text style={styles.removeButtonText}>✕</Text>
             </TouchableOpacity>
           )}
@@ -253,6 +261,7 @@ export const AIPlayerManager = React.forwardRef<{ openModal: () => void }, AIPla
                     style={[styles.modalButton, styles.confirmButton]}
                     onPress={handleAddAI}
                     disabled={isAdding}
+                    testID="confirm-add-ia"
                   >
                     <Text style={styles.confirmButtonText}>
                       {isAdding ? 'Añadiendo...' : 'Añadir IA'}

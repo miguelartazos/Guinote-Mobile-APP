@@ -24,7 +24,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
   const navigation = useNavigation<JugarStackNavigationProp>();
   const { roomId, roomCode } = route.params;
   const { user } = useUnifiedAuth();
-  const userId = user?.id;
+  const authUserId = user?.id;
 
   const {
     room,
@@ -36,11 +36,13 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
     updateReadyStatus,
     startGame,
     addAIPlayer,
+    removeAIPlayer,
     leaveRoom,
   } = useUnifiedRooms();
 
   const [localIsReady, setLocalIsReady] = useState(false);
   const aiManagerRef = React.useRef<any>(null);
+  const hasNavigatedRef = React.useRef(false);
 
   // If the hook knows the real UUID for the room, prefer it over the
   // optimistic temp id passed via navigation.
@@ -49,32 +51,55 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
     /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
   const effectiveRoomId = isUuid(room?.id) ? (room!.id as string) : roomId;
 
-  const isHost = room?.host_id === userId;
-  const currentPlayer = players.find(p => p.id === userId);
+  const currentUserPublicId = players.find(p => p.authUserId === authUserId)?.id;
+  const anyMemberCanManageBots = true; // temporary enable to unblock UI
+  const isHost = room?.host_id === currentUserPublicId;
+  const currentPlayer = players.find(p => p.authUserId === authUserId);
   const allPlayersReady = players.length === 4 && players.every(p => p.isReady);
 
   useEffect(() => {
     const unsubscribe = subscribeToRoom(effectiveRoomId);
-    getRoomPlayers(effectiveRoomId);
+    // Delay initial players fetch slightly to avoid churn with subscription
+    const t = setTimeout(() => {
+      getRoomPlayers(effectiveRoomId);
+    }, 50);
 
     return () => {
+      clearTimeout(t);
       if (unsubscribe) unsubscribe();
     };
-  }, [effectiveRoomId, subscribeToRoom, getRoomPlayers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveRoomId]);
 
   useEffect(() => {
-    if (currentPlayer) {
+    if (currentPlayer && localIsReady !== currentPlayer.isReady) {
       setLocalIsReady(currentPlayer.isReady);
     }
   }, [currentPlayer]);
 
+  // Auto-navigate when room status switches to 'playing' (for all participants)
+  useEffect(() => {
+    if (!room) return;
+    if (room.status === 'playing' && !hasNavigatedRef.current) {
+      hasNavigatedRef.current = true;
+      navigation.navigate('Game', {
+        gameMode: 'friends',
+        roomId: effectiveRoomId,
+        roomCode,
+        players,
+        isHost,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.status]);
+
   const handleToggleReady = async () => {
-    if (!userId) return;
+    if (!currentUserPublicId) return;
 
     try {
       const newReadyStatus = !localIsReady;
       setLocalIsReady(newReadyStatus);
-      await updateReadyStatus(effectiveRoomId, userId, newReadyStatus);
+      await updateReadyStatus(effectiveRoomId, currentUserPublicId, newReadyStatus);
     } catch (error) {
       setLocalIsReady(!localIsReady);
       Alert.alert('Error', 'No se pudo actualizar el estado');
@@ -88,7 +113,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
   };
 
   const handleAddAIPlayer = async (config: import('../hooks/useUnifiedRooms').AIConfig) => {
-    if (!isHost) {
+    if (!isHost && !anyMemberCanManageBots) {
       Alert.alert('Solo el anfitrión', 'Solo el anfitrión puede añadir jugadores IA');
       return;
     }
@@ -100,17 +125,31 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
     }
   };
 
+  const handleRemoveAI = async (playerId: string) => {
+    if (!isHost && !anyMemberCanManageBots) return;
+    try {
+      await removeAIPlayer(effectiveRoomId, playerId);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo eliminar el jugador IA');
+    }
+  };
+
   const handleStartGame = async () => {
     if (!isHost || !allPlayersReady) return;
 
     try {
       await startGame(effectiveRoomId);
-      navigation.navigate('Game', {
-        gameMode: 'friends',
-        roomId: effectiveRoomId,
-        roomCode,
-        players,
-      });
+      // Navigate immediately for the host to avoid waiting on subscription timing
+      if (!hasNavigatedRef.current) {
+        hasNavigatedRef.current = true;
+        navigation.navigate('Game', {
+          gameMode: 'friends',
+          roomId: effectiveRoomId,
+          roomCode,
+          players,
+          isHost,
+        });
+      }
     } catch (error) {
       Alert.alert('Error', 'No se pudo iniciar la partida');
     }
@@ -134,9 +173,14 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
     ]);
   };
 
-  if (error) {
-    Alert.alert('Error', error);
-  }
+  // Show errors once to avoid render loops
+  const lastErrorRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (error && error !== lastErrorRef.current) {
+      lastErrorRef.current = error;
+      Alert.alert('Error', error);
+    }
+  }, [error]);
 
   return (
     <View style={styles.container}>
@@ -163,7 +207,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
               aiManagerRef.current.openModal();
             }
           }}
-          isHost={isHost}
+          isHost={anyMemberCanManageBots ? true : isHost}
         />
 
         <AIPlayerManager
@@ -172,6 +216,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
           roomId={roomId}
           isHost={isHost}
           onAddAI={handleAddAIPlayer}
+          onRemoveAI={handleRemoveAI}
           onOpenModal={() => {}}
         />
 

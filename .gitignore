@@ -113,3 +113,7 @@ convex/out/
 convex/**/*.js
 convex/**/*.js.map
 !convex/convex.config.js
+
+# MCP Configuration - NEVER COMMIT WITH REAL TOKENS
+.mcp.json
+!.mcp.json.example

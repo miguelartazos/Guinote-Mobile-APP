@@ -28,6 +28,7 @@ type DraggableCardProps = {
   totalCards?: number;
   cardWidth?: number;
   isPlayerTurn?: boolean;
+  gamePhase?: string;
 };
 
 export const DraggableCard = React.memo(function DraggableCard({
@@ -42,6 +43,7 @@ export const DraggableCard = React.memo(function DraggableCard({
   totalCards = 1,
   cardWidth = 80,
   isPlayerTurn = true,
+  gamePhase,
 }: DraggableCardProps) {
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -151,6 +153,9 @@ export const DraggableCard = React.memo(function DraggableCard({
   // Always allow dragging for reordering, but only allow playing when enabled
   const canPlay = isEnabled;
 
+  // Only show shadow for unplayable cards during arrastre phase when it's the player's turn
+  const shouldShowShadow = gamePhase === 'arrastre' && isPlayerTurn && !canPlay;
+
   return (
     <PanGestureHandler
       enabled={true}
@@ -181,7 +186,13 @@ export const DraggableCard = React.memo(function DraggableCard({
           activeOpacity={1}
           disabled={!canPlay}
         >
-          <SpanishCard card={card} size={cardSize} isDisabled={!canPlay} />
+          <SpanishCard
+            card={card}
+            size={cardSize}
+            isDisabled={shouldShowShadow}
+            // Do not apply turn overlay in any phase; only dim illegal cards
+            turnActive={false}
+          />
         </TouchableOpacity>
       </Animated.View>
     </PanGestureHandler>

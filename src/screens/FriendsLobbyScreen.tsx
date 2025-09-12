@@ -109,8 +109,29 @@ export function FriendsLobbyScreen() {
     try {
       const result = await rooms.joinRoomByCode(roomCode.toUpperCase(), userId);
 
+      const joinedRoomId = (result as any).id || (result as any).roomId;
+      if (!joinedRoomId) {
+        throw new Error('No se pudo obtener el ID de la sala');
+      }
+
+      // Verify we can see at least ourselves in room_players before navigating
+      let attempts = 0;
+      let playersCount = 0;
+      while (attempts < 3 && playersCount === 0) {
+        const players = await rooms.getRoomPlayers(joinedRoomId);
+        playersCount = players.length;
+        if (playersCount === 0) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        attempts++;
+      }
+
+      if (playersCount === 0) {
+        throw new Error('No se pudo entrar en la sala (jugadores no visibles)');
+      }
+
       navigation.navigate('GameRoom', {
-        roomId: (result as any).id || (result as any).roomId,
+        roomId: joinedRoomId,
         roomCode: (result as any).code || roomCode.toUpperCase(),
       });
     } catch (error) {
@@ -205,15 +226,7 @@ export function FriendsLobbyScreen() {
       setPendingAction(null);
       setPendingFriendId(null);
     } catch (error: any) {
-      if (error.message?.includes('Database error')) {
-        Alert.alert(
-          'Aviso',
-          'El registro está temporalmente deshabilitado. Por favor, usa una cuenta existente o el botón de prueba rápida.',
-          [{ text: 'OK' }],
-        );
-      } else {
-        Alert.alert('Error', error.message || 'No se pudo crear la cuenta');
-      }
+      Alert.alert('Error', error?.message || 'No se pudo crear la cuenta');
       throw error;
     }
   };

@@ -17,6 +17,10 @@ type SpanishCardProps = {
   size?: 'small' | 'medium' | 'large';
   style?: StyleProp<ViewStyle>;
   isDisabled?: boolean;
+  // New: visually darken the card (without disabling) when it's the player's turn
+  turnActive?: boolean;
+  // Optional: customize turn darkening opacity (0-1). Defaults to 0.2
+  turnOverlayOpacity?: number;
 };
 
 export const SpanishCard = React.memo(function SpanishCard({
@@ -25,6 +29,8 @@ export const SpanishCard = React.memo(function SpanishCard({
   size = 'medium',
   style,
   isDisabled = false,
+  turnActive = false,
+  turnOverlayOpacity,
 }: SpanishCardProps) {
   const cardDimensions = getCardDimensions();
   const cardSize = cardDimensions[size];
@@ -46,7 +52,13 @@ export const SpanishCard = React.memo(function SpanishCard({
         width={cardSize.width}
         height={cardSize.height}
       />
-      {isDisabled && (
+      {(() => {
+        // Compute overlay opacity priority:
+        // - Unplayable (disabled): 0.2 (as requested)
+        // - Turn-active (subtle hint): default 0.2 (tunable via prop)
+        const overlayOpacity = isDisabled ? 0.2 : turnActive ? turnOverlayOpacity ?? 0.2 : 0;
+        if (overlayOpacity <= 0) return null;
+        return (
         <View
           testID="disabled-overlay"
           style={[
@@ -54,10 +66,13 @@ export const SpanishCard = React.memo(function SpanishCard({
             {
               width: cardSize.width,
               height: cardSize.height,
+              // Dynamic darkness
+              backgroundColor: `rgba(0, 0, 0, ${overlayOpacity})`,
             },
           ]}
         />
-      )}
+        );
+      })()}
     </View>
   );
 });
@@ -80,7 +95,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     borderRadius: dimensions.borderRadius.md,
   },
 });

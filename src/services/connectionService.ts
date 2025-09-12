@@ -19,6 +19,7 @@ export type ActionType =
   | 'JOIN_ROOM'
   | 'LEAVE_ROOM'
   | 'ADD_AI_PLAYER'
+  | 'REMOVE_AI_PLAYER'
   | 'UPDATE_READY_STATUS'
   | 'START_GAME'
   | 'SEND_FRIEND_REQUEST'
@@ -178,11 +179,20 @@ class ConnectionService {
       const result = (await this.actionExecutor(action)) as T;
       return { actionId, result, queued: false };
     } catch (error) {
-      // On failure, queue for retry
+      // When we're online and execution failed, propagate the real error
+      // so callers can surface accurate messages (e.g., Not authenticated).
+      // We only fall back to queuing when actually offline.
+      const errorMessage = (error as any)?.message ? String((error as any).message) : '';
+      const isAuthError = errorMessage.toLowerCase().includes('not authenticated');
+
+      if (isOnline || isAuthError) {
+        throw error;
+      }
+
+      // On offline failure, queue for retry and return optimistic response
       this.actionQueue.push(action);
       await this.saveQueueToStorage();
 
-      // Return optimistic response on failure too
       return {
         actionId,
         result: optimisticResponse || null,

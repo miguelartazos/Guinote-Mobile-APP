@@ -6,7 +6,7 @@ import { GameEndCelebration } from '../components/game/GameEndCelebration';
 // import { MatchProgressIndicator } from '../components/game/MatchProgressIndicator'; // Hidden - not showing scores during gameplay
 import { PassDeviceOverlay } from '../components/game/PassDeviceOverlay';
 import { HandEndOverlay } from '../components/game/HandEndOverlay';
-// import { VueltasScoreBanner } from '../components/game/VueltasScoreBanner'; // Hidden - not showing scores during gameplay
+import { VueltasScoreBanner } from '../components/game/VueltasScoreBanner';
 import { CompactActionBar } from '../components/game/CompactActionBar';
 import { GameModals } from '../components/game/GameModals';
 import { Toast, toastManager } from '../components/ui/Toast';
@@ -24,6 +24,7 @@ import { PlayerAvatars } from '../components/game/PlayerAvatars';
 import { SpectatorMode } from '../components/game/SpectatorMode';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useMultiplayerGame } from '../hooks/useMultiplayerGame';
+import { useFeatureFlag } from '../config/featureFlags';
 import type { JugarStackScreenProps } from '../types/navigation';
 import { useGameState } from '../hooks/useGameState';
 import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
@@ -69,7 +70,7 @@ const RENUNCIO_REASONS = [
 ];
 
 export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>) {
-  const { playerName, difficulty, gameMode, playerNames, roomId } = route.params;
+  const { playerName, difficulty, gameMode, playerNames, roomId, isHost } = route.params;
   const isLocalMultiplayer = gameMode === 'local';
   const isOnline = gameMode === 'friends' || gameMode === 'online';
 
@@ -78,27 +79,44 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
   // Multiplayer hooks
   const connectionStatus = useConnectionStatus();
+  const showMultiplayerDecorations = useFeatureFlag('multiplayerDecorations');
+  const handStartRef = useRef<{
+    seed: string;
+    dealerIndex: number;
+    firstPlayerIndex?: number;
+  } | null>(null);
+  const hostLastHandStartRef = useRef<{ seed: string; dealerIndex: number; firstPlayerIndex?: number } | null>(null);
+  const hostSeedRef = useRef<string>(route.params.roomId || `room_${Date.now()}`);
   const multiplayerGame = isOnline
     ? useMultiplayerGame({
         roomId,
         userId: user?.id,
         autoConnect: true,
+        displayName: playerName || user?.username,
+        isHost: !!isHost,
+        team: undefined,
+        isReady: true,
         onGameAction: (payload: any) => {
           // Apply remote actions to local state engine
           if (!payload || !gameState) return;
+          // Ignore own echo
+          if (payload.playerId && payload.playerId === user?.id) return;
           try {
             switch (payload.type) {
               case 'play_card':
                 if (payload.cardId) {
-                  playCard(payload.cardId);
+                  // Guard by phase to avoid applying during non-playing phases
+                  if (gameState.phase === 'playing') {
+                    playCard(payload.cardId);
+                  }
                 }
                 break;
               case 'cambiar_7':
-                cambiar7();
+                if (gameState.phase === 'playing') cambiar7();
                 break;
               case 'declare_cante':
                 if (payload.suit) {
-                  cantar(payload.suit as SpanishSuit);
+                  if (gameState.phase === 'playing') cantar(payload.suit as SpanishSuit);
                 }
                 break;
               default:
@@ -108,16 +126,113 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             console.error('[GameScreen] Failed to apply remote action:', e);
           }
         },
+        onSystemEvent: evt => {
+          if (evt.type === 'hand_start') {
+            handStartRef.current = {
+              seed: String(evt.seed),
+              dealerIndex: evt.dealerIndex,
+              firstPlayerIndex: evt.firstPlayerIndex,
+            };
+          }
+        },
       })
     : null;
 
   // Use appropriate game state hook based on game mode
   // FIXME: Online mode is not fully implemented yet, always use offline mode
+  const isGuest = isOnline && !isHost;
+  // Map online players to local names in fixed positions if provided
+  const onlineNames: string[] | undefined = Array.isArray(route.params.players)
+    ? (route.params.players as any[])
+        .sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0))
+        .map(p => p?.name || 'Jugador')
+    : undefined;
+
   const gameStateHook = useGameState({
     playerName: playerName || user?.username || 'Tú',
     difficulty: difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
-    playerNames,
+    playerNames: isOnline ? onlineNames || playerNames : playerNames,
+    autoPlayBotsMode: isOnline ? 'host-only' : 'always',
+    isHost: !!isHost,
+    onBotAction: action => {
+      if (!isOnline || !multiplayerGame?.isMultiplayerEnabled) return;
+      try {
+        (multiplayerGame as any).sendGameAction({ ...action, playerId: user?.id, timestamp: Date.now() });
+      } catch {}
+    },
+    deterministicInit:
+      isOnline && isHost
+        ? {
+            seed: hostSeedRef.current,
+            dealerIndex: 0,
+          }
+        : undefined,
+    // Guests wait until host broadcasts hand_start
+    waitForDeterministicInit: isGuest
+      ? async () => {
+          const start = Date.now();
+          while (!handStartRef.current) {
+            await new Promise(r => setTimeout(r, 50));
+            if (Date.now() - start > 5000) break; // safety timeout
+          }
+          const hs = handStartRef.current || {
+            seed: route.params.roomId || `room_${Date.now()}`,
+            dealerIndex: 0,
+          };
+          return hs as any;
+        }
+      : undefined,
   });
+
+  // Host: after first render, broadcast a hand_start seed with ack so peers lock to same shuffle
+  React.useEffect(() => {
+    if (!isOnline || !isHost || !multiplayerGame?.isMultiplayerEnabled) return;
+    try {
+      const seed = hostSeedRef.current;
+      if ((multiplayerGame as any).sendSystemEventWithAck) {
+        (multiplayerGame as any)
+          .sendSystemEventWithAck({
+            type: 'hand_start',
+            seed,
+            dealerIndex: 0,
+          })
+          .catch(() => {});
+        hostLastHandStartRef.current = { seed, dealerIndex: 0 };
+      } else {
+        (multiplayerGame as any).sendSystemEvent({
+          type: 'hand_start',
+          seed,
+          dealerIndex: 0,
+        });
+        hostLastHandStartRef.current = { seed, dealerIndex: 0 };
+      }
+    } catch {}
+  }, [isOnline, isHost, multiplayerGame?.isMultiplayerEnabled, roomId]);
+
+  // Host: resend last hand_start when new players join (presence count increases)
+  React.useEffect(() => {
+    if (!isOnline || !isHost || !multiplayerGame?.isMultiplayerEnabled) return;
+    const playersCount = multiplayerGame?.state?.players?.length || 0;
+    const prevCountRef = (React as any).useRefInternal || useRef; // ensure unique ref per effect
+    // Use a dedicated ref
+  }, []);
+
+  const prevPlayersCountRef = useRef<number>(0);
+  React.useEffect(() => {
+    if (!isOnline || !isHost || !multiplayerGame?.isMultiplayerEnabled) return;
+    const currentCount = multiplayerGame?.state?.players?.length || 0;
+    if (currentCount > prevPlayersCountRef.current && hostLastHandStartRef.current) {
+      try {
+        const payload = { type: 'hand_start', ...hostLastHandStartRef.current } as any;
+        if ((multiplayerGame as any).sendSystemEventWithAck) {
+          (multiplayerGame as any).sendSystemEventWithAck(payload).catch(() => {});
+        } else {
+          (multiplayerGame as any).sendSystemEvent(payload);
+        }
+      } catch {}
+    }
+    prevPlayersCountRef.current = currentCount;
+  }, [multiplayerGame?.state?.players?.length, isOnline, isHost, multiplayerGame?.isMultiplayerEnabled]);
 
   const {
     gameState,
@@ -218,6 +333,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     });
   }, []);
 
+  // no-op cleanup
+
   // Detect cantes from any player (including bots)
   React.useEffect(() => {
     if (!gameState) return;
@@ -308,6 +425,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         autoAdvanceTimerRef.current = setTimeout(() => {
           console.log('⏰ Auto-advancing from scoring phase after 8 seconds');
           continueFromScoring();
+          // Ensure celebration shows immediately after scoring advances
+          setShowGameEndCelebration(true);
           autoAdvanceTimerRef.current = null;
         }, 8000);
       } else if (!hasWinner) {
@@ -375,32 +494,33 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
   // Play turn sound when it's player's turn + Handle pass device for local multiplayer
   React.useEffect(() => {
-    if (!gameState) return;
+    const currentIndex = gameState?.currentPlayerIndex;
+    const currentPhase = gameState?.phase;
+    if (currentIndex === undefined || currentIndex === null) return;
 
     // For local multiplayer, show pass device overlay on turn change
-    if (
-      isLocalMultiplayer &&
-      lastPlayerIndex !== null &&
-      lastPlayerIndex !== gameState.currentPlayerIndex
-    ) {
-      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (isLocalMultiplayer && lastPlayerIndex !== null && lastPlayerIndex !== currentIndex) {
+      const currentPlayer = gameState!.players[currentIndex];
       if (!currentPlayer.isBot) {
         setShowPassDevice(true);
       }
     }
 
-    // Update last player index
-    setLastPlayerIndex(gameState.currentPlayerIndex);
+    // Update last player index only when it actually changes
+    if (lastPlayerIndex !== currentIndex) {
+      setLastPlayerIndex(currentIndex);
+    }
 
     // Play turn sound for current device player
     if (!isLocalMultiplayer && isPlayerTurn()) {
       playTurnSound();
-    } else if (isLocalMultiplayer && !gameState.players[gameState.currentPlayerIndex].isBot) {
+    } else if (isLocalMultiplayer && !gameState!.players[currentIndex].isBot) {
       playTurnSound();
     }
 
-    // Reset turn timer for online games
-    if (isOnline) {
+    // Reset turn timer for online games (decorations gated). Guard to only run when
+    // the acting seat or phase changes to avoid setState loops.
+    if (isOnline && showMultiplayerDecorations && currentPhase === 'playing') {
       setTurnTimeLeft(30);
 
       // Clear existing timer
@@ -445,17 +565,18 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     };
   }, [
     gameState?.currentPlayerIndex,
-    gameState,
+    gameState?.phase,
     isPlayerTurn,
     playTurnSound,
     isLocalMultiplayer,
     lastPlayerIndex,
     isOnline,
+    showMultiplayerDecorations,
     getValidCardsForCurrentPlayer,
     playCard,
   ]);
 
-  // Play game over sound and record statistics
+  // Play game over sound and record statistics (guarded to avoid setState loops)
   React.useEffect(() => {
     const matchScore = gameState?.matchScore;
 
@@ -467,20 +588,29 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         matchScore.team2Cotos
       : 0;
 
-    const shouldShowCelebration =
-      gameState?.phase === 'gameOver' ||
-      (gameState?.phase === 'scoring' && progressSignature > lastProgressRef.current);
+    const scoringProgressed = gameState?.phase === 'scoring' && progressSignature > lastProgressRef.current;
+    const atGameOver = gameState?.phase === 'gameOver';
 
     console.log('🏆 [PARTIDA GANADA] Check celebration trigger:', {
       phase: gameState?.phase,
-      shouldShowCelebration,
+      atGameOver,
+      scoringProgressed,
       progressSignature,
       lastProgress: lastProgressRef.current,
       team1Score: gameState?.teams[0].score,
       team2Score: gameState?.teams[1].score,
     });
 
-    if (shouldShowCelebration && gameState) {
+    // Avoid repeatedly setting the same state which can cause update depth exceeded
+    if (atGameOver && gameState) {
+      if (!showGameEndCelebration) {
+        setShowGameEndCelebration(true);
+      }
+      // No need to update lastProgressRef at game over; bail early
+      return;
+    }
+
+    if (scoringProgressed && gameState) {
       // Create a unique game session ID based on game start time and current state
       const gameSessionId = `${gameStartTime}-${gameState.teams[0].score}-${gameState.teams[1].score}`;
 
@@ -499,7 +629,9 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       } else {
         playDefeatSound();
       }
-      setShowGameEndCelebration(true);
+      if (!showGameEndCelebration) {
+        setShowGameEndCelebration(true);
+      }
       lastProgressRef.current = progressSignature;
 
       // Record statistics only once per game session
@@ -541,6 +673,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     user,
     gameMode,
     gameStartTime,
+    showGameEndCelebration,
   ]);
 
   // Handle scoring phase with overlay instead of full screen
@@ -739,26 +872,36 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
     if (!isGameStart) {
       // Not game start, so check if team won last trick
-      if (!lastWinner) return;
+      if (!lastWinner) {
+        toastManager.show?.({ message: 'Solo puedes cantar tras ganar la baza anterior', type: 'warning' });
+        return;
+      }
 
       const lastWinnerTeam = gameState.teams.find(t => t.playerIds.includes(lastWinner));
       if (!lastWinnerTeam || playerTeam.id !== lastWinnerTeam.id) {
+        toastManager.show?.({ message: 'Tu equipo debe haber ganado la baza anterior', type: 'warning' });
         return; // Player's team didn't win the last trick
       }
     } else if (!isFirstPlayer) {
       // At game start, only mano (first player) can cantar
+      toastManager.show?.({ message: 'Solo la mano puede cantar al inicio', type: 'info' });
       return;
     }
 
     // Check if trick hasn't started yet
-    if (gameState.currentTrick.length !== 0) return;
+    if (gameState.currentTrick.length !== 0) {
+      toastManager.show?.({ message: 'No puedes cantar durante la baza', type: 'warning' });
+      return;
+    }
 
     const playerHand = gameState?.hands.get(currentPlayer.id) || [];
     const cantableSuits = canCantar(playerHand, gameState.trumpSuit, playerTeam.cantes);
 
     // For now, cantar the first available suit
     if (cantableSuits.length > 0) {
-      const suit = cantableSuits[0];
+      const suit = cantableSuits.includes(gameState.trumpSuit)
+        ? gameState.trumpSuit
+        : cantableSuits[0];
 
       // Mark as processing to prevent repeated button presses
       setIsProcessingCante(true);
@@ -801,7 +944,9 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         }
         // Re-enable button after cante is processed
         setIsProcessingCante(false);
-      }, 100);
+      }, 180);
+    } else {
+      toastManager.show?.({ message: 'Necesitas Rey y Sota del mismo palo', type: 'info' });
     }
   };
 
@@ -964,22 +1109,34 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
                   : team1.score,
             }}
             onComplete={() => {
-              if (isVueltasTransition) {
-                // Don't hide celebration, let onContinue handle it
-              } else {
-                setShowGameEndCelebration(false);
-                // After celebration completes, automatically continue if not match end
-                if (!isMatchReallyComplete) {
-                  continueToNextPartida();
-                }
-              }
+              // Do not auto-advance or auto-hide; require explicit Continue tap
             }}
             playSound={
               isVueltasTransition ? undefined : playerWon ? playVictorySound : playDefeatSound
             }
             celebrationType={isVueltasTransition ? 'partida' : celebrationType}
             matchScore={matchScore}
-            onContinue={!isMatchReallyComplete ? continueToNextPartida : undefined}
+            onContinue={
+              !isMatchReallyComplete
+                ? () => {
+                    // Hide celebration and advance to the next partida
+                    console.log('▶️ [PARTIDA GANADA] Continue tapped: advancing to next partida');
+                    setShowGameEndCelebration(false);
+                    setTimeout(() => {
+                      try {
+                        continueToNextPartida();
+                      } catch (e) {
+                        console.error('❌ continueToNextPartida failed:', e);
+                      }
+                    }, 0);
+                  }
+                : () => {
+                    // Match complete: go back to home (or offer rematch)
+                    console.log('🏁 [PARTIDA GANADA] Continue tapped: match complete, navigating');
+                    setShowGameEndCelebration(false);
+                    navigation.navigate('JugarHome');
+                  }
+            }
             isVueltasTransition={isVueltasTransition}
             gameState={gameState}
             playerTeamIndex={playerTeam?.id === team1.id ? 0 : 1}
@@ -1058,8 +1215,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           />
         )}
 
-        {/* Turn timer for online games */}
-        {isOnline && gameState?.phase === 'playing' && (
+        {/* Turn timer for online games (gated by multiplayerDecorations) */}
+        {isOnline && showMultiplayerDecorations && gameState?.phase === 'playing' && (
           <TurnTimer
             seconds={turnTimeLeft}
             onExpire={() => {
@@ -1076,8 +1233,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           />
         )}
 
-        {/* Player avatars for online games */}
-        {isOnline && (
+        {/* Player avatars for online games (gated by multiplayerDecorations) */}
+        {isOnline && showMultiplayerDecorations && (
           <PlayerAvatars
             players={gameState.players.map((p, idx) => ({
               id: p.id,
@@ -1091,8 +1248,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           />
         )}
 
-        {/* Spectator mode when eliminated */}
-        {isOnline && isSpectating && (
+        {/* Spectator mode when eliminated (gated by multiplayerDecorations) */}
+        {isOnline && showMultiplayerDecorations && isSpectating && (
           <SpectatorMode
             enabled={isSpectating}
             players={gameState.players.map(p => ({
@@ -1310,14 +1467,18 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           />
         )}
 
-        {/* Vueltas Score Banner - HIDDEN to not show scores during gameplay */}
-        {/* {gameState && (
+        {/* Vueltas Score Banner - disabled during vueltas per design */}
+        {false && gameState && (
           <VueltasScoreBanner
             visible={gameState.isVueltas && gameState.phase === 'playing'}
-            team1Score={gameState.teams[0].score}
-            team2Score={gameState.teams[1].score}
+            team1Score={
+              (gameState.initialScores?.get(gameState.teams[0].id) || 0) + gameState.teams[0].score
+            }
+            team2Score={
+              (gameState.initialScores?.get(gameState.teams[1].id) || 0) + gameState.teams[1].score
+            }
           />
-        )} */}
+        )}
 
         {/* Hand End Overlay - shows scoring after each hand with detailed point breakdown */}
         {gameState && (
@@ -1392,6 +1553,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
               // Hide overlay and let continueFromScoring handle all logic
               setShowHandEndOverlay(false);
               continueFromScoring();
+              // Ensure the Partida/Coto/Match celebration is displayed
+              setShowGameEndCelebration(true);
             }}
           />
         )}

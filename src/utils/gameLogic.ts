@@ -51,7 +51,19 @@ export function createDeck(): Card[] {
 export function shuffleDeck(deck: Card[]): Card[] {
   const shuffled = [...deck];
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(getRandom() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+// Deterministic shuffle helper with explicit seed string (used by non-host clients
+// that receive a seed via realtime system event)
+export function shuffleDeckWithSeed(deck: Card[], seed: string | number): Card[] {
+  const seeded = new SeededRandom(typeof seed === 'number' ? seed : hashString(String(seed)));
+  const shuffled = [...deck];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(seeded.next() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   return shuffled;
@@ -75,6 +87,63 @@ export function dealInitialCards(
   });
 
   return { hands, remainingDeck: mutableDeck };
+}
+
+// ==========================================
+// Deterministic RNG support for online games
+// ==========================================
+
+class SeededRandom {
+  private seed: number;
+  private readonly a = 16807;
+  private readonly m = 2147483647;
+
+  constructor(seed: number) {
+    this.seed = seed % this.m || 1;
+  }
+
+  next(): number {
+    this.seed = (this.a * this.seed) % this.m;
+    return this.seed / this.m;
+  }
+}
+
+let seededRng: SeededRandom | null = null;
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash |= 0; // Convert to 32-bit integer
+  }
+  return Math.abs(hash) || 1;
+}
+
+export function setShuffleSeed(seedString: string | null | undefined): void {
+  if (!seedString) {
+    seededRng = null;
+    return;
+  }
+  const seed = hashString(seedString);
+  seededRng = new SeededRandom(seed);
+}
+
+export function clearShuffleSeed(): void {
+  seededRng = null;
+}
+
+export function getRandom(): number {
+  if (seededRng) {
+    return seededRng.next();
+  }
+  return Math.random();
+}
+
+export function getRandomInt(maxExclusive: number): number {
+  const r = getRandom();
+  // Ensure bounds [0, maxExclusive)
+  return Math.floor(r * maxExclusive);
 }
 
 function canBeatTrick(
@@ -742,17 +811,13 @@ export function processVueltasCompletion(state: GameState): GameState {
     currentMatchScore,
   );
 
-  // If match is complete, stay in gameOver phase
-  if (phase === 'gameOver') {
-    return {
-      ...state,
-      phase: 'gameOver',
-      matchScore: updatedMatchScore,
-    };
-  }
-
-  // Otherwise start new partida
-  return startNewPartida(state, updatedMatchScore);
+  // Always enter gameOver so the Partida/Coto/Match celebration can be shown.
+  // The GameScreen's Continue button will advance to the next partida/coto as needed.
+  return {
+    ...state,
+    phase: 'gameOver',
+    matchScore: updatedMatchScore,
+  };
 }
 
 /**
@@ -884,6 +949,22 @@ function processTrickCompletion(gameState: GameState): GameState {
     newState = applyLastTrickBonus(newState, trickResult.winnerTeam);
   }
 
+  // Immediate victory during VUELTAS: if combined totals reach 101 and 30 malas satisfied,
+  // end the partida immediately without waiting for end-of-hand scoring.
+  if (newState.isVueltas && newState.initialScores) {
+    const team1 = newState.teams[0];
+    const team2 = newState.teams[1];
+    const team1Total = (newState.initialScores.get(team1.id) || 0) + team1.score;
+    const team2Total = (newState.initialScores.get(team2.id) || 0) + team2.score;
+
+    const team1Eligible = team1Total >= WINNING_SCORE && team1.cardPoints >= 30;
+    const team2Eligible = team2Total >= WINNING_SCORE && team2.cardPoints >= 30;
+
+    if (team1Eligible || team2Eligible) {
+      return processVueltasCompletion(newState);
+    }
+  }
+
   // Determine phase transitions
   let newPhase = newState.phase; // Default: preserve current phase
 
@@ -900,16 +981,6 @@ function processTrickCompletion(gameState: GameState): GameState {
       // Normal play - go to scoring at end of hand
       newPhase = 'scoring';
     }
-  } else if (
-    // During vueltas, check if any team reached 101 but DON'T transition yet
-    // We'll check this condition when the hand ends (lastTrick = true)
-    newState.isVueltas &&
-    newState.initialScores &&
-    newState.teams.some(team => (newState.initialScores!.get(team.id) || 0) + team.score >= 101)
-  ) {
-    // Keep playing until all cards are played
-    // The scoring phase will be triggered when lastTrick is true
-    // This prevents the fin mano screen from showing after each trick
   }
   // Otherwise keep current phase (including 'arrastre' from dealCardsAfterTrick)
 

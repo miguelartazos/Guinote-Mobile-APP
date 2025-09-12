@@ -21,6 +21,7 @@ import { CARD_PLAY_DELAY } from '../constants/animations';
 import {
   createDeck,
   shuffleDeck,
+  shuffleDeckWithSeed,
   dealInitialCards,
   isValidPlay,
   calculateTrickWinner,
@@ -61,6 +62,14 @@ type UseGameStateProps = {
   gameId?: GameId;
   difficulty?: DifficultyLevel;
   playerNames?: string[]; // For local multiplayer
+  // Multiplayer bot behavior control
+  autoPlayBotsMode?: 'always' | 'host-only' | 'never';
+  isHost?: boolean;
+  onBotAction?: (action:
+    | { type: 'play_card'; cardId: string }
+    | { type: 'declare_cante'; suit: SpanishSuit }
+    | { type: 'cambiar_7' }
+  ) => void;
   mockData?: {
     players: Array<{
       id: number;
@@ -77,6 +86,19 @@ type UseGameStateProps = {
     };
     currentPlayer: number;
   };
+  // Deterministic initialization (for multiplayer hand start). If provided, skip local shuffle
+  deterministicInit?: {
+    seed: string | number;
+    dealerIndex: number; // who deals
+    firstPlayerIndex?: number; // optional (mano). If omitted, computed from dealer
+  } | null;
+  // When provided, the hook will wait until this promise resolves with deterministicInit
+  // before initializing the game. Useful on non-host clients.
+  waitForDeterministicInit?: (() => Promise<{
+    seed: string | number;
+    dealerIndex: number;
+    firstPlayerIndex?: number;
+  }>) | null;
 };
 
 export function useGameState({
@@ -84,7 +106,12 @@ export function useGameState({
   gameId,
   difficulty = 'medium',
   playerNames,
+  autoPlayBotsMode = 'always',
+  isHost = false,
+  onBotAction,
   mockData,
+  deterministicInit,
+  waitForDeterministicInit,
 }: UseGameStateProps) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
@@ -249,7 +276,7 @@ export function useGameState({
 
   // Initialize game
   useEffect(() => {
-    const initializeGame = () => {
+    const initializeGame = async () => {
       if (mockData) {
         // Use mock data
         const players = mockData.players.map((p, index) => ({
@@ -488,7 +515,18 @@ export function useGameState({
         },
       ];
 
-      const deck = shuffleDeck(createDeck());
+      // If deterministicInit is provided (or awaited), use seeded shuffle
+      let init = deterministicInit;
+      if (!init && waitForDeterministicInit) {
+        // Non-host devices can wait for host seed
+        try {
+          init = await waitForDeterministicInit();
+        } catch {}
+      }
+
+      const deck = init
+        ? shuffleDeckWithSeed(createDeck(), init.seed)
+        : shuffleDeck(createDeck());
       const { hands, remainingDeck } = dealInitialCards(
         deck,
         players.map(p => p.id),
@@ -498,10 +536,12 @@ export function useGameState({
       const trumpCard = remainingDeck[remainingDeck.length - 1];
       const deckAfterTrump = remainingDeck.slice(0, -1);
 
-      // Select dealer (randomly for first game)
-      const dealerIndex = Math.floor(Math.random() * 4);
-      // First player (mano) is to dealer's right (counter-clockwise)
-      const firstPlayerIndex = (dealerIndex - 1 + 4) % 4;
+      // Select dealer (random or deterministic)
+      const dealerIndex = init ? Math.max(0, Math.min(3, init.dealerIndex | 0)) : Math.floor(Math.random() * 4);
+      // First player (mano) is to dealer's right (counter-clockwise), unless provided
+      const firstPlayerIndex = init && typeof init.firstPlayerIndex === 'number'
+        ? Math.max(0, Math.min(3, init.firstPlayerIndex | 0))
+        : (dealerIndex - 1 + 4) % 4;
 
       const newGameState: GameState = {
         id: (gameId || `game_${Date.now()}`) as GameId,
@@ -534,6 +574,7 @@ export function useGameState({
       setIsDealingComplete(false);
     };
 
+    // Fire and forget
     initializeGame();
   }, [playerName, gameId, mockData, difficulty, playerNames]);
 
@@ -721,28 +762,7 @@ export function useGameState({
               isLastTrick,
               bonus: lastTrickBonusApplied ? 10 : 0,
             },
-            phase: (() => {
-              let phase: GamePhase;
-
-              // In vueltas, if combined totals reach 101+, end the hand immediately
-              if (reached101InVueltas) {
-                phase = 'scoring';
-              } else if (isLastTrick) {
-                // All cards have been played - now show Fin de Mano screen
-                phase = 'scoring';
-              } else {
-                // Continue playing - even if a team has 101+ points
-                // The game must continue until all cards are played
-                phase = prevState.phase;
-              }
-
-              // Clear AI memory on phase transitions
-              if (phase !== prevState.phase) {
-                setAIMemory(prev => clearMemoryOnPhaseChange(prev, phase));
-              }
-
-              return phase;
-            })(),
+            phase: isLastTrick ? 'scoring' : prevState.phase,
             // Defer starting vueltas until the user taps "Continuar" from the scoring screen.
             // We only mark isVueltas and capture initialScores inside initializeVueltasState()
             // which is called by continueFromScoring(). This prevents premature VUELTAS state
@@ -755,15 +775,18 @@ export function useGameState({
             canCambiar7: prevState.canCambiar7,
           } as GameState;
 
+          // If VUELTAS immediate victory, end partida right away (show celebration)
+          if (reached101InVueltas) {
+            console.log('🏁 Vueltas early finish: combined totals reached 101+, ending partida');
+            return processVueltasCompletion(nextStateAfterTrick);
+          }
+
           // Start trick animation after a short delay so last card settles visually
           if (winnerTimeoutRef.current) clearTimeout(winnerTimeoutRef.current);
           winnerTimeoutRef.current = setTimeout(() => {
             setGameState(p => (p ? { ...p, trickAnimating: true } : p));
           }, 250);
 
-          if (reached101InVueltas) {
-            console.log('🏁 Vueltas early finish: combined totals reached 101+, entering scoring');
-          }
           return nextStateAfterTrick;
         }
 
@@ -961,18 +984,16 @@ export function useGameState({
           })();
 
           if (reached101InVueltas) {
-            console.log(
-              '🏁 Vueltas early finish via cante: combined totals reached 101+, entering scoring',
-            );
+            console.log('🏁 Vueltas early finish via cante: combined totals reached 101+');
+            const updated = { ...prevState, teams: newTeams } as GameState;
+            return processVueltasCompletion(updated);
           }
 
           return {
             ...prevState,
             teams: newTeams,
             lastActionTimestamp: Date.now(), // Trigger AI re-run after cante
-            phase: reached101InVueltas
-              ? 'scoring'
-              : isGameOver({ ...prevState, teams: newTeams })
+            phase: isGameOver({ ...prevState, teams: newTeams })
               ? 'gameOver'
               : 'playing',
           };
@@ -1080,12 +1101,40 @@ export function useGameState({
     : '';
 
   // Use the custom AI turn hook
+  const shouldRunLocalBots = (() => {
+    if (autoPlayBotsMode === 'never') return false;
+    if (autoPlayBotsMode === 'host-only') return !!isHost;
+    return true;
+  })();
+
+  const wrappedPlayCardForBot = useCallback(
+    (cardId: string) => {
+      // Play locally
+      (playCard as any)(cardId);
+      // Notify multiplayer if provided
+      try {
+        onBotAction?.({ type: 'play_card', cardId });
+      } catch {}
+    },
+    [onBotAction, playCard],
+  );
+
+  const wrappedCantarForBot = useCallback(
+    (suit: SpanishSuit) => {
+      (cantar as any)(suit);
+      try {
+        onBotAction?.({ type: 'declare_cante', suit });
+      } catch {}
+    },
+    [onBotAction, cantar],
+  );
+
   const { thinkingPlayer } = useAITurn({
     gameState,
     currentTurnKey,
     mockData,
-    playCard,
-    cantar,
+    playCard: shouldRunLocalBots ? wrappedPlayCardForBot : (() => {}) as any,
+    cantar: shouldRunLocalBots ? wrappedCantarForBot : (() => {}) as any,
     aiMemory,
     setAIMemory,
   });
@@ -1667,14 +1716,15 @@ export function useGameState({
         }
 
         // Update match score and determine next phase
-        const { matchScore: updatedMatchScore, phase } = updateMatchScoreAndDeterminePhase(
+        const { matchScore: updatedMatchScore } = updateMatchScoreAndDeterminePhase(
           winningTeamIndex,
           currentMatchScore,
         );
 
         return {
           ...prev,
-          phase,
+          // Show celebration immediately for partidas/cotos/match
+          phase: 'gameOver',
           matchScore: updatedMatchScore,
         };
       });
@@ -1696,7 +1746,7 @@ export function useGameState({
           }
 
           // Update match score and determine next phase
-          const { matchScore: updatedMatchScore, phase } = updateMatchScoreAndDeterminePhase(
+          const { matchScore: updatedMatchScore } = updateMatchScoreAndDeterminePhase(
             winningTeamIndex,
             currentMatchScore,
           );
@@ -1707,7 +1757,8 @@ export function useGameState({
               Team,
               Team,
             ],
-            phase,
+            // Show celebration immediately
+            phase: 'gameOver',
             matchScore: updatedMatchScore,
           };
         });
@@ -1761,10 +1812,9 @@ export function useGameState({
 
   // Continue to next partida after one team wins a partida/coto
   const continueToNextPartida = useCallback(() => {
-    if (!gameState || (gameState.phase !== 'scoring' && gameState.phase !== 'gameOver')) return;
-
     // Prevent double-tap using the same pattern as VoiceButton
     if (doubleTapGuardRef.current) {
+      console.log('⛔ continueToNextPartida blocked by doubleTapGuard');
       return;
     }
 
@@ -1772,20 +1822,23 @@ export function useGameState({
       doubleTapGuardRef.current = null;
     }, 500);
 
-    // Start a new partida
+    // Start a new partida using the latest state snapshot (idempotent)
     setGameState(prev => {
-      if (!prev || !prev.matchScore) return null;
+      if (!prev) return null;
 
       // The match score in prev is already updated by continueFromScoring
-      const currentMatchScore = prev.matchScore;
+      const currentMatchScore = prev.matchScore || createInitialMatchScore();
 
       // Don't allow continuing if match is complete (safety check)
       if (isMatchComplete(currentMatchScore)) {
+        console.log('🏁 Match already complete. Blocking continue.');
         return prev;
       }
 
-      // Start new partida with the updated match score
-      return startNewPartida(prev, currentMatchScore);
+      // Start new partida with the updated match score regardless of current phase
+      const next = startNewPartida(prev, currentMatchScore);
+      console.log('✅ Starting next partida with matchScore:', currentMatchScore, 'from phase:', prev.phase, '-> next.phase:', next.phase);
+      return next;
     });
 
     // Reset dealing complete flag to trigger animation

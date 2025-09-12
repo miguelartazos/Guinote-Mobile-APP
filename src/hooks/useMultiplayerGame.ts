@@ -40,6 +40,19 @@ interface UseMultiplayerGameOptions {
   userId?: string;
   autoConnect?: boolean;
   onGameAction?: (action: any) => void;
+  onSystemEvent?: (
+    event:
+      | { type: 'hand_start'; seed: string; dealerIndex: number; firstPlayerIndex?: number }
+      | { type: 'ack'; seq: number },
+  ) => void;
+  // Optional presence metadata
+  displayName?: string;
+  isHost?: boolean;
+  team?: 'team1' | 'team2';
+  isReady?: boolean;
+  // Ack tuning
+  ackTimeoutMs?: number;
+  ackRetryMs?: number;
 }
 
 /**
@@ -47,9 +60,26 @@ interface UseMultiplayerGameOptions {
  * Returns offline-safe defaults when multiplayer is disabled
  */
 export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
-  const { roomId, userId, autoConnect = true, onGameAction } = options;
+  const {
+    roomId,
+    userId,
+    autoConnect = true,
+    onGameAction,
+    displayName,
+    isHost,
+    team,
+    isReady,
+    ackTimeoutMs = 4000,
+    ackRetryMs = 600,
+  } = options;
   const enableMultiplayer = useFeatureFlag('enableMultiplayer');
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const presenceMetaRef = useRef({
+    name: displayName || 'Jugador',
+    isReady: !!isReady,
+    team: team || 'team1',
+    isHost: !!isHost,
+  });
 
   const [state, setState] = useState<MultiplayerGameState>({
     isConnected: false,
@@ -59,6 +89,21 @@ export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
     players: [],
     gameState: null,
   });
+
+  // Ack tracking
+  const seqRef = useRef(1);
+  const ackWaitersRef = useRef(
+    new Map<
+      number,
+      {
+        expected: Set<string>;
+        timeout: NodeJS.Timeout;
+        interval: NodeJS.Timeout;
+        resolve: () => void;
+        payload: any;
+      }
+    >(),
+  );
 
   /**
    * Connect to a multiplayer room
@@ -127,6 +172,42 @@ export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
               console.log('[useMultiplayerGame] Player ready:', payload);
             }
             updatePlayerReady(payload.playerId, payload.isReady);
+          })
+          .on('broadcast', { event: 'system' }, async ({ payload }) => {
+            if (__DEV__) {
+              console.log('[useMultiplayerGame] System event:', payload);
+            }
+            try {
+              options.onSystemEvent?.(payload);
+            } catch {}
+
+            // Auto-ack for hand_start events
+            try {
+              if (payload && payload.type === 'hand_start' && typeof payload.seq === 'number') {
+                if (userId && channelRef.current) {
+                  await channelRef.current.send({
+                    type: 'broadcast',
+                    event: 'system',
+                    payload: { type: 'ack', seq: payload.seq, from: userId },
+                  });
+                }
+              }
+              // Resolve ack waiters on ack
+              if (payload && payload.type === 'ack' && typeof payload.seq === 'number') {
+                const waiter = ackWaitersRef.current.get(payload.seq);
+                if (waiter && payload.from && waiter.expected.has(payload.from)) {
+                  waiter.expected.delete(payload.from);
+                  if (waiter.expected.size === 0) {
+                    clearTimeout(waiter.timeout);
+                    clearInterval(waiter.interval);
+                    ackWaitersRef.current.delete(payload.seq);
+                    waiter.resolve();
+                  }
+                }
+              }
+            } catch (e) {
+              if (__DEV__) console.warn('[useMultiplayerGame] Ack handling error', e);
+            }
           });
 
         // Subscribe to the channel
@@ -134,6 +215,12 @@ export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
 
         // Store the channel reference
         channelRef.current = channel;
+        // Track initial presence metadata
+        try {
+          await channelRef.current.track({ ...presenceMetaRef.current });
+        } catch (e) {
+          if (__DEV__) console.warn('[useMultiplayerGame] Failed to track presence:', e);
+        }
         setState(prev => ({
           ...prev,
           isConnected: true,
@@ -227,11 +314,96 @@ export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
           event: 'player_ready',
           payload: { playerId: userId, isReady },
         });
+        // Update presence metadata as well
+        presenceMetaRef.current = { ...presenceMetaRef.current, isReady };
+        try {
+          await channelRef.current.track({ ...presenceMetaRef.current });
+        } catch {}
       } catch (error) {
         console.error('[useMultiplayerGame] Failed to set ready status:', error);
       }
     },
     [enableMultiplayer, userId],
+  );
+
+  /**
+   * Send a lightweight system event (e.g., hand_start) to all peers
+   */
+  const sendSystemEvent = useCallback(
+    async (payload: any) => {
+      if (!enableMultiplayer || !channelRef.current) {
+        return;
+      }
+      try {
+        await channelRef.current.send({
+          type: 'broadcast',
+          event: 'system',
+          payload,
+        });
+      } catch (error) {
+        console.error('[useMultiplayerGame] Failed to send system event:', error);
+      }
+    },
+    [enableMultiplayer],
+  );
+
+  /**
+   * Broadcast a system event and wait for acknowledgements from other peers.
+   */
+  const sendSystemEventWithAck = useCallback(
+    async (basePayload: any): Promise<void> => {
+      if (!enableMultiplayer || !channelRef.current) return;
+
+      const seq = seqRef.current++;
+      const others = new Set<string>(state.players.map(p => p.id).filter(id => id && id !== userId));
+      if (others.size === 0) return; // nothing to wait for
+
+      const payload = { ...basePayload, seq };
+
+      await channelRef.current.send({ type: 'broadcast', event: 'system', payload });
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          // Final attempt timed out; resolve anyway to avoid blocking forever
+          if (__DEV__) console.warn('[useMultiplayerGame] Ack timeout for seq', seq);
+          ackWaitersRef.current.delete(seq);
+          clearInterval(interval);
+          resolve();
+        }, ackTimeoutMs);
+
+        const interval = setInterval(async () => {
+          const waiter = ackWaitersRef.current.get(seq);
+          const expectedLeft = waiter ? waiter.expected.size : others.size;
+          if (expectedLeft > 0 && channelRef.current) {
+            await channelRef.current.send({ type: 'broadcast', event: 'system', payload });
+          }
+        }, ackRetryMs);
+
+        ackWaitersRef.current.set(seq, {
+          expected: new Set(others),
+          timeout,
+          interval,
+          resolve,
+          payload,
+        });
+      });
+    },
+    [enableMultiplayer, state.players, userId, ackRetryMs, ackTimeoutMs],
+  );
+
+  /**
+   * Broadcast a minimal game state snapshot (host only typical usage).
+   */
+  const sendGameState = useCallback(
+    async (snapshot: Partial<GameState> & Record<string, any>) => {
+      if (!enableMultiplayer || !channelRef.current) return;
+      try {
+        await channelRef.current.send({ type: 'broadcast', event: 'game_state', payload: snapshot });
+      } catch (e) {
+        console.error('[useMultiplayerGame] Failed to send game_state:', e);
+      }
+    },
+    [enableMultiplayer],
   );
 
   // Helper functions
@@ -254,6 +426,24 @@ export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
       players: prev.players.map(p => (p.id === playerId ? { ...p, isReady } : p)),
     }));
   };
+
+  // Update presence metadata when local props change
+  useEffect(() => {
+    presenceMetaRef.current = {
+      name: displayName || presenceMetaRef.current.name,
+      isReady: typeof isReady === 'boolean' ? isReady : presenceMetaRef.current.isReady,
+      team: team || presenceMetaRef.current.team,
+      isHost: !!isHost,
+    };
+    const pushUpdate = async () => {
+      try {
+        if (channelRef.current) {
+          await channelRef.current.track({ ...presenceMetaRef.current });
+        }
+      } catch {}
+    };
+    pushUpdate();
+  }, [displayName, isHost, team, isReady]);
 
   // Auto-connect on mount if roomId provided
   useEffect(() => {
@@ -283,6 +473,9 @@ export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
       connectToRoom: () => Promise.resolve(),
       disconnect: () => Promise.resolve(),
       sendGameAction: () => Promise.resolve(),
+      sendSystemEvent: () => Promise.resolve(),
+      sendSystemEventWithAck: () => Promise.resolve(),
+      sendGameState: () => Promise.resolve(),
       setReady: () => Promise.resolve(),
       isMultiplayerEnabled: false,
     };
@@ -293,6 +486,9 @@ export function useMultiplayerGame(options: UseMultiplayerGameOptions = {}) {
     connectToRoom,
     disconnect,
     sendGameAction,
+    sendSystemEvent,
+    sendSystemEventWithAck,
+    sendGameState,
     setReady,
     isMultiplayerEnabled: true,
   };

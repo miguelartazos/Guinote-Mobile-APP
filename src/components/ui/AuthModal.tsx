@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 import { Button } from '../Button';
 import { InputField } from './InputField';
+import { AuthCard } from '../auth/AuthCard';
+import { SocialButton } from '../auth/SocialButton';
+import { dimensions } from '../../constants/dimensions';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
-import { dimensions } from '../../constants/dimensions';
 
 type AuthModalProps = {
   visible: boolean;
@@ -98,28 +100,21 @@ export function AuthModal({
       <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.keyboardView}
-            >
-              <View style={styles.modalContent}>
-                <View style={styles.header}>
-                  <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={handleClose}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.closeIcon}>✕</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.title}>{title}</Text>
-                  <Text style={styles.message}>{message}</Text>
-                </View>
-
-                <ScrollView
-                  style={styles.formContainer}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                >
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
+              <AuthCard
+                title={title}
+                subtitle={message}
+                style={styles.modalContent}
+                isStandalone={false}
+                footerSlot={
+                  __DEV__ && onQuickSignIn ? (
+                    <Button variant="secondary" size="small" onPress={handleQuickSignIn} disabled={isLoading} style={styles.devButton} icon="🚀">
+                      Quick Test Sign In
+                    </Button>
+                  ) : undefined
+                }
+              >
+                <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   {isSignUp && (
                     <InputField
                       icon="👤"
@@ -153,43 +148,62 @@ export function AuthModal({
                     style={styles.input}
                   />
 
-                  <Button
-                    variant="primary"
-                    size="large"
-                    onPress={isSignUp ? handleSignUp : handleSignIn}
-                    loading={isLoading}
-                    disabled={isLoading}
-                    style={styles.submitButton}
-                  >
+                  <Button variant="primary" size="large" onPress={isSignUp ? handleSignUp : handleSignIn} loading={isLoading} disabled={isLoading} style={styles.submitButton}>
                     {isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}
                   </Button>
 
-                  <TouchableOpacity
-                    onPress={() => setIsSignUp(!isSignUp)}
-                    disabled={isLoading}
-                    style={styles.switchMode}
-                  >
-                    <Text style={styles.switchText}>
-                      {isSignUp
-                        ? '¿Ya tienes cuenta? Inicia sesión'
-                        : '¿No tienes cuenta? Regístrate'}
-                    </Text>
+                  <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)} disabled={isLoading} style={styles.switchMode}>
+                    <Text style={styles.switchText}>{isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}</Text>
                   </TouchableOpacity>
 
-                  {__DEV__ && onQuickSignIn && (
-                    <Button
-                      variant="secondary"
-                      size="small"
-                      onPress={handleQuickSignIn}
+                  <View style={styles.orContainer}>
+                    <View style={styles.orLine} />
+                    <Text style={styles.orText}>o continúa con</Text>
+                    <View style={styles.orLine} />
+                  </View>
+
+                  <View style={styles.socialButtonsContainer}>
+                    <SocialButton
+                      provider="google"
+                      onPress={async () => {
+                        try {
+                          const { startOAuth } = await import('../../services/auth/oauth');
+                          await startOAuth('google');
+                          onClose();
+                        } catch (e) {}
+                      }}
                       disabled={isLoading}
-                      style={styles.devButton}
-                      icon="🚀"
-                    >
-                      Quick Test Sign In
-                    </Button>
-                  )}
+                      style={styles.socialButton}
+                    />
+                    <SocialButton
+                      provider="apple"
+                      onPress={async () => {
+                        try {
+                          const { startOAuth } = await import('../../services/auth/oauth');
+                          await startOAuth('apple');
+                          onClose();
+                        } catch (e) {}
+                      }}
+                      disabled={isLoading}
+                      style={styles.socialButton}
+                    />
+                  </View>
+                  <View style={styles.socialButtonsContainer}>
+                    <SocialButton
+                      provider="facebook"
+                      onPress={async () => {
+                        try {
+                          const { startOAuth } = await import('../../services/auth/oauth');
+                          await startOAuth('facebook');
+                          onClose();
+                        } catch (e) {}
+                      }}
+                      disabled={isLoading}
+                      style={styles.socialButton}
+                    />
+                  </View>
                 </ScrollView>
-              </View>
+              </AuthCard>
             </KeyboardAvoidingView>
           </TouchableWithoutFeedback>
         </View>
@@ -268,5 +282,30 @@ const styles = StyleSheet.create({
   devButton: {
     marginTop: dimensions.spacing.md,
     opacity: 0.7,
+  },
+  orContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: dimensions.spacing.lg,
+    marginBottom: dimensions.spacing.md,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  orText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginHorizontal: dimensions.spacing.md,
+  },
+  socialButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: dimensions.spacing.sm,
+    marginBottom: dimensions.spacing.sm,
+  },
+  socialButton: {
+    flex: 1,
   },
 });

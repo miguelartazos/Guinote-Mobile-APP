@@ -31,6 +31,7 @@ export type JugarStackParamList = {
     roomId?: string;
     roomCode?: string;
     players?: any[];
+    isHost?: boolean;
   };
   GameRoom: {
     roomId: string;

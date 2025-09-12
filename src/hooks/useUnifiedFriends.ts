@@ -102,6 +102,11 @@ export function useUnifiedFriends(): FriendsState & FriendActions {
   useEffect(() => {
     if (!enableMultiplayer) return;
 
+    // Preserve previously registered executor (e.g., rooms executor)
+    const previousExecutor = (connectionService as any).actionExecutor as
+      | ((a: QueuedAction) => Promise<unknown>)
+      | undefined;
+
     connectionService.setActionExecutor(async (action: QueuedAction) => {
       const client = await createRealtimeClient();
       if (!client) {
@@ -230,8 +235,11 @@ export function useUnifiedFriends(): FriendsState & FriendActions {
         }
 
         default:
-          // Let other actions be handled by their respective hooks
-          return;
+          // Delegate unknown actions to the previously registered executor
+          if (previousExecutor) {
+            return previousExecutor(action);
+          }
+          throw new Error(`Unknown action type: ${action.type}`);
       }
     });
   }, [enableMultiplayer]);

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
 import type { Card, PlayerId as CorePlayerId } from '../../types/game.types';
 import { DraggableCard } from './DraggableCard';
@@ -252,10 +252,13 @@ export const GameTable = React.memo(function GameTable({
   const bottomPreviousPositions = useRef<Map<string, Position>>(new Map()).current;
   const leftCardAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
   const leftPreviousPositions = useRef<Map<string, number>>(new Map()).current;
+  const leftOpacityAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
   const topCardAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
   const topPreviousPositions = useRef<Map<string, number>>(new Map()).current;
+  const topOpacityAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
   const rightCardAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
   const rightPreviousPositions = useRef<Map<string, number>>(new Map()).current;
+  const rightOpacityAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
 
   // Track previous card counts to maintain positions during animations
   const leftPreviousCount = useRef(leftPlayer.cards.length);
@@ -277,8 +280,14 @@ export const GameTable = React.memo(function GameTable({
   const topPreviousCards = useRef<typeof topPlayer.cards>(topPlayer.cards);
   const rightPreviousCards = useRef<typeof rightPlayer.cards>(rightPlayer.cards);
 
-  // Create unique keys for cards
-  // Use card.id if available (for visible cards), otherwise fallback to suit/value or index
+  // Track card ID sequence for stable keys in hidden hands
+  const leftCardIdSequence = useRef<Map<number, string>>(new Map());
+  const topCardIdSequence = useRef<Map<number, string>>(new Map());
+  const rightCardIdSequence = useRef<Map<number, string>>(new Map());
+  const nextCardId = useRef(0);
+
+  // Create unique keys for cards with stable IDs for hidden cards
+  // Use card.id if available (for visible cards), otherwise create stable ID
   const getCardKey = (
     card: SpanishCardData,
     index: number,
@@ -286,7 +295,23 @@ export const GameTable = React.memo(function GameTable({
     isHidden: boolean = false,
   ) => {
     if (isHidden) {
-      return `${playerPrefix}_hidden_${index}`;
+      // For hidden cards, maintain stable IDs across renders
+      let idMap: Map<number, string>;
+      if (playerPrefix === 'left') {
+        idMap = leftCardIdSequence.current;
+      } else if (playerPrefix === 'top') {
+        idMap = topCardIdSequence.current;
+      } else if (playerPrefix === 'right') {
+        idMap = rightCardIdSequence.current;
+      } else {
+        return `${playerPrefix}_hidden_${index}`;
+      }
+
+      // If we don't have an ID for this position yet, create one
+      if (!idMap.has(index)) {
+        idMap.set(index, `${playerPrefix}_card_${nextCardId.current++}`);
+      }
+      return idMap.get(index)!;
     }
     // Use card.id if available (visible cards from GameScreen include id)
     if ('id' in card && card.id) {
@@ -310,8 +335,26 @@ export const GameTable = React.memo(function GameTable({
     });
   }, [bottomPlayer.cards, bottomCardAnimations, bottomPreviousPositions]);
 
-  // Cleanup animations for left player
+  // Cleanup animations for left player and manage card ID sequence
   useEffect(() => {
+    // When cards are removed, shift the ID sequence
+    if (leftPlayer.isHidden && leftPlayer.cards.length < leftPreviousCount.current) {
+      const newIdMap = new Map<number, string>();
+      const oldMap = leftCardIdSequence.current;
+
+      // Shift IDs to maintain stability
+      for (let i = 0; i < leftPlayer.cards.length; i++) {
+        if (oldMap.has(i)) {
+          newIdMap.set(i, oldMap.get(i)!);
+        } else if (oldMap.has(i + 1)) {
+          newIdMap.set(i, oldMap.get(i + 1)!);
+        } else {
+          newIdMap.set(i, `left_card_${nextCardId.current++}`);
+        }
+      }
+      leftCardIdSequence.current = newIdMap;
+    }
+
     const currentCardKeys = new Set(
       leftPlayer.cards.map((card, index) => getCardKey(card, index, 'left', leftPlayer.isHidden)),
     );
@@ -319,12 +362,32 @@ export const GameTable = React.memo(function GameTable({
       if (!currentCardKeys.has(key)) {
         leftCardAnimations.delete(key);
         leftPreviousPositions.delete(key);
+        leftOpacityAnimations.delete(key);
       }
     });
-  }, [leftPlayer.cards, leftCardAnimations, leftPreviousPositions]);
+  }, [leftPlayer.cards, leftCardAnimations, leftPreviousPositions, leftOpacityAnimations]);
 
-  // Cleanup animations for top player
+  // Cleanup animations for top player and manage card ID sequence
   useEffect(() => {
+    // When cards are removed, shift the ID sequence
+    if (topPlayer.isHidden && topPlayer.cards.length < topPreviousCount.current) {
+      const newIdMap = new Map<number, string>();
+      const oldMap = topCardIdSequence.current;
+
+      // Shift IDs to maintain stability
+      for (let i = 0; i < topPlayer.cards.length; i++) {
+        // Try to reuse the ID from position i+1 if a card was removed before this position
+        if (oldMap.has(i)) {
+          newIdMap.set(i, oldMap.get(i)!);
+        } else if (oldMap.has(i + 1)) {
+          newIdMap.set(i, oldMap.get(i + 1)!);
+        } else {
+          newIdMap.set(i, `top_card_${nextCardId.current++}`);
+        }
+      }
+      topCardIdSequence.current = newIdMap;
+    }
+
     const currentCardKeys = new Set(
       topPlayer.cards.map((card, index) => getCardKey(card, index, 'top', topPlayer.isHidden)),
     );
@@ -332,12 +395,31 @@ export const GameTable = React.memo(function GameTable({
       if (!currentCardKeys.has(key)) {
         topCardAnimations.delete(key);
         topPreviousPositions.delete(key);
+        topOpacityAnimations.delete(key);
       }
     });
-  }, [topPlayer.cards, topCardAnimations, topPreviousPositions]);
+  }, [topPlayer.cards, topCardAnimations, topPreviousPositions, topOpacityAnimations]);
 
-  // Cleanup animations for right player
+  // Cleanup animations for right player and manage card ID sequence
   useEffect(() => {
+    // When cards are removed, shift the ID sequence
+    if (rightPlayer.isHidden && rightPlayer.cards.length < rightPreviousCount.current) {
+      const newIdMap = new Map<number, string>();
+      const oldMap = rightCardIdSequence.current;
+
+      // Shift IDs to maintain stability
+      for (let i = 0; i < rightPlayer.cards.length; i++) {
+        if (oldMap.has(i)) {
+          newIdMap.set(i, oldMap.get(i)!);
+        } else if (oldMap.has(i + 1)) {
+          newIdMap.set(i, oldMap.get(i + 1)!);
+        } else {
+          newIdMap.set(i, `right_card_${nextCardId.current++}`);
+        }
+      }
+      rightCardIdSequence.current = newIdMap;
+    }
+
     const currentCardKeys = new Set(
       rightPlayer.cards.map((card, index) =>
         getCardKey(card, index, 'right', rightPlayer.isHidden),
@@ -347,9 +429,10 @@ export const GameTable = React.memo(function GameTable({
       if (!currentCardKeys.has(key)) {
         rightCardAnimations.delete(key);
         rightPreviousPositions.delete(key);
+        rightOpacityAnimations.delete(key);
       }
     });
-  }, [rightPlayer.cards, rightCardAnimations, rightPreviousPositions]);
+  }, [rightPlayer.cards, rightCardAnimations, rightPreviousPositions, rightOpacityAnimations]);
 
   // Measure pile centers so trick animation can land exactly on stacks
   const [team1PileCenter, setTeam1PileCenter] = useState<{ x: number; y: number } | null>(null);
@@ -358,6 +441,122 @@ export const GameTable = React.memo(function GameTable({
   // Manage overlay fade-out after dealing completes to avoid deck blink
   const [shouldFadeOutOverlay, setShouldFadeOutOverlay] = useState(false);
   const [dealingAnimationComplete, setDealingAnimationComplete] = useState(false);
+  // Remove unmount gap by keeping trick mounted but fully hidden during overlay
+
+  // Crossfade current trick instead of hard unmounting
+  const trickOpacity = useRef(new Animated.Value(1)).current;
+  const prevTrickAnimatingRef = useRef<boolean>(false);
+  const suppressTrickRef = useRef<boolean>(false);
+  useEffect(() => {
+    const wasAnimating = prevTrickAnimatingRef.current;
+    prevTrickAnimatingRef.current = trickAnimating;
+    if (trickAnimating && !wasAnimating) {
+      // Hide immediately to avoid duplicate cards (no crossfade)
+      trickOpacity.stopAnimation();
+      trickOpacity.setValue(0);
+      suppressTrickRef.current = true; // keep hidden until cleared
+    } else if (!trickAnimating && currentTrick.length > 0 && !pendingTrickWinner) {
+      // Only show again if previous trick has been cleared
+      if (!suppressTrickRef.current) {
+        trickOpacity.stopAnimation();
+        trickOpacity.setValue(1);
+      }
+    }
+  }, [trickAnimating, currentTrick.length, pendingTrickWinner, trickOpacity]);
+
+  // Release suppression once currentTrick is cleared (length becomes 0)
+  useEffect(() => {
+    if (suppressTrickRef.current && currentTrick.length === 0) {
+      suppressTrickRef.current = false;
+    }
+  }, [currentTrick.length]);
+
+  // Freeze trick start positions on overlay mount to avoid drift from layout updates
+  const trickStartPositionsRef = useRef<Array<{ x: number; y: number }> | null>(null);
+  const prevTrickAnimatingForPositionsRef = useRef<boolean>(false);
+  useEffect(() => {
+    const prev = prevTrickAnimatingForPositionsRef.current;
+    prevTrickAnimatingForPositionsRef.current = trickAnimating;
+    if (trickAnimating && !prev && (currentTrick?.length || 0) > 0) {
+      // Snapshot absolute positions once
+      const snapshot = (currentTrick || []).map(play => {
+        const posStyle = getTrickCardPositionWithinBoard(
+          playerIdToPosition[play.playerId] ?? 0,
+          layout.board,
+        ) as any;
+        const left = typeof posStyle.left === 'number' ? posStyle.left : 0;
+        const top = typeof posStyle.top === 'number' ? posStyle.top : 0;
+        const boardOffsetX = layout.board?.x || 0;
+        const boardOffsetY = layout.board?.y || 0;
+        return { x: boardOffsetX + left, y: boardOffsetY + top };
+      });
+      trickStartPositionsRef.current = snapshot;
+    }
+    if (!trickAnimating) {
+      trickStartPositionsRef.current = null;
+    }
+  }, [trickAnimating, currentTrick, layout.board, playerIdToPosition]);
+
+  // Freeze static trick card positions as they are played to avoid micro-shifts
+  const trickStaticAbsPositionsRef = useRef<Array<{ x: number; y: number }>>([]);
+  const prevTrickLengthRef = useRef<number>(0);
+  // Stable pixel dimensions for trick cards (frozen per trick)
+  const stableTrickDimsRef = useRef<{ width: number; height: number } | null>(null);
+  // Precise landing coordinates by card identity (to align static with flight end)
+  const landingAbsByCardRef = useRef<Record<string, { x: number; y: number }>>({});
+
+  const getTrickIdentity = (playerId: string, card: SpanishCardData) => {
+    // Prefer card.id if available; fallback to suit-value
+    const cardId = (card as any)?.id ? String((card as any).id) : `${card.suit}-${card.value}`;
+    return `${playerId}-${cardId}`;
+  };
+  useEffect(() => {
+    const prevLen = prevTrickLengthRef.current;
+    const len = currentTrick.length;
+    // Reset on new trick or when cleared
+    if (len === 0) {
+      trickStaticAbsPositionsRef.current = [];
+      prevTrickLengthRef.current = 0;
+      stableTrickDimsRef.current = null;
+      landingAbsByCardRef.current = {};
+      return;
+    }
+    if (len > prevLen) {
+      // Freeze card pixel size at first card of the trick
+      if (!stableTrickDimsRef.current) {
+        const dims = getCardDimensions().medium;
+        stableTrickDimsRef.current = { width: Math.round(dims.width), height: Math.round(dims.height) };
+      }
+      // Compute absolute positions only for newly added cards
+      for (let i = prevLen; i < len; i++) {
+        const play = currentTrick[i];
+        // Prefer exact landing coords captured from flight if available
+        const identity = getTrickIdentity(play.playerId, play.card);
+        const landing = landingAbsByCardRef.current[identity];
+        if (landing) {
+          trickStaticAbsPositionsRef.current[i] = { x: Math.round(landing.x), y: Math.round(landing.y) };
+        } else {
+          const posStyle = getTrickCardPositionWithinBoard(
+            playerIdToPosition[play.playerId] ?? 0,
+            layout.board,
+          ) as any;
+          const left = typeof posStyle.left === 'number' ? posStyle.left : 0;
+          const top = typeof posStyle.top === 'number' ? posStyle.top : 0;
+          const boardOffsetX = layout.board?.x || 0;
+          const boardOffsetY = layout.board?.y || 0;
+          trickStaticAbsPositionsRef.current[i] = {
+            x: Math.round(boardOffsetX + left),
+            y: Math.round(boardOffsetY + top),
+          };
+        }
+      }
+      prevTrickLengthRef.current = len;
+    } else if (len < prevLen) {
+      // Trick shrank (likely collected) – reset cache
+      trickStaticAbsPositionsRef.current = [];
+      prevTrickLengthRef.current = len;
+    }
+  }, [currentTrick.length, currentTrick, layout.board, playerIdToPosition]);
   // Log when dealing overlay should mount
   useEffect(() => {
     if (isDealing) {
@@ -487,7 +686,7 @@ export const GameTable = React.memo(function GameTable({
                 (cardPlayAnimation.card as any).id === (card as any).id) ||
                 index === cardPlayAnimation.cardIndex);
 
-            // If card is animating to table, render invisible placeholder to maintain spacing
+            // If card is animating to table, render nearly-invisible placeholder to maintain spacing
             if (isAnimating) {
               const cardDims = getCardDimensions();
               return (
@@ -496,7 +695,7 @@ export const GameTable = React.memo(function GameTable({
                   style={{
                     width: cardDims.small.width,
                     height: cardDims.small.height,
-                    opacity: 0,
+                    opacity: 0.01, // Nearly invisible to prevent GPU layer switching
                   }}
                 />
               );
@@ -509,18 +708,45 @@ export const GameTable = React.memo(function GameTable({
             // Find where this card was in the previous arrangement
             let sourcePosition = null;
             if (cardsRemoved && topPreviousCards.current) {
-              const currentCard = topPlayer.cards[index];
-              const previousIndex = topPreviousCards.current.findIndex(
-                card => card.suit === currentCard.suit && card.value === currentCard.value,
-              );
-              if (previousIndex !== -1) {
-                sourcePosition = getPlayerCardPosition(
-                  2,
-                  previousIndex,
-                  topPreviousCount.current,
-                  'small',
-                  layoutInfo,
+              // For hidden cards, we need to find the visual position based on removal
+              if (topPlayer.isHidden) {
+                // When a card is removed, remaining cards slide from their old positions
+                // Find which card was removed by comparing lengths
+                const removedIndex = topPreviousCards.current.length - topPlayer.cards.length;
+                if (index >= removedIndex) {
+                  // This card was after the removed card, so it slides from index+1
+                  sourcePosition = getPlayerCardPosition(
+                    2,
+                    index + 1,
+                    topPreviousCount.current,
+                    'small',
+                    layoutInfo,
+                  );
+                } else {
+                  // This card was before the removed card, stays in same position
+                  sourcePosition = getPlayerCardPosition(
+                    2,
+                    index,
+                    topPreviousCount.current,
+                    'small',
+                    layoutInfo,
+                  );
+                }
+              } else {
+                // For visible cards, match by suit and value
+                const currentCard = topPlayer.cards[index];
+                const previousIndex = topPreviousCards.current.findIndex(
+                  card => card.suit === currentCard.suit && card.value === currentCard.value,
                 );
+                if (previousIndex !== -1) {
+                  sourcePosition = getPlayerCardPosition(
+                    2,
+                    previousIndex,
+                    topPreviousCount.current,
+                    'small',
+                    layoutInfo,
+                  );
+                }
               }
             }
 
@@ -536,6 +762,7 @@ export const GameTable = React.memo(function GameTable({
             const cardKey = getCardKey(card, index, 'top', topPlayer.isHidden);
 
             let animatedX: Animated.Value;
+            let animatedOpacity: Animated.Value;
 
             if (!topCardAnimations.has(cardKey)) {
               // Check if this is a new card added after post-trick dealing
@@ -553,19 +780,27 @@ export const GameTable = React.memo(function GameTable({
                   layoutInfo,
                 );
                 animatedX = new Animated.Value(deckPos.x);
+                animatedOpacity = new Animated.Value(0.7); // Start semi-transparent
               } else if (cardsRemoved && sourcePosition) {
                 // Start from where the card was with the old layout
                 animatedX = new Animated.Value(sourcePosition.x);
+                animatedOpacity = new Animated.Value(0.7); // Fade during slide
                 topAnimating.current = true;
               } else {
                 // First render or existing card - start at target
                 // Initialize directly at target to prevent teleporting
                 animatedX = new Animated.Value(targetPosition.x);
+                animatedOpacity = new Animated.Value(1); // Already visible
                 topPreviousPositions.set(cardKey, targetPosition.x);
               }
               topCardAnimations.set(cardKey, animatedX);
+              topOpacityAnimations.set(cardKey, animatedOpacity);
             } else {
               animatedX = topCardAnimations.get(cardKey)!;
+              animatedOpacity = topOpacityAnimations.get(cardKey) || new Animated.Value(1);
+              if (!topOpacityAnimations.has(cardKey)) {
+                topOpacityAnimations.set(cardKey, animatedOpacity);
+              }
             }
 
             // Get the current actual position of the animated value
@@ -587,13 +822,22 @@ export const GameTable = React.memo(function GameTable({
               // Track this animation
               topActiveAnimations.current.add(index);
 
-              Animated.timing(animatedX, {
-                toValue: targetPosition.x,
-                duration: HAND_ANIMATION_DURATION,
-                delay: staggerDelay,
-                easing: STANDARD_EASING,
-                useNativeDriver: false,
-              }).start(() => {
+              Animated.parallel([
+                Animated.timing(animatedX, {
+                  toValue: targetPosition.x,
+                  duration: HAND_ANIMATION_DURATION,
+                  delay: staggerDelay,
+                  easing: STANDARD_EASING,
+                  useNativeDriver: false,
+                }),
+                Animated.timing(animatedOpacity, {
+                  toValue: 1,
+                  duration: HAND_ANIMATION_DURATION * 0.8,
+                  delay: staggerDelay,
+                  easing: STANDARD_EASING,
+                  useNativeDriver: false,
+                }),
+              ]).start(() => {
                 // Remove from active animations
                 topActiveAnimations.current.delete(index);
 
@@ -626,6 +870,7 @@ export const GameTable = React.memo(function GameTable({
                     left: animatedX,
                     top: targetPosition.y,
                     zIndex: targetPosition.zIndex,
+                    opacity: animatedOpacity,
                     transform: [{ rotate: `${targetPosition.rotation}deg` }],
                   },
                 ]}
@@ -650,7 +895,7 @@ export const GameTable = React.memo(function GameTable({
                 (cardPlayAnimation.card as any).id === (card as any).id) ||
                 index === cardPlayAnimation.cardIndex);
 
-            // If card is animating to table, render invisible placeholder to maintain spacing
+            // If card is animating to table, render nearly-invisible placeholder to maintain spacing
             if (isAnimating) {
               const dims = getCardDimensions().small;
               return (
@@ -659,7 +904,7 @@ export const GameTable = React.memo(function GameTable({
                   style={{
                     width: dims.width,
                     height: dims.height,
-                    opacity: 0,
+                    opacity: 0.01, // Nearly invisible to prevent GPU layer switching
                   }}
                 />
               );
@@ -672,18 +917,44 @@ export const GameTable = React.memo(function GameTable({
             // Find where this card was in the previous arrangement
             let sourcePosition = null;
             if (cardsRemoved && leftPreviousCards.current) {
-              const currentCard = leftPlayer.cards[index];
-              const previousIndex = leftPreviousCards.current.findIndex(
-                card => card.suit === currentCard.suit && card.value === currentCard.value,
-              );
-              if (previousIndex !== -1) {
-                sourcePosition = getPlayerCardPosition(
-                  3,
-                  previousIndex,
-                  leftPreviousCount.current,
-                  'small',
-                  layoutInfo,
+              // For hidden cards, we need to find the visual position based on removal
+              if (leftPlayer.isHidden) {
+                // When a card is removed, remaining cards slide from their old positions
+                const removedIndex = leftPreviousCards.current.length - leftPlayer.cards.length;
+                if (index >= removedIndex) {
+                  // This card was after the removed card, so it slides from index+1
+                  sourcePosition = getPlayerCardPosition(
+                    3,
+                    index + 1,
+                    leftPreviousCount.current,
+                    'small',
+                    layoutInfo,
+                  );
+                } else {
+                  // This card was before the removed card, stays in same position
+                  sourcePosition = getPlayerCardPosition(
+                    3,
+                    index,
+                    leftPreviousCount.current,
+                    'small',
+                    layoutInfo,
+                  );
+                }
+              } else {
+                // For visible cards, match by suit and value
+                const currentCard = leftPlayer.cards[index];
+                const previousIndex = leftPreviousCards.current.findIndex(
+                  card => card.suit === currentCard.suit && card.value === currentCard.value,
                 );
+                if (previousIndex !== -1) {
+                  sourcePosition = getPlayerCardPosition(
+                    3,
+                    previousIndex,
+                    leftPreviousCount.current,
+                    'small',
+                    layoutInfo,
+                  );
+                }
               }
             }
 
@@ -704,6 +975,7 @@ export const GameTable = React.memo(function GameTable({
             const cardKey = getCardKey(card, index, 'left', leftPlayer.isHidden);
 
             let animatedY: Animated.Value;
+            let animatedOpacity: Animated.Value;
 
             if (!leftCardAnimations.has(cardKey)) {
               // Check if this is a new card added after post-trick dealing
@@ -722,19 +994,27 @@ export const GameTable = React.memo(function GameTable({
                   layoutInfo,
                 );
                 animatedY = new Animated.Value(deckPos.y);
+                animatedOpacity = new Animated.Value(0.7); // Start semi-transparent
               } else if (cardsRemoved && sourcePosition) {
                 // Start from where the card was with the old layout
                 animatedY = new Animated.Value(sourcePosition.y);
+                animatedOpacity = new Animated.Value(0.7); // Fade during slide
                 leftAnimating.current = true;
               } else {
                 // First render or existing card - start at target
                 // Initialize directly at target to prevent teleporting
                 animatedY = new Animated.Value(targetPosition.y);
+                animatedOpacity = new Animated.Value(1); // Already visible
                 leftPreviousPositions.set(cardKey, targetPosition.y);
               }
               leftCardAnimations.set(cardKey, animatedY);
+              leftOpacityAnimations.set(cardKey, animatedOpacity);
             } else {
               animatedY = leftCardAnimations.get(cardKey)!;
+              animatedOpacity = leftOpacityAnimations.get(cardKey) || new Animated.Value(1);
+              if (!leftOpacityAnimations.has(cardKey)) {
+                leftOpacityAnimations.set(cardKey, animatedOpacity);
+              }
             }
 
             // Get the current actual position of the animated value
@@ -756,13 +1036,22 @@ export const GameTable = React.memo(function GameTable({
               // Track this animation
               leftActiveAnimations.current.add(index);
 
-              Animated.timing(animatedY, {
-                toValue: targetPosition.y,
-                duration: HAND_ANIMATION_DURATION,
-                delay: staggerDelay,
-                easing: STANDARD_EASING,
-                useNativeDriver: false,
-              }).start(() => {
+              Animated.parallel([
+                Animated.timing(animatedY, {
+                  toValue: targetPosition.y,
+                  duration: HAND_ANIMATION_DURATION,
+                  delay: staggerDelay,
+                  easing: STANDARD_EASING,
+                  useNativeDriver: false,
+                }),
+                Animated.timing(animatedOpacity, {
+                  toValue: 1,
+                  duration: HAND_ANIMATION_DURATION * 0.8,
+                  delay: staggerDelay,
+                  easing: STANDARD_EASING,
+                  useNativeDriver: false,
+                }),
+              ]).start(() => {
                 // Remove from active animations
                 leftActiveAnimations.current.delete(index);
 
@@ -795,6 +1084,7 @@ export const GameTable = React.memo(function GameTable({
                     left: x,
                     top: animatedY,
                     zIndex: targetPosition.zIndex,
+                    opacity: animatedOpacity,
                     transform: [{ rotate: `${targetPosition.rotation}deg` }],
                   },
                 ]}
@@ -819,7 +1109,7 @@ export const GameTable = React.memo(function GameTable({
                 (cardPlayAnimation.card as any).id === (card as any).id) ||
                 index === cardPlayAnimation.cardIndex);
 
-            // If card is animating to table, render invisible placeholder to maintain spacing
+            // If card is animating to table, render nearly-invisible placeholder to maintain spacing
             if (isAnimating) {
               const dims = getCardDimensions().small;
               return (
@@ -828,7 +1118,7 @@ export const GameTable = React.memo(function GameTable({
                   style={{
                     width: dims.width,
                     height: dims.height,
-                    opacity: 0,
+                    opacity: 0.01, // Nearly invisible to prevent GPU layer switching
                   }}
                 />
               );
@@ -841,18 +1131,44 @@ export const GameTable = React.memo(function GameTable({
             // Find where this card was in the previous arrangement
             let sourcePosition = null;
             if (cardsRemoved && rightPreviousCards.current) {
-              const currentCard = rightPlayer.cards[index];
-              const previousIndex = rightPreviousCards.current.findIndex(
-                card => card.suit === currentCard.suit && card.value === currentCard.value,
-              );
-              if (previousIndex !== -1) {
-                sourcePosition = getPlayerCardPosition(
-                  1,
-                  previousIndex,
-                  rightPreviousCount.current,
-                  'small',
-                  layoutInfo,
+              // For hidden cards, we need to find the visual position based on removal
+              if (rightPlayer.isHidden) {
+                // When a card is removed, remaining cards slide from their old positions
+                const removedIndex = rightPreviousCards.current.length - rightPlayer.cards.length;
+                if (index >= removedIndex) {
+                  // This card was after the removed card, so it slides from index+1
+                  sourcePosition = getPlayerCardPosition(
+                    1,
+                    index + 1,
+                    rightPreviousCount.current,
+                    'small',
+                    layoutInfo,
+                  );
+                } else {
+                  // This card was before the removed card, stays in same position
+                  sourcePosition = getPlayerCardPosition(
+                    1,
+                    index,
+                    rightPreviousCount.current,
+                    'small',
+                    layoutInfo,
+                  );
+                }
+              } else {
+                // For visible cards, match by suit and value
+                const currentCard = rightPlayer.cards[index];
+                const previousIndex = rightPreviousCards.current.findIndex(
+                  card => card.suit === currentCard.suit && card.value === currentCard.value,
                 );
+                if (previousIndex !== -1) {
+                  sourcePosition = getPlayerCardPosition(
+                    1,
+                    previousIndex,
+                    rightPreviousCount.current,
+                    'small',
+                    layoutInfo,
+                  );
+                }
               }
             }
 
@@ -873,6 +1189,7 @@ export const GameTable = React.memo(function GameTable({
             const cardKey = getCardKey(card, index, 'right', rightPlayer.isHidden);
 
             let animatedY: Animated.Value;
+            let animatedOpacity: Animated.Value;
 
             if (!rightCardAnimations.has(cardKey)) {
               // Check if this is a new card added after post-trick dealing
@@ -891,19 +1208,27 @@ export const GameTable = React.memo(function GameTable({
                   layoutInfo,
                 );
                 animatedY = new Animated.Value(deckPos.y);
+                animatedOpacity = new Animated.Value(0.7); // Start semi-transparent
               } else if (cardsRemoved && sourcePosition) {
                 // Start from where the card was with the old layout
                 animatedY = new Animated.Value(sourcePosition.y);
+                animatedOpacity = new Animated.Value(0.7); // Fade during slide
                 rightAnimating.current = true;
               } else {
                 // First render or existing card - start at target
                 // Initialize directly at target to prevent teleporting
                 animatedY = new Animated.Value(targetPosition.y);
+                animatedOpacity = new Animated.Value(1); // Already visible
                 rightPreviousPositions.set(cardKey, targetPosition.y);
               }
               rightCardAnimations.set(cardKey, animatedY);
+              rightOpacityAnimations.set(cardKey, animatedOpacity);
             } else {
               animatedY = rightCardAnimations.get(cardKey)!;
+              animatedOpacity = rightOpacityAnimations.get(cardKey) || new Animated.Value(1);
+              if (!rightOpacityAnimations.has(cardKey)) {
+                rightOpacityAnimations.set(cardKey, animatedOpacity);
+              }
             }
 
             // Get the current actual position of the animated value
@@ -925,13 +1250,22 @@ export const GameTable = React.memo(function GameTable({
               // Track this animation
               rightActiveAnimations.current.add(index);
 
-              Animated.timing(animatedY, {
-                toValue: targetPosition.y,
-                duration: HAND_ANIMATION_DURATION,
-                delay: staggerDelay,
-                easing: STANDARD_EASING,
-                useNativeDriver: false,
-              }).start(() => {
+              Animated.parallel([
+                Animated.timing(animatedY, {
+                  toValue: targetPosition.y,
+                  duration: HAND_ANIMATION_DURATION,
+                  delay: staggerDelay,
+                  easing: STANDARD_EASING,
+                  useNativeDriver: false,
+                }),
+                Animated.timing(animatedOpacity, {
+                  toValue: 1,
+                  duration: HAND_ANIMATION_DURATION * 0.8,
+                  delay: staggerDelay,
+                  easing: STANDARD_EASING,
+                  useNativeDriver: false,
+                }),
+              ]).start(() => {
                 // Remove from active animations
                 rightActiveAnimations.current.delete(index);
 
@@ -964,6 +1298,7 @@ export const GameTable = React.memo(function GameTable({
                     left: x,
                     top: animatedY,
                     zIndex: targetPosition.zIndex,
+                    opacity: animatedOpacity,
                     transform: [{ rotate: `${targetPosition.rotation}deg` }],
                   },
                 ]}
@@ -991,23 +1326,52 @@ export const GameTable = React.memo(function GameTable({
             }, 100);
           }}
         >
-          {currentTrick.length > 0 && !trickAnimating && (
-            <View style={styles.trickCards}>
+          {currentTrick.length > 0 && (
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.trickCards, { opacity: trickOpacity }]}
+            >
               {currentTrick.map((play, index) => {
                 const position = playerIdToPosition[play.playerId] ?? 0;
+                // Keep static trick card always rendered. Flying copy draws above, avoiding gaps.
+                // Use frozen absolute positions to avoid micro-shifts
+                let abs = trickStaticAbsPositionsRef.current[index];
+                if (!abs) {
+                  const posStyle = getTrickCardPositionWithinBoard(
+                    position,
+                    layout.board,
+                  ) as any;
+                  const left = typeof posStyle.left === 'number' ? posStyle.left : 0;
+                  const top = typeof posStyle.top === 'number' ? posStyle.top : 0;
+                  const boardOffsetX = layout.board?.x || 0;
+                  const boardOffsetY = layout.board?.y || 0;
+                  abs = {
+                    x: Math.round(boardOffsetX + left),
+                    y: Math.round(boardOffsetY + top),
+                  };
+                  trickStaticAbsPositionsRef.current[index] = abs;
+                }
+                const boardOffsetX = layout.board?.x || 0;
+                const boardOffsetY = layout.board?.y || 0;
+                const stableStyle = {
+                  position: 'absolute' as const,
+                  left: 0,
+                  top: 0,
+                  transform: [
+                    { translateX: (abs?.x ?? 0) - boardOffsetX },
+                    { translateY: (abs?.y ?? 0) - boardOffsetY },
+                  ],
+                } as const;
                 return (
                   <SpanishCard
-                    key={`trick-${index}`}
+                    key={`trick-${play.playerId}-${('id' in play.card && (play.card as any).id) ? (play.card as any).id : `${play.card.suit}-${play.card.value}`}`}
                     card={play.card}
                     size="medium"
-                    style={[
-                      styles.trickCard,
-                      getTrickCardPositionWithinBoard(position, layout.board),
-                    ]}
+                    style={[styles.trickCard, stableStyle, stableTrickDimsRef.current || {}]}
                   />
                 );
               })}
-            </View>
+            </Animated.View>
           )}
         </View>
       </View>
@@ -1025,17 +1389,23 @@ export const GameTable = React.memo(function GameTable({
             // Fallback to dynamic computation based on current table layout
             return computeTeamPileCenter(isTeam1 ? 'team1' : 'team2', layout.table);
           })()}
-          startPositions={(currentTrick || []).map(play => {
-            const posStyle = getTrickCardPositionWithinBoard(
-              playerIdToPosition[play.playerId] ?? 0,
-              layout.board,
-            ) as any;
-            const left = typeof posStyle.left === 'number' ? posStyle.left : 0;
-            const top = typeof posStyle.top === 'number' ? posStyle.top : 0;
-            const boardOffsetX = layout.board?.x || 0;
-            const boardOffsetY = layout.board?.y || 0;
-            return { x: boardOffsetX + left, y: boardOffsetY + top };
-          })}
+          startPositions={
+            trickStartPositionsRef.current ||
+            (currentTrick || []).map(play => {
+              const identity = getTrickIdentity(play.playerId, play.card);
+              const landing = landingAbsByCardRef.current[identity];
+              if (landing) return landing;
+              const posStyle = getTrickCardPositionWithinBoard(
+                playerIdToPosition[play.playerId] ?? 0,
+                layout.board,
+              ) as any;
+              const left = typeof posStyle.left === 'number' ? posStyle.left : 0;
+              const top = typeof posStyle.top === 'number' ? posStyle.top : 0;
+              const boardOffsetX = layout.board?.x || 0;
+              const boardOffsetY = layout.board?.y || 0;
+              return { x: boardOffsetX + left, y: boardOffsetY + top };
+            })
+          }
           winningCardIndex={Math.max(
             0,
             (currentTrick || []).findIndex(p => p.playerId === pendingTrickWinner.playerId),
@@ -1118,11 +1488,14 @@ export const GameTable = React.memo(function GameTable({
             const trickPos = getTrickCardPositionWithinBoard(playerPos, layout.board);
             const boardOffsetX = layout.board?.x || 0;
             const boardOffsetY = layout.board?.y || 0;
-
-            return {
-              x: boardOffsetX + (trickPos.left as number),
-              y: boardOffsetY + (trickPos.top as number),
+            const landing = {
+              x: Math.round(boardOffsetX + (trickPos.left as number)),
+              y: Math.round(boardOffsetY + (trickPos.top as number)),
             };
+            // Store precise landing for static trick alignment
+            const identity = getTrickIdentity(cardPlayAnimation.playerId, cardPlayAnimation.card);
+            landingAbsByCardRef.current[identity] = landing;
+            return landing;
           })()}
           playerPosition={(() => {
             const pos = playerIdToPosition[cardPlayAnimation.playerId];
@@ -1165,14 +1538,11 @@ export const GameTable = React.memo(function GameTable({
         </View>
       )}
 
-      {/* Vueltas Indicator with Points Remaining */}
+      {/* Vueltas Indicator with Actual Points */}
       {isVueltas && teamScores && (
         <View style={styles.vueltasIndicator}>
           <Text style={styles.vueltasText}>VUELTAS</Text>
-          <Text style={styles.vueltasPointsText}>
-            Faltan - N: {Math.max(0, 101 - (teamScores?.team1 || 0))} | E:{' '}
-            {Math.max(0, 101 - (teamScores?.team2 || 0))}
-          </Text>
+          <Text style={styles.vueltasPointsText}>N: {teamScores?.team1 || 0} | E: {teamScores?.team2 || 0}</Text>
         </View>
       )}
 
@@ -1182,11 +1552,13 @@ export const GameTable = React.memo(function GameTable({
           <TeamTrickPile
             count={teamTrickCounts.team1}
             anchor="bottomLeft"
+            disablePulse={!!trickAnimating}
             onCenterLayout={setTeam1PileCenter}
           />
           <TeamTrickPile
             count={teamTrickCounts.team2}
             anchor="topRight"
+            disablePulse={!!trickAnimating}
             onCenterLayout={setTeam2PileCenter}
           />
         </>
@@ -1219,7 +1591,7 @@ export const GameTable = React.memo(function GameTable({
 
             if (shouldHide) return null;
 
-            // If card is animating to table, render invisible placeholder to maintain spacing
+            // If card is animating to table, render nearly-invisible placeholder to maintain spacing
             if (isAnimating) {
               return (
                 <View
@@ -1227,7 +1599,7 @@ export const GameTable = React.memo(function GameTable({
                   style={{
                     width: cardDimensions.large.width,
                     height: cardDimensions.large.height,
-                    opacity: 0,
+                    opacity: 0.01, // Nearly invisible to prevent GPU layer switching
                   }}
                 />
               );
@@ -1321,6 +1693,7 @@ export const GameTable = React.memo(function GameTable({
                   cardSize="large"
                   totalCards={bottomPlayer.cards.length}
                   cardWidth={scaledCardWidth}
+                  gamePhase={gamePhase}
                 />
               </Animated.View>
             );
@@ -1350,7 +1723,9 @@ export const GameTable = React.memo(function GameTable({
 });
 
 const getTableColor = (color: 'green' | 'blue' | 'red' | 'wood') => {
-  return TABLE_COLORS[color] || TABLE_COLORS.green;
+  // Map 'red' to 'terracotta' for backward compatibility
+  const mappedColor = color === 'red' ? 'terracotta' : color;
+  return TABLE_COLORS[mappedColor as keyof typeof TABLE_COLORS] || TABLE_COLORS.green;
 };
 
 const styles = StyleSheet.create({

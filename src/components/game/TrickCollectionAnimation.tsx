@@ -39,8 +39,13 @@ export function TrickCollectionAnimation({
 }: TrickCollectionAnimationProps) {
   // Animation values for each card
   const cardAnimations = useRef(
-    cards.map(() => ({
-      position: new Animated.ValueXY({ x: 0, y: 0 }),
+    cards.map((_, i) => ({
+      // Seed with provided start positions to avoid first-frame jumps
+      position: new Animated.ValueXY(
+        startPositions && startPositions[i]
+          ? { x: startPositions[i].x, y: startPositions[i].y }
+          : { x: 0, y: 0 },
+      ),
       opacity: new Animated.Value(1),
       scale: new Animated.Value(1),
       rotation: new Animated.Value(0),
@@ -64,12 +69,7 @@ export function TrickCollectionAnimation({
     const runAnimation = async () => {
       playSound?.();
 
-      // Initialize starting positions so cards animate from the trick location
-      if (startPositions && startPositions.length === cardAnimations.length) {
-        startPositions.forEach((p, i) => {
-          cardAnimations[i].position.setValue({ x: p.x, y: p.y });
-        });
-      }
+      // Positions already seeded in ref initialization to avoid layout-frame jump
 
       // 1. Highlight the winning card
       await highlightWinnerCard();
@@ -125,8 +125,8 @@ export function TrickCollectionAnimation({
       return;
     }
 
-    // Shorter wait for snappier feel
-    await new Promise(resolve => setTimeout(resolve, Math.max(100, WINNER_HIGHLIGHT_DELAY - 100)));
+    // Ensure all cards are fully stabilized before highlighting
+    await new Promise(resolve => setTimeout(resolve, WINNER_HIGHLIGHT_DELAY));
 
     // Stabilize all cards before animation to prevent jumps
     cardAnimations.forEach((anim, i) => {
@@ -135,6 +135,8 @@ export function TrickCollectionAnimation({
       // Stop any in-flight rotation animations
       anim.rotation.stopAnimation();
       anim.rotation.setValue(0);
+      // Lock positions: setting current value prevents tiny re-targeting if any
+      anim.position.stopAnimation();
     });
 
     // Animate the winning card scale up
@@ -221,7 +223,7 @@ export function TrickCollectionAnimation({
   };
 
   return (
-    <View style={StyleSheet.absoluteFillObject}>
+    <View style={StyleSheet.absoluteFillObject} needsOffscreenAlphaCompositing renderToHardwareTextureAndroid>
       {/* Animated cards */}
       {cardAnimations.map((anim, index) => (
         <Animated.View
@@ -245,7 +247,8 @@ export function TrickCollectionAnimation({
             },
           ]}
         >
-          <SpanishCard card={cards[index]} size="medium" />
+          {/* Disable heavy shadows on moving cards to avoid halo/contour during motion */}
+          <SpanishCard card={cards[index]} size="medium" style={{ shadowOpacity: 0 }} />
         </Animated.View>
       ))}
 

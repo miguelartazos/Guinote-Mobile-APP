@@ -162,11 +162,8 @@ export function GameEndCelebration({
       // 8. Show continue button
       await showButton();
 
-      // Complete after a brief pause - but NOT for vueltas transition
-      // For vueltas, user must click the continue button
-      if (!isVueltasTransition) {
-        setTimeout(onComplete, 1500);
-      }
+      // Do NOT auto-complete: require explicit user tap on the Continue button.
+      // This preserves the Partida Ganada screen until the user chooses to proceed.
     };
 
     runAnimation();
@@ -295,7 +292,7 @@ export function GameEndCelebration({
   };
 
   const animateMatchScore = async () => {
-    // Animate the match score update
+    // Animate the match score reveal without mutating the score again
     await new Promise(resolve => {
       // First show the container
       Animated.parallel([
@@ -312,20 +309,10 @@ export function GameEndCelebration({
         }),
       ]).start();
 
-      // Then update the score with a bounce
+      // Then bounce to emphasize the change, but use the already-updated matchScore
       setTimeout(() => {
-        if (celebrationType === 'partida' && matchScore) {
-          // Increment the partida score for the winner
-          const newScore = { ...matchScore };
-          if (isWinner) {
-            newScore.team1Partidas =
-              matchScore.team1Partidas + (finalScore.player > finalScore.opponent ? 1 : 0);
-            newScore.team2Partidas =
-              matchScore.team2Partidas + (finalScore.opponent > finalScore.player ? 1 : 0);
-          }
-          setDisplayMatchScore(newScore);
-
-          // Bounce animation when score updates
+        if (matchScore) {
+          setDisplayMatchScore(matchScore);
           Animated.sequence([
             Animated.timing(matchScoreScale, {
               toValue: 1.2,
@@ -357,7 +344,7 @@ export function GameEndCelebration({
         style={styles.scrollContainer}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-        bounces={false}
+        bounces={true}
       >
         {/* Trophy for match victories */}
         {celebrationType === 'match' && (
@@ -380,8 +367,8 @@ export function GameEndCelebration({
           scoreCardAnimation={scoreCardAnimation}
         />
 
-        {/* Match progress - Animated score update */}
-        {matchScore && celebrationType === 'partida' && (
+        {/* Match progress - Animated score update (show for partida, coto, and match) */}
+        {matchScore && (
           <GameEndCelebrationProgress
             matchScore={displayMatchScore}
             matchScoreOpacity={matchScoreOpacity}
@@ -400,8 +387,11 @@ export function GameEndCelebration({
           />
         )}
 
-        {/* Continue button - Traditional style */}
-        {onContinue && (
+      </ScrollView>
+
+      {/* Bottom bar with Continue button pinned (always visible in landscape) */}
+      {onContinue && (
+        <View style={styles.bottomBar} pointerEvents="auto">
           <Animated.View
             style={[
               styles.buttonContainer,
@@ -413,8 +403,15 @@ export function GameEndCelebration({
           >
             <TouchableOpacity
               style={styles.continueButton}
-              onPress={onContinue}
-              activeOpacity={0.85}
+              onPress={() => {
+                try {
+                  console.log('🟡 [GameEndCelebration] Continue button pressed');
+                } catch {}
+                onContinue?.();
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Continuar"
             >
               <View style={styles.buttonInner}>
                 <Text style={styles.continueButtonText}>CONTINUAR</Text>
@@ -432,8 +429,8 @@ export function GameEndCelebration({
               </View>
             </TouchableOpacity>
           </Animated.View>
-        )}
-      </ScrollView>
+        </View>
+      )}
 
       {/* Subtle confetti for winner */}
       {isWinner && (
@@ -483,7 +480,16 @@ const portraitStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 40,
+    paddingVertical: 24,
+    paddingBottom: 140, // ensure space for pinned button + coto marker
+  },
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 24,
+    alignItems: 'center',
+    zIndex: 100,
   },
   buttonContainer: {
     marginTop: 12,
@@ -520,7 +526,7 @@ const portraitStyles = StyleSheet.create({
   },
 });
 
-const landscapeStyles: Partial<typeof portraitStyles> = {
+const landscapeStyles: any = {
   container: {
     flex: 1,
   },
@@ -529,20 +535,27 @@ const landscapeStyles: Partial<typeof portraitStyles> = {
   },
   contentContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 80, // room for pinned button
+  },
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 12,
     alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 20,
-    minHeight: '100%',
   },
   buttonContainer: {
-    marginTop: 16,
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 10,
   },
   continueButton: {
     backgroundColor: colors.gold,
-    paddingHorizontal: 56,
-    paddingVertical: 20,
+    paddingHorizontal: 48,
+    paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: colors.goldDark,
@@ -553,10 +566,16 @@ const landscapeStyles: Partial<typeof portraitStyles> = {
     shadowRadius: 6,
   },
   continueButtonText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '900',
     color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 2.5,
+  },
+  continueButtonSubtext: {
+    fontSize: 11,
+    color: colorWithOpacity(colors.primary, 0.8),
+    marginTop: 2,
+    fontWeight: '600',
   },
 };
