@@ -158,6 +158,28 @@ export async function exchangeSevenRpc(roomId: string): Promise<{ success: boole
   return (data as any) || { success: true };
 }
 
+export async function completeDealingRpc(roomId: string): Promise<{ success: boolean } | null> {
+  const client = await createRealtimeClient();
+  if (!client) return null;
+  const { data: row, error: selErr } = await client
+    .from('game_states')
+    .select('id')
+    .eq('room_id', roomId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (selErr || !row?.id) return null;
+
+  const { data, error } = await (client as any).rpc('complete_dealing', {
+    p_game_state_id: row.id,
+  });
+  if (error) {
+    if (__DEV__) console.warn('[onlineGame] complete_dealing error', error.message);
+    return null;
+  }
+  return (data as any) || { success: true };
+}
+
 export async function maybePlayBotTurnRpc(
   roomId: string,
   expectedVersion?: number,

@@ -1340,7 +1340,8 @@ export const GameTable = React.memo(function GameTable({
             }, 100);
           }}
         >
-          {currentTrick.length > 0 && (
+          {/* Hide trick visuals entirely while initial dealing overlay is active */}
+          {!isDealing && currentTrick.length > 0 && (
             <Animated.View
               pointerEvents="none"
               style={[styles.trickCards, { opacity: trickOpacity }]}

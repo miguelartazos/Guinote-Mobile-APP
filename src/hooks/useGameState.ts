@@ -1220,7 +1220,7 @@ export function useGameState({
         gameState.phase
       }-${gameState.hands.get(gameState.players[gameState.currentPlayerIndex].id)?.length || 0}-${
         gameState.lastActionTimestamp || 0
-      }`
+      }-deal:${isDealingComplete ? 1 : 0}`
     : '';
 
   // Use the custom AI turn hook
@@ -1263,6 +1263,7 @@ export function useGameState({
     cantar: shouldRunLocalBots ? wrappedCantarForBot : (() => {}) as any,
     aiMemory,
     setAIMemory,
+    isDealingComplete,
   });
 
   // Auto-save game state with debouncing
@@ -1548,6 +1549,8 @@ export function useGameState({
       dealerIndex: number;
       tableCards?: Array<{ playerId: PlayerId; card: { id: string; suit: SpanishSuit; value: CardValue } }>;
       version?: number;
+      lastAction?: { type?: string } | null;
+      phase?: string | null;
     }) => {
       setGameState(prev => {
         if (!prev) return prev;
@@ -1608,7 +1611,9 @@ export function useGameState({
         };
 
         // Case 1: Trick collected → animate collection and prepare dealing overlay
-        if (trickCollected) {
+        // Prefer server signal via last_action.type === 'end_trick'
+        const serverSaysEndTrick = (snapshot as any)?.lastAction?.type === 'end_trick';
+        if (trickCollected || serverSaysEndTrick) {
           const prevTrick = prev.currentTrick || [];
           // Determine winner and points from last visible trick
           let winnerId = prev.lastTrickWinner as PlayerId | undefined;
@@ -1695,7 +1700,9 @@ export function useGameState({
         }
 
         // Case 2: A new table card was added → animate fly-from-hand
-        if (tableCardAdded) {
+        // Do not animate or mutate if server is still in dealing phase
+        const serverDealing = (snapshot as any)?.phase === 'dealing';
+        if (!serverDealing && tableCardAdded) {
           // Identify the new play by card id difference
           const prevIds = new Set((prev.currentTrick || []).map(tc => String(tc.card.id)));
           const newPlay = (mappedTrick || []).find(tc => !prevIds.has(String(tc.card.id)));
@@ -1814,10 +1821,12 @@ export function useGameState({
         }
         const remaining = [...pending.slice(0, idx), ...pending.slice(idx + 1)];
 
-        // Apply to hands/deck incrementally
+        // Apply to hands/deck incrementally with de-duplication by id
         const newHands = new Map(prev.hands);
         const hand = [...(newHands.get(draw.playerId) || [])];
-        hand.push(draw.card);
+        if (!hand.some(c => String(c.id) === String(draw.card.id))) {
+          hand.push(draw.card);
+        }
         newHands.set(draw.playerId, hand);
 
         const newDeck = [...prev.deck];

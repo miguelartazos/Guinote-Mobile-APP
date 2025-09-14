@@ -87,8 +87,13 @@ export function CardPlayAnimation({
       // This prevents the flicker/disappear issue
     };
 
-    // Start animation immediately
-    runAnimation();
+    // Defer until after interactions to reduce frame contention on low-end devices
+    const handle = (global as any)?.InteractionManager
+      ? (global as any).InteractionManager.runAfterInteractions(runAnimation)
+      : null;
+    if (!handle) {
+      runAnimation();
+    }
 
     // No cleanup needed since we're not using timers
   }, []);

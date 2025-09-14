@@ -51,6 +51,7 @@ import {
   exchangeSevenRpc,
   fetchGameStateByRoom,
   maybePlayBotTurnRpc,
+  completeDealingRpc,
 } from '../services/onlineGame';
 // Removed Convex statistics - causes errors in offline mode
 // import { useConvexStatistics } from '../hooks/useConvexStatistics';
@@ -120,6 +121,28 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       }
     },
   });
+
+  // Buffer for latest server snapshot to apply after animations complete
+  const bufferedApplyRef = React.useRef<null | (() => void)>(null);
+  const tryFlushBufferedSnapshot = React.useCallback(() => {
+    const f = bufferedApplyRef.current;
+    if (f) {
+      bufferedApplyRef.current = null;
+      try {
+        f();
+      } catch {}
+    }
+  }, []);
+  // Live flag of whether animations/overlays are blocking realtime application
+  const animatingRef = React.useRef<boolean>(false);
+  React.useEffect(() => {
+    const animating = !!gameState?.trickAnimating || !!gameState?.postTrickDealingAnimating ||
+      !!gameState?.postTrickDealingPending || (gameState?.phase === 'dealing' && !isDealingComplete);
+    animatingRef.current = animating;
+    if (!animating) {
+      tryFlushBufferedSnapshot();
+    }
+  }, [gameState?.trickAnimating, gameState?.postTrickDealingAnimating, gameState?.postTrickDealingPending, gameState?.phase, isDealingComplete, tryFlushBufferedSnapshot]);
 
   // Use appropriate game state hook based on game mode
   const isGuest = isOnline && !isHost;
@@ -252,11 +275,11 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     autoPlayBotsMode: isOnline ? 'host-only' : 'always',
     isHost: !!isHost,
     onBotAction: action => {
-      // Host-only bots: in online mode, apply via server RPC
-      if (!isOnline) return;
+      // Host-only bots: in online mode, request server to play AI turn; do not mutate locally
+      if (!isOnline || !isHost) return;
       try {
-        if ((action as any).type === 'play_card' && (action as any).cardId) {
-          playCardRpc(roomId!, (action as any).cardId).catch(() => {});
+        if ((action as any).type === 'play_card') {
+          maybePlayBotTurnRpc(roomId!).catch(() => {});
         } else if ((action as any).type === 'declare_cante' && (action as any).suit) {
           declareCanteRpc(roomId!, (action as any).suit).catch(() => {});
         } else if ((action as any).type === 'cambiar_7') {
@@ -289,26 +312,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     let unsubscribe: (() => void) | null = null;
     // Track latest server version we've applied across events
     const lastAppliedServerVersionRef = { current: -1 } as React.MutableRefObject<number>;
-
-    // Buffer one pending snapshot if animations are active
-    let pendingLatest: any | null = null;
+    // Helper to apply now or buffer if animating
     const applyOrBuffer = (fn: () => void) => {
-      const animating =
-        !!gameState?.trickAnimating ||
-        !!gameState?.postTrickDealingAnimating ||
-        !!gameState?.postTrickDealingPending;
-      if (animating) {
-        pendingLatest = fn;
+      if (animatingRef.current) {
+        bufferedApplyRef.current = fn;
       } else {
         fn();
-      }
-    };
-
-    const tryFlush = () => {
-      if (pendingLatest) {
-        const f = pendingLatest;
-        pendingLatest = null;
-        f();
       }
     };
 
@@ -387,6 +396,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             dealerIndex,
             tableCards,
             version,
+            lastAction: (row as any)?.last_action || null,
+            phase: (row as any)?.phase || null,
           });
 
         applyOrBuffer(applyNow);
@@ -403,7 +414,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       try {
         unsubscribe?.();
       } catch {}
-      pendingLatest = null;
+      bufferedApplyRef.current = null;
     };
   }, [
     isOnline,
@@ -484,6 +495,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           dealerIndex,
           tableCards,
           version,
+          lastAction: (row as any)?.last_action || null,
+          phase: (row as any)?.phase || null,
         });
       } catch {}
     }, 1500);
@@ -1088,7 +1101,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     const animating =
       !!gameState?.trickAnimating ||
       !!gameState?.postTrickDealingAnimating ||
-      !!gameState?.postTrickDealingPending;
+      !!gameState?.postTrickDealingPending ||
+      (gameState?.phase === 'dealing' && !isDealingComplete);
     if (animating) return;
     // Fire-and-forget: server will no-op when not AI's turn
     maybePlayBotTurnRpc(roomId, version).catch(() => {});
@@ -1100,6 +1114,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     gameState?.trickAnimating,
     gameState?.postTrickDealingAnimating,
     gameState?.postTrickDealingPending,
+    isDealingComplete,
+    gameState?.phase,
   ]);
 
   // Determine if current device controls the acting seat - computed above
@@ -1689,7 +1705,15 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             suit: gameState.trumpSuit,
             value: gameState.trumpCard.value,
           }}
-          onCompleteDealingAnimation={completeDealingAnimation}
+          onCompleteDealingAnimation={() => {
+            completeDealingAnimation();
+            if (isOnline && roomId) {
+              // Inform server to transition phase to 'playing' to unblock turns
+              completeDealingRpc(roomId).catch(() => {});
+            }
+            // Attempt to flush any buffered realtime snapshot immediately after dealing completes
+            tryFlushBufferedSnapshot();
+          }}
           playShuffleSound={playShuffleSound}
           playDealSound={playDealSound}
           playTrumpRevealSound={playTrumpRevealSound}
@@ -1754,7 +1778,10 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
                 }
               : undefined
           }
-          onCompleteTrickAnimation={completeTrickAnimation}
+          onCompleteTrickAnimation={() => {
+            completeTrickAnimation();
+            tryFlushBufferedSnapshot();
+          }}
           postTrickDealingAnimating={gameState.postTrickDealingAnimating}
           postTrickDealingPending={gameState.postTrickDealingPending}
           pendingPostTrickDraws={gameState.pendingPostTrickDraws?.map(d => ({
@@ -1763,7 +1790,10 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             card: d.card as any,
             source: d.source,
           }))}
-          onCompletePostTrickDealing={completePostTrickDealing}
+          onCompletePostTrickDealing={() => {
+            completePostTrickDealing();
+            tryFlushBufferedSnapshot();
+          }}
           onPostTrickCardLanded={d => {
             // Forward to hook to commit incrementally (types widened in GameTable overlay)
             (onPostTrickCardLanded as any)({

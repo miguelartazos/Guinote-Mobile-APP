@@ -15,6 +15,8 @@ type UseAITurnProps = {
   cantar: (suit: SpanishSuit) => void;
   aiMemory: CardMemory;
   setAIMemory: (memory: CardMemory | ((prev: CardMemory) => CardMemory)) => void;
+  // Prevent AI from acting until initial dealing overlay has fully completed
+  isDealingComplete?: boolean;
 };
 
 type UseAITurnReturn = {
@@ -29,6 +31,7 @@ export function useAITurn({
   cantar,
   aiMemory,
   setAIMemory,
+  isDealingComplete,
 }: UseAITurnProps): UseAITurnReturn {
   const [thinkingPlayer, setThinkingPlayer] = useState<PlayerId | null>(null);
   const botRecoveryTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -71,7 +74,9 @@ export function useAITurn({
     }
 
     // Do not make AI decisions while trick or post-trick dealing animation/pause is running
+    // Do not make decisions during initial dealing or while overlay hasn't completed
     if (
+      !isDealingComplete ||
       gameState.trickAnimating ||
       gameState.postTrickDealingAnimating ||
       gameState.postTrickDealingPending
@@ -82,6 +87,7 @@ export function useAITurn({
         trickAnimating: gameState.trickAnimating,
         postTrickDealingAnimating: gameState.postTrickDealingAnimating,
         postTrickDealingPending: gameState.postTrickDealingPending,
+        isDealingComplete,
       });
       return;
     }
@@ -498,6 +504,7 @@ export function useAITurn({
     // Use stable turn key instead of individual properties
     currentTurnKey,
     mockData,
+    isDealingComplete,
     gameState?.currentPlayerIndex, // CRITICAL: React to turn changes
     gameState?.trickAnimating, // React to animation state
     // Still avoid full gameState to prevent excessive re-renders

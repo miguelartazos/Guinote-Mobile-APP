@@ -47,6 +47,11 @@ BEGIN
   v_turn_idx := COALESCE(v_state.current_player_index, v_state.current_player);
   IF v_turn_idx IS NULL THEN v_turn_idx := 0; END IF;
 
+  -- Do not auto-play during initial dealing (let clients finish animation)
+  IF COALESCE(v_state.phase, '') = 'dealing' THEN
+    RETURN to_json(v_state);
+  END IF;
+
   -- Detect AI by players[].is_ai or fallback to even/odd team heuristic (not ideal but safe)
   v_is_ai := COALESCE((v_players->v_turn_idx->>'is_ai')::BOOLEAN, FALSE);
   IF NOT v_is_ai THEN
@@ -192,6 +197,8 @@ DECLARE
   v_key TEXT;
   i INTEGER;
   v_actor_player_id UUID;
+  v_initial_deck_len INTEGER := 0;
+  v_trump_awarded BOOLEAN := FALSE;
 BEGIN
   -- Lock and load state
   SELECT * INTO v_state FROM game_states WHERE id = p_game_state_id FOR UPDATE;
@@ -208,6 +215,11 @@ BEGIN
   v_turn_idx := COALESCE(v_state.current_player_index, v_state.current_player);
   IF v_turn_idx IS NULL THEN
     v_turn_idx := 0;
+  END IF;
+
+  -- Block plays while in dealing phase to synchronize with client animations
+  IF COALESCE(v_state.phase, '') = 'dealing' THEN
+    RAISE EXCEPTION 'Game is currently dealing';
   END IF;
 
   IF p_actor_index IS NULL OR p_actor_index < 0 OR p_actor_index > 3 THEN
@@ -262,8 +274,8 @@ BEGIN
   v_table_len := COALESCE(jsonb_array_length(v_table), 0);
   v_trump_suit := COALESCE(v_state.trump_suit, (v_state.trump->>'suit'));
 
-  -- Advance to next player
-  v_next_idx := (v_turn_idx + 1) % 4;
+  -- Advance to next player (counter-clockwise)
+  v_next_idx := (v_turn_idx + 3) % 4;
 
   UPDATE game_states
   SET
@@ -297,25 +309,36 @@ BEGIN
       to_jsonb(COALESCE((v_team_scores->>v_winner_team::text)::INTEGER, 0) + (v_winner->>'points')::INTEGER)
     );
 
-    -- Deal up to 4 cards in winner-first order (take from top = last element)
+    -- Deal up to 4 cards in winner-first, counter-clockwise order.
     v_deck := COALESCE(v_state.deck, '[]'::jsonb);
     v_hands := COALESCE(v_hands, '{}'::jsonb);
+    v_initial_deck_len := COALESCE(jsonb_array_length(v_deck), 0);
 
     FOR i IN 0..3 LOOP
-      EXIT WHEN COALESCE(jsonb_array_length(v_deck),0) = 0;
-      v_target_idx := (v_winner_abs_pos + i) % 4;
+      v_target_idx := (v_winner_abs_pos - i + 4) % 4;
       v_key := v_target_idx::text;
       v_hand := COALESCE(v_hands->v_key, '[]'::jsonb);
-      -- Take top of deck as last element
-      v_card := v_deck->(COALESCE(jsonb_array_length(v_deck),1) - 1);
-      v_hand := v_hand || jsonb_build_array(v_card);
-      v_hands := jsonb_set(v_hands, ARRAY[v_key], v_hand, true);
-      -- Remove top from deck (drop last element)
-      v_deck := (
-        SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
-        FROM jsonb_array_elements(v_deck) WITH ORDINALITY AS t(elem, ord)
-        WHERE ord < COALESCE(jsonb_array_length(v_deck),1)
-      );
+
+      IF COALESCE(jsonb_array_length(v_deck),0) > 0 THEN
+        -- Take top of deck as last element
+        v_card := v_deck->(COALESCE(jsonb_array_length(v_deck),1) - 1);
+        v_hand := v_hand || jsonb_build_array(v_card);
+        v_hands := jsonb_set(v_hands, ARRAY[v_key], v_hand, true);
+        -- Remove top from deck (drop last element)
+        v_deck := (
+          SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+          FROM jsonb_array_elements(v_deck) WITH ORDINALITY AS t(elem, ord)
+          WHERE ord < COALESCE(jsonb_array_length(v_deck),1)
+        );
+      ELSIF (NOT v_trump_awarded) AND v_initial_deck_len < 4 THEN
+        -- Award the face-up trump to complete the round of draws
+        v_card := COALESCE(v_state.trump_card, v_state.trump);
+        IF v_card IS NOT NULL THEN
+          v_hand := v_hand || jsonb_build_array(v_card);
+          v_hands := jsonb_set(v_hands, ARRAY[v_key], v_hand, true);
+          v_trump_awarded := TRUE;
+        END IF;
+      END IF;
     END LOOP;
 
     UPDATE game_states
@@ -388,3 +411,33 @@ END;
 $$;
 
 
+
+-- Mark dealing as complete: transition from 'dealing' to 'playing'
+CREATE OR REPLACE FUNCTION complete_dealing(
+  p_game_state_id UUID
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_state game_states%ROWTYPE;
+  v_result JSONB;
+BEGIN
+  SELECT * INTO v_state FROM game_states WHERE id = p_game_state_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Game not found'; END IF;
+
+  IF COALESCE(v_state.phase, '') = 'dealing' THEN
+    UPDATE game_states
+    SET
+      phase = 'playing',
+      last_action = jsonb_build_object('type','dealing_complete','timestamp', NOW()),
+      version = v_state.version + 1,
+      updated_at = NOW()
+    WHERE id = p_game_state_id
+    RETURNING to_json(game_states) INTO v_result;
+    RETURN v_result;
+  END IF;
+
+  RETURN to_json(v_state);
+END;
+$$;
