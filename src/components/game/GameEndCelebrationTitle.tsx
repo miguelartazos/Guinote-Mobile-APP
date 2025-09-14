@@ -48,13 +48,6 @@ export const GameEndCelebrationTitle = React.memo(
           },
         ]}
       >
-        <View style={styles.suitDecoration}>
-          <Text style={[styles.suitIcon, styles.suitBlack]}>♠</Text>
-          <Text style={[styles.suitIcon, styles.suitRed]}>♥</Text>
-          <Text style={[styles.suitIcon, styles.suitBlack]}>♣</Text>
-          <Text style={[styles.suitIcon, styles.suitRed]}>♦</Text>
-        </View>
-
         {isWinner && (
           <Animated.View
             style={[
@@ -102,35 +95,13 @@ function colorWithOpacity(color: string, opacity: number): string {
 const portraitStyles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    marginBottom: 30,
-  },
-  suitDecoration: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 12,
-    opacity: 0.7,
-  },
-  suitIcon: {
-    fontSize: 22,
-    marginHorizontal: 10,
-  },
-  suitBlack: {
-    color: colors.primary,
-    textShadowColor: colors.gold,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 3,
-  },
-  suitRed: {
-    color: colors.error,
-    textShadowColor: colors.gold,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 3,
+    marginBottom: 20,
   },
   crownContainer: {
-    marginBottom: 10,
+    marginBottom: 8,
   },
   crownIcon: {
-    fontSize: 42,
+    fontSize: 32,
     color: colors.gold,
     textShadowColor: 'rgba(255, 215, 0, 0.5)',
     textShadowOffset: { width: 0, height: 0 },
@@ -139,16 +110,16 @@ const portraitStyles = StyleSheet.create({
   titleBorder: {
     borderWidth: 2,
     borderColor: colors.goldDark,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: colorWithOpacity(colors.primary, 0.8),
   },
   titleText: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '900',
     color: colors.text,
-    letterSpacing: 2.5,
+    letterSpacing: 2,
     textTransform: 'uppercase',
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 2 },
@@ -160,18 +131,18 @@ const portraitStyles = StyleSheet.create({
   decorativeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 10,
   },
   decorativeLine: {
-    width: 60,
-    height: 2,
+    width: 40,
+    height: 1,
     backgroundColor: colors.goldDark,
     opacity: 0.8,
   },
   decorativeDot: {
-    fontSize: 12,
+    fontSize: 10,
     color: colors.goldDark,
-    marginHorizontal: 8,
+    marginHorizontal: 6,
     opacity: 0.8,
   },
 });
@@ -179,22 +150,51 @@ const portraitStyles = StyleSheet.create({
 const landscapeStyles: Partial<typeof portraitStyles> = {
   container: {
     alignItems: 'center',
-    marginBottom: 35,
+    marginBottom: 12,
+  },
+  crownContainer: {
+    marginBottom: 4,
+  },
+  crownIcon: {
+    fontSize: 24,
+    color: colors.gold,
+    textShadowColor: 'rgba(255, 215, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+  },
+  titleBorder: {
+    borderWidth: 2,
+    borderColor: colors.goldDark,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colorWithOpacity(colors.primary, 0.8),
   },
   titleText: {
-    fontSize: 36,
+    fontSize: 20,
     fontWeight: '900',
     color: colors.text,
-    letterSpacing: 3,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  decorativeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
   },
   decorativeLine: {
-    width: 80,
-    height: 2,
+    width: 30,
+    height: 1,
     backgroundColor: colors.goldDark,
+    opacity: 0.8,
+  },
+  decorativeDot: {
+    fontSize: 8,
+    color: colors.goldDark,
+    marginHorizontal: 4,
     opacity: 0.8,
   },
 };

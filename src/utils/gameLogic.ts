@@ -201,18 +201,12 @@ export function isValidPlay(
       const currentPlayerTeam = findPlayerTeam(currentPlayerId, gameState);
       const winnerTeam = findPlayerTeam(currentWinnerId, gameState);
 
-      // Handle team detection failures by denying play
+      // If team detection fails, assume partner is NOT winning (stricter rule) instead of allowing a broad fallback
       if (!currentPlayerTeam || !winnerTeam) {
-        console.warn('⚠️ Arrastre validation: Team detection failed, denying play', {
-          currentPlayerId,
-          currentWinnerId,
-          currentPlayerTeam,
-          winnerTeam,
-        });
-        return false; // Deny play if team detection fails for safety
+        console.warn('⚠️ Arrastre validation: Team detection failed, assuming opponent is winning');
+      } else {
+        partnerIsWinning = currentPlayerTeam === winnerTeam && currentWinnerId !== currentPlayerId;
       }
-
-      partnerIsWinning = currentPlayerTeam === winnerTeam && currentWinnerId !== currentPlayerId;
     }
 
     // Rule 2: If following suit, must beat if possible (unless partner is winning)

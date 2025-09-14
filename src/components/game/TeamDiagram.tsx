@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../../constants/colors';
+import { colors, TABLE_COLORS } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
 
@@ -214,6 +214,4 @@ const styles = StyleSheet.create({
   },
 });
 
-const TABLE_COLORS = {
-  green: '#2E7D32',
-};
+// Uses app-wide TABLE_COLORS from constants

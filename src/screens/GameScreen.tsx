@@ -43,6 +43,15 @@ import { dimensions } from '../constants/dimensions';
 import { useSounds } from '../hooks/useSounds';
 import { useGameSettings } from '../hooks/useGameSettings';
 import { useGameStatistics } from '../hooks/useGameStatistics';
+import { createRealtimeClient } from '../services/realtimeClient.native';
+import {
+  subscribeToGameState,
+  playCardRpc,
+  declareCanteRpc,
+  exchangeSevenRpc,
+  fetchGameStateByRoom,
+  maybePlayBotTurnRpc,
+} from '../services/onlineGame';
 // Removed Convex statistics - causes errors in offline mode
 // import { useConvexStatistics } from '../hooks/useConvexStatistics';
 
@@ -85,61 +94,34 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     dealerIndex: number;
     firstPlayerIndex?: number;
   } | null>(null);
-  const hostLastHandStartRef = useRef<{ seed: string; dealerIndex: number; firstPlayerIndex?: number } | null>(null);
+  const hostLastHandStartRef = useRef<{
+    seed: string;
+    dealerIndex: number;
+    firstPlayerIndex?: number;
+  } | null>(null);
   const hostSeedRef = useRef<string>(route.params.roomId || `room_${Date.now()}`);
-  const multiplayerGame = isOnline
-    ? useMultiplayerGame({
-        roomId,
-        userId: user?.id,
-        autoConnect: true,
-        displayName: playerName || user?.username,
-        isHost: !!isHost,
-        team: undefined,
-        isReady: true,
-        onGameAction: (payload: any) => {
-          // Apply remote actions to local state engine
-          if (!payload || !gameState) return;
-          // Ignore own echo
-          if (payload.playerId && payload.playerId === user?.id) return;
-          try {
-            switch (payload.type) {
-              case 'play_card':
-                if (payload.cardId) {
-                  // Guard by phase to avoid applying during non-playing phases
-                  if (gameState.phase === 'playing') {
-                    playCard(payload.cardId);
-                  }
-                }
-                break;
-              case 'cambiar_7':
-                if (gameState.phase === 'playing') cambiar7();
-                break;
-              case 'declare_cante':
-                if (payload.suit) {
-                  if (gameState.phase === 'playing') cantar(payload.suit as SpanishSuit);
-                }
-                break;
-              default:
-                break;
-            }
-          } catch (e) {
-            console.error('[GameScreen] Failed to apply remote action:', e);
-          }
-        },
-        onSystemEvent: evt => {
-          if (evt.type === 'hand_start') {
-            handStartRef.current = {
-              seed: String(evt.seed),
-              dealerIndex: evt.dealerIndex,
-              firstPlayerIndex: evt.firstPlayerIndex,
-            };
-          }
-        },
-      })
-    : null;
+  const multiplayerGame = useMultiplayerGame({
+    roomId: isOnline ? roomId : undefined,
+    userId: isOnline ? user?.id : undefined,
+    autoConnect: !!isOnline,
+    displayName: playerName || user?.username,
+    isHost: !!isHost,
+    team: undefined,
+    isReady: true,
+    // Disable applying P2P actions in authoritative online/friends mode
+    onGameAction: undefined as any,
+    onSystemEvent: evt => {
+      if (evt.type === 'hand_start') {
+        handStartRef.current = {
+          seed: String(evt.seed),
+          dealerIndex: evt.dealerIndex,
+          firstPlayerIndex: evt.firstPlayerIndex,
+        };
+      }
+    },
+  });
 
   // Use appropriate game state hook based on game mode
-  // FIXME: Online mode is not fully implemented yet, always use offline mode
   const isGuest = isOnline && !isHost;
   // Map online players to local names in fixed positions if provided
   const onlineNames: string[] | undefined = Array.isArray(route.params.players)
@@ -148,6 +130,121 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         .map(p => p?.name || 'Jugador')
     : undefined;
 
+  // Derive bot flags per position (0..3) from navigation params (room_players.is_ai)
+  const onlineBotsByPosition: boolean[] | undefined = Array.isArray(route.params.players)
+    ? (route.params.players as any[])
+        .sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0))
+        .map(p => !!p?.isBot)
+    : undefined;
+
+  // Server-authoritative initialization snapshot from Supabase game_states
+  const gameStateIdRef = useRef<string | null>(null);
+  const serverInitProvider = isOnline
+    ? async () => {
+        const client = await createRealtimeClient();
+        if (!client) throw new Error('No realtime client');
+
+        // Poll up to ~10s for the game state to appear after host starts game
+        const startedAt = Date.now();
+        let lastError: any = null;
+        while (Date.now() - startedAt < 10000) {
+          try {
+            const { data, error } = await client
+              .from('game_states')
+              .select(
+                'id,hands,deck,trump_card,trump_suit,current_player,current_player_index,dealer_index,version',
+              )
+              .eq('room_id', roomId)
+              .order('updated_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (error) {
+              lastError = error;
+            } else if (data) {
+              // hands can be an array[4] or an object with keys '0'..'3'
+              const handsRaw: any = (data as any)?.hands || (data as any)?.hands_by_position || {};
+              const toCard = (c: any) => ({
+                id: c?.id || `${c?.suit}_${c?.value ?? c?.rank ?? 1}`,
+                suit: c?.suit,
+                value: c?.value ?? c?.rank ?? 1,
+              });
+              const handsByPosition: Array<ReadonlyArray<{ id: string; suit: any; value: any }>> = [
+                0, 1, 2, 3,
+              ].map(pos => {
+                const fromArr = Array.isArray(handsRaw)
+                  ? handsRaw[pos]
+                  : (handsRaw || {})[String(pos)];
+                const arr = Array.isArray(fromArr) ? fromArr : [];
+                return arr.map(toCard);
+              });
+              const deckRaw: any[] = Array.isArray((data as any)?.deck)
+                ? (data as any).deck
+                : Array.isArray((data as any)?.draw_pile)
+                ? (data as any).draw_pile
+                : [];
+              const deck = deckRaw.map(toCard);
+              const trumpRaw = (data as any)?.trump_card || (data as any)?.trump || null;
+              const trumpSuit = (data as any)?.trump_suit || trumpRaw?.suit || 'oros';
+              const trumpCard = trumpRaw
+                ? {
+                    id: trumpRaw.id || `${trumpSuit}_${trumpRaw.value ?? trumpRaw.rank ?? 1}`,
+                    suit: trumpSuit,
+                    value: trumpRaw.value ?? trumpRaw.rank ?? 1,
+                  }
+                : { id: `oros_1`, suit: 'oros', value: 1 };
+              const currentPlayerIndex = Math.max(
+                0,
+                Math.min(
+                  3,
+                  (data as any)?.current_player_index ?? (data as any)?.current_player ?? 0,
+                ),
+              );
+              const dealerIndex =
+                typeof (data as any)?.dealer_index === 'number'
+                  ? Math.max(0, Math.min(3, (data as any).dealer_index | 0))
+                  : (currentPlayerIndex + 1) % 4; // Fallback: mano is to dealer's right
+
+              try {
+                gameStateIdRef.current = (data as any).id as string;
+              } catch {}
+
+              return {
+                handsByPosition,
+                deck,
+                trumpCard,
+                currentPlayerIndex,
+                dealerIndex,
+              };
+            }
+          } catch (e) {
+            lastError = e;
+          }
+          await new Promise(r => setTimeout(r, 100));
+        }
+        if (lastError) throw lastError;
+        throw new Error('game_states snapshot not available');
+      }
+    : undefined;
+
+  // Compute my seat index from route params (position where authUserId matches current user)
+  const mySeatIndex: number = (() => {
+    if (!isOnline || !Array.isArray(route.params.players)) return 0;
+    const sorted = (route.params.players as any[]).sort(
+      (a, b) => (a?.position ?? 0) - (b?.position ?? 0),
+    );
+    let idx = sorted.findIndex(p => p?.authUserId && user?.id && p.authUserId === user.id);
+    if (idx >= 0) return idx;
+    // Fallback: if offline auth is being used (no authUserId match),
+    // assume the only non-bot is the local user
+    const nonBots = sorted.filter(p => !p?.isBot);
+    if (nonBots.length === 1) {
+      const only = nonBots[0];
+      idx = sorted.findIndex(p => p?.id === only?.id);
+      if (idx >= 0) return idx;
+    }
+    return 0;
+  })();
+
   const gameStateHook = useGameState({
     playerName: playerName || user?.username || 'Tú',
     difficulty: difficulty === 'expert' ? 'hard' : (difficulty as any) || 'medium',
@@ -155,84 +252,257 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     autoPlayBotsMode: isOnline ? 'host-only' : 'always',
     isHost: !!isHost,
     onBotAction: action => {
-      if (!isOnline || !multiplayerGame?.isMultiplayerEnabled) return;
+      // Host-only bots: in online mode, apply via server RPC
+      if (!isOnline) return;
       try {
-        (multiplayerGame as any).sendGameAction({ ...action, playerId: user?.id, timestamp: Date.now() });
+        if ((action as any).type === 'play_card' && (action as any).cardId) {
+          playCardRpc(roomId!, (action as any).cardId).catch(() => {});
+        } else if ((action as any).type === 'declare_cante' && (action as any).suit) {
+          declareCanteRpc(roomId!, (action as any).suit).catch(() => {});
+        } else if ((action as any).type === 'cambiar_7') {
+          exchangeSevenRpc(roomId!).catch(() => {});
+        }
       } catch {}
     },
-    deterministicInit:
-      isOnline && isHost
-        ? {
-            seed: hostSeedRef.current,
-            dealerIndex: 0,
-          }
-        : undefined,
-    // Guests wait until host broadcasts hand_start
-    waitForDeterministicInit: isGuest
-      ? async () => {
-          const start = Date.now();
-          while (!handStartRef.current) {
-            await new Promise(r => setTimeout(r, 50));
-            if (Date.now() - start > 5000) break; // safety timeout
-          }
-          const hs = handStartRef.current || {
-            seed: route.params.roomId || `room_${Date.now()}`,
-            dealerIndex: 0,
-          };
-          return hs as any;
-        }
-      : undefined,
+    // For online games, prefer server snapshot over deterministic seeding
+    deterministicInit: isOnline ? undefined : undefined,
+    waitForDeterministicInit: isOnline ? undefined : undefined,
+    serverInitProvider: isOnline ? serverInitProvider! : undefined,
+    onlinePlayersIsBotByPosition: isOnline ? onlineBotsByPosition || undefined : undefined,
+    persistenceMode: isOnline ? 'never' : 'auto',
   });
 
-  // Host: after first render, broadcast a hand_start seed with ack so peers lock to same shuffle
+  // Keep a live reference of player ids by seat position (0..3) for mapping server events
+  const playersBySeatRef = useRef<string[]>([]);
   React.useEffect(() => {
-    if (!isOnline || !isHost || !multiplayerGame?.isMultiplayerEnabled) return;
-    try {
-      const seed = hostSeedRef.current;
-      if ((multiplayerGame as any).sendSystemEventWithAck) {
-        (multiplayerGame as any)
-          .sendSystemEventWithAck({
-            type: 'hand_start',
-            seed,
-            dealerIndex: 0,
-          })
-          .catch(() => {});
-        hostLastHandStartRef.current = { seed, dealerIndex: 0 };
+    const gs: any = (gameStateHook as any)?.gameState;
+    if (gs && Array.isArray(gs.players) && gs.players.length >= 4) {
+      playersBySeatRef.current = gs.players.map((p: any) => p.id);
+    }
+  }, [(gameStateHook as any)?.gameState?.players]);
+
+  // Host: after first render, broadcast a hand_start seed with ack so peers lock to same shuffle
+  // With server-authoritative init, we do not broadcast hand_start seeds
+  React.useEffect(() => {
+    if (!isOnline) return;
+    if (!roomId) return;
+    let unsubscribe: (() => void) | null = null;
+    // Track latest server version we've applied across events
+    const lastAppliedServerVersionRef = { current: -1 } as React.MutableRefObject<number>;
+
+    // Buffer one pending snapshot if animations are active
+    let pendingLatest: any | null = null;
+    const applyOrBuffer = (fn: () => void) => {
+      const animating =
+        !!gameState?.trickAnimating ||
+        !!gameState?.postTrickDealingAnimating ||
+        !!gameState?.postTrickDealingPending;
+      if (animating) {
+        pendingLatest = fn;
       } else {
-        (multiplayerGame as any).sendSystemEvent({
-          type: 'hand_start',
-          seed,
-          dealerIndex: 0,
-        });
-        hostLastHandStartRef.current = { seed, dealerIndex: 0 };
+        fn();
       }
-    } catch {}
-  }, [isOnline, isHost, multiplayerGame?.isMultiplayerEnabled, roomId]);
+    };
+
+    const tryFlush = () => {
+      if (pendingLatest) {
+        const f = pendingLatest;
+        pendingLatest = null;
+        f();
+      }
+    };
+
+    subscribeToGameState(roomId, row => {
+      try {
+        const handsRaw: any = (row as any).hands || (row as any).hands_by_position || {};
+        const toCard = (c: any) => ({
+          id: c?.id || `${c?.suit}_${c?.value ?? c?.rank ?? 1}`,
+          suit: c?.suit,
+          value: c?.value ?? c?.rank ?? 1,
+        });
+        const handsByPosition = [0, 1, 2, 3].map(pos => {
+          const fromArr = Array.isArray(handsRaw)
+            ? (handsRaw as any[])[pos]
+            : (handsRaw || {})[String(pos)];
+          const arr = Array.isArray(fromArr) ? fromArr : [];
+          return arr.map(toCard);
+        });
+        const deckRaw: any[] = Array.isArray((row as any)?.deck)
+          ? (row as any).deck
+          : Array.isArray((row as any)?.draw_pile)
+          ? (row as any).draw_pile
+          : [];
+        const deck = deckRaw.map(toCard);
+        const trumpRaw = (row as any)?.trump_card || (row as any)?.trump || null;
+        const trumpSuit = (row as any)?.trump_suit || trumpRaw?.suit || 'oros';
+        const trumpCard = trumpRaw
+          ? {
+              id: trumpRaw.id || `${trumpSuit}_${trumpRaw.value ?? trumpRaw.rank ?? 1}`,
+              suit: trumpSuit,
+              value: trumpRaw.value ?? trumpRaw.rank ?? 1,
+            }
+          : { id: `oros_1`, suit: 'oros', value: 1 };
+        const currentPlayerIndex = Math.max(
+          0,
+          Math.min(3, (row as any)?.current_player_index ?? (row as any)?.current_player ?? 0),
+        );
+        const dealerIndex =
+          typeof (row as any)?.dealer_index === 'number'
+            ? Math.max(0, Math.min(3, (row as any).dealer_index | 0))
+            : (currentPlayerIndex + 1) % 4;
+
+        const tableCardsRaw: any[] = Array.isArray((row as any)?.table_cards)
+          ? (row as any).table_cards
+          : [];
+        const tableCards = tableCardsRaw.map(item => {
+          const posRaw: any = (item && (item.position as any)) as any;
+          const pos =
+            typeof posRaw === 'number'
+              ? posRaw
+              : Number.isFinite(parseInt(posRaw, 10))
+              ? parseInt(posRaw, 10)
+              : -1;
+        
+          const mappedFromRef =
+            pos >= 0 && pos < 4 ? playersBySeatRef.current[pos] : undefined;
+          const mappedId = mappedFromRef || item?.player_id || item?.playerId || null;
+          return {
+            playerId: mappedId,
+            card: toCard(item?.card || {}),
+          };
+        });
+        const version =
+          typeof (row as any)?.version === 'number'
+            ? (row as any).version
+            : Date.parse((row as any)?.updated_at) || 0;
+        if (version <= lastAppliedServerVersionRef.current) return;
+        lastAppliedServerVersionRef.current = version;
+
+        const applyNow = () =>
+          applyServerSnapshot({
+            handsByPosition,
+            deck,
+            trumpCard,
+            currentPlayerIndex,
+            dealerIndex,
+            tableCards,
+            version,
+          });
+
+        applyOrBuffer(applyNow);
+      } catch (e) {
+        console.warn('[GameScreen] Failed to apply server update', e);
+      }
+    })
+      .then(unsub => {
+        unsubscribe = unsub;
+      })
+      .catch(() => {});
+
+    return () => {
+      try {
+        unsubscribe?.();
+      } catch {}
+      pendingLatest = null;
+    };
+  }, [
+    isOnline,
+    roomId,
+    applyServerSnapshot,
+    gameState?.trickAnimating,
+    gameState?.postTrickDealingAnimating,
+    gameState?.postTrickDealingPending,
+  ]);
+
+  // Polling watchdog: in case a realtime event is missed, fetch latest state and apply when newer
+  React.useEffect(() => {
+    if (!isOnline || !roomId) return;
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const row: any = await fetchGameStateByRoom(roomId);
+        if (!row || cancelled) return;
+        const version =
+          typeof row.version === 'number' ? row.version : Date.parse(row.updated_at) || 0;
+        // Compare to last applied version stored on state object (if available)
+        const lastApplied = (gameState as any)?.version ?? -1;
+        if (version <= lastApplied) return;
+
+        const handsRaw: any = row.hands || row.hands_by_position || {};
+        const toCard = (c: any) => ({
+          id: c?.id || `${c?.suit}_${c?.value ?? c?.rank ?? 1}`,
+          suit: c?.suit,
+          value: c?.value ?? c?.rank ?? 1,
+        });
+        const handsByPosition = [0, 1, 2, 3].map(pos => {
+          const fromArr = Array.isArray(handsRaw) ? handsRaw[pos] : (handsRaw || {})[String(pos)];
+          const arr = Array.isArray(fromArr) ? fromArr : [];
+          return arr.map(toCard);
+        });
+        const deckRaw: any[] = Array.isArray(row.deck)
+          ? row.deck
+          : Array.isArray(row.draw_pile)
+          ? row.draw_pile
+          : [];
+        const deck = deckRaw.map(toCard);
+        const trumpRaw = row.trump_card || row.trump || null;
+        const trumpSuit = row.trump_suit || trumpRaw?.suit || 'oros';
+        const trumpCard = trumpRaw
+          ? {
+              id: trumpRaw.id || `${trumpSuit}_${trumpRaw.value ?? trumpRaw.rank ?? 1}`,
+              suit: trumpSuit,
+              value: trumpRaw.value ?? trumpRaw.rank ?? 1,
+            }
+          : { id: `oros_1`, suit: 'oros', value: 1 };
+        const currentPlayerIndex = Math.max(
+          0,
+          Math.min(3, row.current_player_index ?? row.current_player ?? 0),
+        );
+        const dealerIndex =
+          typeof row.dealer_index === 'number'
+            ? Math.max(0, Math.min(3, (row.dealer_index as any) | 0))
+            : (currentPlayerIndex + 1) % 4;
+
+        const tableCardsRaw: any[] = Array.isArray(row.table_cards) ? row.table_cards : [];
+        const tableCards = tableCardsRaw.map((item: any) => {
+          const posRaw: any = item && (item.position as any);
+          const pos =
+            typeof posRaw === 'number'
+              ? posRaw
+              : Number.isFinite(parseInt(posRaw, 10))
+              ? parseInt(posRaw, 10)
+              : -1;
+          const mappedId = pos >= 0 && pos < 4 ? playersBySeatRef.current[pos] : (item?.player_id || item?.playerId || null);
+          return { playerId: mappedId, card: toCard(item?.card || {}) };
+        });
+
+        applyServerSnapshot({
+          handsByPosition,
+          deck,
+          trumpCard,
+          currentPlayerIndex,
+          dealerIndex,
+          tableCards,
+          version,
+        });
+      } catch {}
+    }, 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isOnline, roomId, applyServerSnapshot, (gameState as any)?.version]);
 
   // Host: resend last hand_start when new players join (presence count increases)
   React.useEffect(() => {
-    if (!isOnline || !isHost || !multiplayerGame?.isMultiplayerEnabled) return;
-    const playersCount = multiplayerGame?.state?.players?.length || 0;
-    const prevCountRef = (React as any).useRefInternal || useRef; // ensure unique ref per effect
-    // Use a dedicated ref
+    // no-op: presence-based reseeding disabled under server init
   }, []);
 
   const prevPlayersCountRef = useRef<number>(0);
   React.useEffect(() => {
-    if (!isOnline || !isHost || !multiplayerGame?.isMultiplayerEnabled) return;
-    const currentCount = multiplayerGame?.state?.players?.length || 0;
-    if (currentCount > prevPlayersCountRef.current && hostLastHandStartRef.current) {
-      try {
-        const payload = { type: 'hand_start', ...hostLastHandStartRef.current } as any;
-        if ((multiplayerGame as any).sendSystemEventWithAck) {
-          (multiplayerGame as any).sendSystemEventWithAck(payload).catch(() => {});
-        } else {
-          (multiplayerGame as any).sendSystemEvent(payload);
-        }
-      } catch {}
-    }
-    prevPlayersCountRef.current = currentCount;
-  }, [multiplayerGame?.state?.players?.length, isOnline, isHost, multiplayerGame?.isMultiplayerEnabled]);
+    // no-op: do not rebroadcast seeds; server provides canonical state
+    prevPlayersCountRef.current = multiplayerGame?.state?.players?.length || 0;
+  }, [multiplayerGame?.state?.players?.length]);
 
   const {
     gameState,
@@ -253,7 +523,26 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     completeTrickAnimation,
     completePostTrickDealing,
     onPostTrickCardLanded,
-  } = gameStateHook;
+    applyServerSnapshot,
+  } = gameStateHook as any;
+
+  // Helper: check if it's this device user's turn in online mode
+  const isMyTurnOnline = React.useCallback(() => {
+    if (!isOnline || !gameState) return false;
+    const offset = (mySeatIndex | 0) % 4;
+    const rotated = (gameState.currentPlayerIndex - offset + 4) % 4 | 0;
+    return rotated === 0;
+  }, [isOnline, gameState?.currentPlayerIndex, mySeatIndex]);
+
+  // Is the current actor a human on this device (used for enabling action bar)
+  const isCurrentHuman: boolean = (() => {
+    const current = gameState?.players?.[gameState?.currentPlayerIndex || 0];
+    if (!current) return false;
+    if (current.isBot) return false;
+    if (isLocalMultiplayer) return true;
+    if (!isOnline) return isPlayerTurn();
+    return isMyTurnOnline();
+  })();
 
   const [showLastTrick, setShowLastTrick] = useState(false);
   const [showDeclareVictory, setShowDeclareVictory] = useState(false);
@@ -262,6 +551,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   const [showGameEndCelebration, setShowGameEndCelebration] = useState(false);
   // Track last known match progression to avoid showing celebration too early
   const lastProgressRef = useRef(0);
+  // Track previous totals to determine if a coto was just won (delta-based)
+  const prevTotalsRef = useRef<{ cotos: number; partidas: number }>({ cotos: 0, partidas: 0 });
+  // Persist the celebration type across re-renders within the same gameOver event
+  const lastCelebrationTypeRef = useRef<'partida' | 'coto' | 'match'>('partida');
+  // Signature of the last gameOver event we processed (cotos:partidas)
+  const lastWinSignatureRef = useRef<string | null>(null);
   const [showPassDevice, setShowPassDevice] = useState(false);
   const [showHandEndOverlay, setShowHandEndOverlay] = useState(false);
   const [lastPlayerIndex, setLastPlayerIndex] = useState<number | null>(null);
@@ -512,7 +807,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     }
 
     // Play turn sound for current device player
-    if (!isLocalMultiplayer && isPlayerTurn()) {
+    if (!isLocalMultiplayer && (!isOnline ? isPlayerTurn() : isMyTurnOnline())) {
       playTurnSound();
     } else if (isLocalMultiplayer && !gameState!.players[currentIndex].isBot) {
       playTurnSound();
@@ -532,8 +827,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       turnTimerRef.current = setInterval(() => {
         setTurnTimeLeft(prev => {
           if (prev <= 1) {
-            // Auto-play when timer expires
-            if (isPlayerTurn()) {
+            // Auto-play when timer expires (only if this device's turn online)
+            if (!isOnline ? isPlayerTurn() : isMyTurnOnline()) {
               const validCards = getValidCardsForCurrentPlayer();
               if (validCards.length > 0) {
                 const cardId = validCards[0].id;
@@ -549,6 +844,20 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
                     } as any)
                     .catch(() => {});
                 }
+                // Also inform server for validation/state progression
+                (async () => {
+                  try {
+                    if (isOnline && gameStateIdRef.current) {
+                      const client = await createRealtimeClient();
+                      if (client) {
+                        await (client as any).rpc('play_card', {
+                          p_game_state_id: gameStateIdRef.current,
+                          p_card_id: cardId,
+                        });
+                      }
+                    }
+                  } catch {}
+                })();
               }
             }
             return 30;
@@ -588,7 +897,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         matchScore.team2Cotos
       : 0;
 
-    const scoringProgressed = gameState?.phase === 'scoring' && progressSignature > lastProgressRef.current;
+    const scoringProgressed =
+      gameState?.phase === 'scoring' && progressSignature > lastProgressRef.current;
     const atGameOver = gameState?.phase === 'gameOver';
 
     console.log('🏆 [PARTIDA GANADA] Check celebration trigger:', {
@@ -633,6 +943,14 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         setShowGameEndCelebration(true);
       }
       lastProgressRef.current = progressSignature;
+
+      // Update prev totals baseline at the moment of score progression so deltas are accurate
+      try {
+        const totalCotosNow = (matchScore?.team1Cotos || 0) + (matchScore?.team2Cotos || 0);
+        const totalPartidasNow =
+          (matchScore?.team1Partidas || 0) + (matchScore?.team2Partidas || 0);
+        prevTotalsRef.current = { cotos: totalCotosNow, partidas: totalPartidasNow };
+      } catch {}
 
       // Record statistics only once per game session
       if (!gameRecordedRef.current) {
@@ -694,17 +1012,16 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     }
   }, [gameState?.phase, gameState?.teams, gameState?.isVueltas]);
 
-  if (!gameState) {
-    return (
-      <ScreenContainer orientation="landscape" style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Preparando mesa...</Text>
-      </ScreenContainer>
-    );
-  }
+  // Note: Do not early-return before all hooks are declared. This check was moved
+  // below the subsequent hooks to avoid changing the hooks order between renders.
 
   // Map game state to GameTable props format
-  // In local multiplayer, rotate players so current player is always at bottom
-  const getRotatedPlayers = () => {
+  // Rotate views:
+  // - Local multiplayer: current actor at bottom
+  // - Online: my seat (mySeatIndex) at bottom
+  const players = React.useMemo(() => {
+    if (!gameState) return [];
+
     const allPlayers = gameState.players.map((player, index) => {
       // During dealing phase, use pendingHands if available, otherwise use regular hands
       const hand =
@@ -712,10 +1029,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           ? gameState.pendingHands.get(player.id) || []
           : gameState.hands.get(player.id) || [];
 
-      // In local multiplayer, only show cards for the current player
+      // Show cards only for my seat (online) or bottom/local player as appropriate
       const showCards = isLocalMultiplayer
         ? index === gameState.currentPlayerIndex && !player.isBot
-        : index === 0; // In single player, always show bottom player's cards
+        : isOnline
+        ? index === (mySeatIndex | 0)
+        : index === 0;
 
       return {
         id: player.id,
@@ -739,11 +1058,61 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         allPlayers[(rotation + 3) % 4],
       ];
     }
-
+    if (isOnline) {
+      // Rotate so my seat is at bottom (index 0)
+      const rotation = (mySeatIndex | 0) % 4;
+      return [
+        allPlayers[rotation],
+        allPlayers[(rotation + 1) % 4],
+        allPlayers[(rotation + 2) % 4],
+        allPlayers[(rotation + 3) % 4],
+      ];
+    }
     return allPlayers;
-  };
+  }, [gameState, isLocalMultiplayer, isOnline, mySeatIndex]);
 
-  const players = getRotatedPlayers();
+  // Compute rotated current player index for UI (relative to bottom seat)
+  const rotatedCurrentPlayerIndex = React.useMemo(() => {
+    if (!gameState) return 0;
+    if (isLocalMultiplayer) return 0;
+    if (!isOnline) return gameState.currentPlayerIndex;
+    const offset = (mySeatIndex | 0) % 4;
+    return (gameState.currentPlayerIndex - offset + 4) % 4 | 0;
+  }, [gameState, isLocalMultiplayer, isOnline, mySeatIndex]);
+
+  // Host-side bot executor: request server to play AI turns until a human is active
+  React.useEffect(() => {
+    if (!isOnline || !isHost) return;
+    if (!roomId) return;
+    const version = (gameState as any)?.version as number | undefined;
+    const animating =
+      !!gameState?.trickAnimating ||
+      !!gameState?.postTrickDealingAnimating ||
+      !!gameState?.postTrickDealingPending;
+    if (animating) return;
+    // Fire-and-forget: server will no-op when not AI's turn
+    maybePlayBotTurnRpc(roomId, version).catch(() => {});
+  }, [
+    isOnline,
+    isHost,
+    roomId,
+    (gameState as any)?.version,
+    gameState?.trickAnimating,
+    gameState?.postTrickDealingAnimating,
+    gameState?.postTrickDealingPending,
+  ]);
+
+  // Determine if current device controls the acting seat - computed above
+
+  // After all hooks above have been called, it's now safe to early-return
+  // without violating the rules of hooks.
+  if (!gameState) {
+    return (
+      <ScreenContainer orientation="landscape" unsafe noPadding style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Preparando mesa...</Text>
+      </ScreenContainer>
+    );
+  }
 
   const handleCardPlay = (cardIndex: number) => {
     if (!isDealingComplete) return;
@@ -765,8 +1134,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
       if (!currentPlayer || currentPlayer.isBot) return;
     } else {
-      // Original single player check
-      if (!isPlayerTurn()) return;
+      // Online/single-player turn check
+      if (!isOnline) {
+        if (!isPlayerTurn()) return;
+      } else {
+        if (!isMyTurnOnline()) return;
+      }
     }
 
     const currentPlayer = gameState?.players[gameState?.currentPlayerIndex];
@@ -781,20 +1154,24 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     // Set lock before playing card
     isProcessingCardPlay.current = true;
 
-    // Play the card
-    playCard(cardToPlay.id);
-    playCardSound();
-
-    // Broadcast to peers if online
-    if (isOnline && multiplayerGame?.isMultiplayerEnabled) {
-      multiplayerGame
-        .sendGameAction({
-          type: 'play_card',
-          cardId: cardToPlay.id,
-          timestamp: Date.now(),
-          playerId: user?.id || 'anonymous',
-        } as any)
-        .catch(() => {});
+    if (isOnline) {
+      // Online authoritative: call RPC; do not update local state directly
+      // Pass last known version when available to enable optimistic concurrency
+      const expectedVersion = (gameState as any)?.version as number | undefined;
+      playCardRpc(roomId!, cardToPlay.id, expectedVersion)
+        .catch(err => {
+          // On version conflict or failure, we rely on next snapshot; keep UX responsive
+          if (__DEV__) console.warn('[GameScreen] playCardRpc failed', err);
+        })
+        .finally(() => {
+          isProcessingCardPlay.current = false;
+        });
+      playCardSound();
+      return; // early return; lock will be reset in finally
+    } else {
+      // Offline/local: update local engine
+      playCard(cardToPlay.id);
+      playCardSound();
     }
 
     // Reset lock after a short delay to allow state to update
@@ -816,8 +1193,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
       if (!currentPlayer || currentPlayer.isBot) return undefined;
     } else {
-      // Original single player check
-      if (!isPlayerTurn()) return undefined;
+      // Online/single-player turn check
+      if (!isOnline) {
+        if (!isPlayerTurn()) return undefined;
+      } else {
+        if (!isMyTurnOnline()) return undefined;
+      }
     }
 
     const currentPlayer = gameState?.players[gameState?.currentPlayerIndex];
@@ -873,13 +1254,19 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     if (!isGameStart) {
       // Not game start, so check if team won last trick
       if (!lastWinner) {
-        toastManager.show?.({ message: 'Solo puedes cantar tras ganar la baza anterior', type: 'warning' });
+        toastManager.show?.({
+          message: 'Solo puedes cantar tras ganar la baza anterior',
+          type: 'warning',
+        });
         return;
       }
 
       const lastWinnerTeam = gameState.teams.find(t => t.playerIds.includes(lastWinner));
       if (!lastWinnerTeam || playerTeam.id !== lastWinnerTeam.id) {
-        toastManager.show?.({ message: 'Tu equipo debe haber ganado la baza anterior', type: 'warning' });
+        toastManager.show?.({
+          message: 'Tu equipo debe haber ganado la baza anterior',
+          type: 'warning',
+        });
         return; // Player's team didn't win the last trick
       }
     } else if (!isFirstPlayer) {
@@ -899,6 +1286,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
     // For now, cantar the first available suit
     if (cantableSuits.length > 0) {
+      // Prefer trump suit (40) when available, otherwise any valid suit (20)
       const suit = cantableSuits.includes(gameState.trumpSuit)
         ? gameState.trumpSuit
         : cantableSuits[0];
@@ -906,7 +1294,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       // Mark as processing to prevent repeated button presses
       setIsProcessingCante(true);
 
-      // Calculate points based on suit
+      // Calculate points based on suit (trump = 40, non-trump = 20)
       const points = suit === gameState.trumpSuit ? 40 : 20;
 
       // Get player position (accounting for local multiplayer rotation)
@@ -930,19 +1318,11 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
       // Declare the cante after a short delay
       setTimeout(() => {
-        cantar(suit);
-        // Broadcast cantar to peers
-        if (isOnline && multiplayerGame?.isMultiplayerEnabled) {
-          multiplayerGame
-            .sendGameAction({
-              type: 'declare_cante',
-              suit,
-              timestamp: Date.now(),
-              playerId: user?.id || 'anonymous',
-            } as any)
-            .catch(() => {});
+        if (isOnline) {
+          declareCanteRpc(roomId!, suit).catch(() => {});
+        } else {
+          cantar(suit);
         }
-        // Re-enable button after cante is processed
         setIsProcessingCante(false);
       }, 180);
     } else {
@@ -988,16 +1368,10 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     // Perform the actual cambiar7 after a short delay to sync with animation
     // Animation breakdown: message (500ms + 1000ms wait) + card swap (1000ms + 600ms wait) = 2500ms total
     setTimeout(() => {
-      cambiar7();
-      // Broadcast cambiar 7
-      if (isOnline && multiplayerGame?.isMultiplayerEnabled) {
-        multiplayerGame
-          .sendGameAction({
-            type: 'cambiar_7',
-            timestamp: Date.now(),
-            playerId: user?.id || 'anonymous',
-          } as any)
-          .catch(() => {});
+      if (isOnline) {
+        exchangeSevenRpc(roomId!).catch(() => {});
+      } else {
+        cambiar7();
       }
     }, 2100);
   };
@@ -1069,25 +1443,32 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
 
     // Always show celebration for game endings, except if match is complete and celebration was already shown
     if (showGameEndCelebration || !isMatchReallyComplete) {
-      // Determine celebration type based on actual match state
+      // Determine celebration type based on deltas since previous totals
+      const totalCotos = (matchScore?.team1Cotos || 0) + (matchScore?.team2Cotos || 0);
+      const totalPartidas = (matchScore?.team1Partidas || 0) + (matchScore?.team2Partidas || 0);
+      const signature = `${totalCotos}:${totalPartidas}`;
+
       let celebrationType: 'partida' | 'coto' | 'match' = 'partida';
 
       if (isMatchReallyComplete) {
         celebrationType = 'match'; // Full match is actually complete
-      } else if (
-        matchScore &&
-        ((matchScore.team1Partidas === 0 && matchScore.team1Cotos > 0) ||
-          (matchScore.team2Partidas === 0 && matchScore.team2Cotos > 0))
-      ) {
-        // A coto was just won (partidas reset to 0 after winning a coto)
-        celebrationType = 'coto';
+      } else if (lastWinSignatureRef.current !== signature) {
+        // New gameOver event detected → compute from delta
+        const prev = prevTotalsRef.current;
+        const cotoJustWon = totalCotos > prev.cotos;
+        celebrationType = cotoJustWon ? 'coto' : 'partida';
+        lastCelebrationTypeRef.current = celebrationType;
+        lastWinSignatureRef.current = signature;
+      } else {
+        // Same event as last render; reuse previous type to avoid flicker/mis-detection
+        celebrationType = lastCelebrationTypeRef.current;
       }
 
       // For pending vueltas, always show the celebration with custom handling
       const isVueltasTransition = false; // pendingVueltas no longer used
 
       return (
-        <ScreenContainer orientation="landscape" style={styles.gameContainer}>
+        <ScreenContainer orientation="landscape" unsafe noPadding style={styles.gameContainer}>
           <GameEndCelebration
             isWinner={isVueltasTransition ? false : playerWon} // No winner yet for vueltas
             finalScore={{
@@ -1119,6 +1500,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             onContinue={
               !isMatchReallyComplete
                 ? () => {
+                    // Commit this win's totals so future detections use delta from here
+                    prevTotalsRef.current = {
+                      cotos: totalCotos,
+                      partidas: totalPartidas,
+                    };
+                    lastWinSignatureRef.current = null;
                     // Hide celebration and advance to the next partida
                     console.log('▶️ [PARTIDA GANADA] Continue tapped: advancing to next partida');
                     setShowGameEndCelebration(false);
@@ -1146,7 +1533,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
     }
 
     return (
-      <ScreenContainer orientation="landscape" style={styles.gameOverContainer}>
+      <ScreenContainer orientation="landscape" unsafe noPadding style={styles.gameOverContainer}>
         <StatusBar hidden />
         <Text style={[styles.gameOverTitle, playerWon ? styles.victoryTitle : styles.defeatTitle]}>
           {playerWon ? '¡VICTORIA!' : 'DERROTA'}
@@ -1203,7 +1590,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         navigation.goBack();
       }}
     >
-      <ScreenContainer orientation="landscape" style={styles.gameContainer}>
+      <ScreenContainer orientation="landscape" unsafe noPadding style={styles.gameContainer}>
         <StatusBar hidden />
 
         {/* Connection status for online games */}
@@ -1236,12 +1623,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         {/* Player avatars for online games (gated by multiplayerDecorations) */}
         {isOnline && showMultiplayerDecorations && (
           <PlayerAvatars
-            players={gameState.players.map((p, idx) => ({
+            players={players.map((p, idx) => ({
               id: p.id,
               name: p.name,
               avatar: p.avatar,
               isOnline: multiplayerGame?.state.players.find(mp => mp.id === p.id)?.isOnline ?? true,
-              isCurrentTurn: idx === gameState.currentPlayerIndex,
+              isCurrentTurn: idx === rotatedCurrentPlayerIndex,
               position: ['bottom', 'right', 'top', 'left'][idx] as any,
             }))}
             currentPlayerId={user?.id || ''}
@@ -1297,7 +1684,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
               (typeof players)[3],
             ]
           }
-          currentPlayerIndex={isLocalMultiplayer ? 0 : gameState.currentPlayerIndex}
+          currentPlayerIndex={rotatedCurrentPlayerIndex}
           trumpCard={{
             suit: gameState.trumpSuit,
             value: gameState.trumpCard.value,
@@ -1408,7 +1795,8 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             gameState={gameState}
             onCantar={handleCantar}
             onCambiar7={handleCambiar7}
-            disabled={!isPlayerTurn() || thinkingPlayer !== null || isProcessingCante}
+            disabled={!isCurrentHuman || thinkingPlayer !== null}
+            isCanteProcessing={isProcessingCante}
           />
         )}
 

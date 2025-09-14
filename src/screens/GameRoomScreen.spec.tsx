@@ -99,10 +99,10 @@ describe('GameRoomScreen', () => {
   });
 
   test('shows team assignments', () => {
-    const { getByText } = render(<GameRoomScreen route={mockRoute} navigation={mockNavigation} />);
+    const { getByTestId } = render(<GameRoomScreen route={mockRoute} navigation={mockNavigation} />);
 
-    expect(getByText(/Equipo 1/i)).toBeTruthy();
-    expect(getByText(/Equipo 2/i)).toBeTruthy();
+    expect(getByTestId('team-1')).toBeTruthy();
+    expect(getByTestId('team-2')).toBeTruthy();
   });
 
   test('allows toggling ready status', async () => {

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { SpanishCard, type SpanishCardData } from './SpanishCard';
+import { getCardDimensions } from '../../utils/responsive';
 import { CARD_PLAY_DURATION, STANDARD_EASING } from '../../constants/animations';
 
 type CardPlayAnimationProps = {
@@ -92,8 +93,9 @@ export function CardPlayAnimation({
     // No cleanup needed since we're not using timers
   }, []);
 
-  // Always use medium size to match the table cards exactly
+  // Always use medium size to match the table cards exactly; freeze pixel size
   const cardSize = 'medium';
+  const frozenMedium = getCardDimensions().medium;
 
   return (
     <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
@@ -120,7 +122,12 @@ export function CardPlayAnimation({
         ]}
       >
         {/* Force flying card to use the same pixel size as static trick (frozen medium) */}
-        <SpanishCard card={card} size={cardSize} style={{ shadowOpacity: 0 }} />
+        <SpanishCard
+          card={card}
+          size={cardSize}
+          fixedCardSize={{ width: Math.round(frozenMedium.width), height: Math.round(frozenMedium.height) }}
+          style={{ shadowOpacity: 0 }}
+        />
       </Animated.View>
     </View>
   );

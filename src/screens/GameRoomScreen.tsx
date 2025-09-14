@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { createRealtimeClient } from '../services/realtimeClient.native';
 import type { JugarStackNavigationProp, JugarStackScreenProps } from '../types/navigation';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
@@ -14,7 +15,7 @@ import { StartGameButton } from '../components/room/StartGameButton';
 import { AIPlayerManager } from '../components/room/AIPlayerManager';
 import { LoadingOverlay } from '../components/ui/LoadingOverlay';
 // Using unified hooks for backend
-import { shareRoomViaWhatsApp } from '../services/sharing/whatsappShare';
+import { shareRoomViaWhatsApp, copyRoomCode } from '../services/sharing/whatsappShare';
 import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
 import { useUnifiedRooms } from '../hooks/useUnifiedRooms';
 
@@ -49,19 +50,50 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
   const isUuid = (value: string | null | undefined) =>
     !!value &&
     /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
-  const effectiveRoomId = isUuid(room?.id) ? (room!.id as string) : roomId;
+  const [resolvedRoomId, setResolvedRoomId] = React.useState<string | null>(null);
+  const effectiveRoomId =
+    (isUuid(room?.id) ? (room!.id as string) : undefined) ||
+    (isUuid(roomId) ? (roomId as string) : undefined) ||
+    (resolvedRoomId as string);
 
-  const currentUserPublicId = players.find(p => p.authUserId === authUserId)?.id;
+  // Robust host detection: when offline auth is used (no authUserId),
+  // if there is exactly one non-bot in the room, assume it's this device's user
+  const nonBots = players.filter(p => !p.isBot);
+  const currentUserPublicId =
+    players.find(p => p.authUserId === authUserId)?.id ||
+    (nonBots.length === 1 ? nonBots[0]?.id : undefined);
   const anyMemberCanManageBots = true; // temporary enable to unblock UI
   const isHost = room?.host_id === currentUserPublicId;
   const currentPlayer = players.find(p => p.authUserId === authUserId);
   const allPlayersReady = players.length === 4 && players.every(p => p.isReady);
 
   useEffect(() => {
-    const unsubscribe = subscribeToRoom(effectiveRoomId);
-    // Delay initial players fetch slightly to avoid churn with subscription
+    // Fallback: resolve room id by code when not available
+    if (!effectiveRoomId && roomCode) {
+      (async () => {
+        try {
+          const client = await import('../services/realtimeClient.native').then(m => m.createRealtimeClient());
+          const supa = await client;
+          if (supa) {
+            const { data } = await (supa as any)
+              .from('rooms')
+              .select('id')
+              .eq('code', roomCode)
+              .single();
+            if (data?.id && isUuid(data.id)) {
+              setResolvedRoomId(data.id as string);
+            }
+          }
+        } catch {}
+      })();
+    }
+
+    const idToUse = effectiveRoomId;
+    if (!idToUse) return;
+
+    const unsubscribe = subscribeToRoom(idToUse);
     const t = setTimeout(() => {
-      getRoomPlayers(effectiveRoomId);
+      getRoomPlayers(idToUse);
     }, 50);
 
     return () => {
@@ -69,7 +101,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
       if (unsubscribe) unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveRoomId]);
+  }, [effectiveRoomId, roomCode]);
 
   useEffect(() => {
     if (currentPlayer && localIsReady !== currentPlayer.isReady) {
@@ -77,18 +109,57 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
     }
   }, [currentPlayer]);
 
-  // Auto-navigate when room status switches to 'playing' (for all participants)
+  // Auto-navigate when room status switches to 'playing' AND initial game_state exists
   useEffect(() => {
     if (!room) return;
     if (room.status === 'playing' && !hasNavigatedRef.current) {
-      hasNavigatedRef.current = true;
-      navigation.navigate('Game', {
-        gameMode: 'friends',
-        roomId: effectiveRoomId,
-        roomCode,
-        players,
-        isHost,
-      });
+      (async () => {
+        try {
+          // Check that a game_state row exists (ensures server init completed)
+          const client = await createRealtimeClient();
+          if (!client) return;
+          const { data } = await client
+            .from('game_states')
+            .select('id')
+            .eq('room_id', effectiveRoomId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (data?.id) {
+            hasNavigatedRef.current = true;
+            navigation.navigate('Game', {
+              gameMode: 'friends',
+              roomId: effectiveRoomId,
+              roomCode,
+              players,
+              isHost,
+            });
+          } else {
+            // Poll briefly for initial state (server may be creating it)
+            setTimeout(async () => {
+              try {
+                const { data: again } = await client
+                  .from('game_states')
+                  .select('id')
+                  .eq('room_id', effectiveRoomId)
+                  .order('updated_at', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (again?.id && !hasNavigatedRef.current) {
+                  hasNavigatedRef.current = true;
+                  navigation.navigate('Game', {
+                    gameMode: 'friends',
+                    roomId: effectiveRoomId,
+                    roomCode,
+                    players,
+                    isHost,
+                  });
+                }
+              } catch {}
+            }, 250);
+          }
+        } catch {}
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.status]);
@@ -109,6 +180,17 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
   const handleShareRoom = () => {
     if (roomCode) {
       shareRoomViaWhatsApp(roomCode);
+    }
+  };
+
+  const handleCopyCode = async () => {
+    if (roomCode) {
+      try {
+        await copyRoomCode(roomCode);
+        Alert.alert('Código copiado', 'El código de la sala se ha copiado al portapapeles');
+      } catch (error) {
+        Alert.alert('Error', 'No se pudo copiar el código');
+      }
     }
   };
 
@@ -197,7 +279,11 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <RoomHeader code={roomCode || roomId.slice(0, 6).toUpperCase()} onShare={handleShareRoom} />
+        <RoomHeader 
+          code={roomCode || roomId.slice(0, 6).toUpperCase()} 
+          onShare={handleShareRoom}
+          onCopy={handleCopyCode}
+        />
 
         <PlayerSlots
           players={players}
@@ -213,7 +299,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
         <AIPlayerManager
           ref={aiManagerRef}
           players={players}
-          roomId={roomId}
+          roomId={effectiveRoomId}
           isHost={isHost}
           onAddAI={handleAddAIPlayer}
           onRemoveAI={handleRemoveAI}

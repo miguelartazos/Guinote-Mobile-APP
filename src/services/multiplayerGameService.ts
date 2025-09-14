@@ -399,7 +399,7 @@ export class MultiplayerGameService {
     // Notify all event handlers about connection loss
     this.eventHandlers.conflict.forEach(handler => {
       handler({
-        type: 'conflict',
+        type: 'conflict_detected',
         playerId: this.playerId || '',
         conflictType: 'connection_lost',
         localVersion: this.currentState?.version || { sequence: 0, timestamp: 0 },

@@ -138,20 +138,20 @@ const styles = StyleSheet.create({
   },
   // Corner positioning for visibility
   topPanel: {
-    top: 8,
-    left: 8,
+    top: 16,
+    left: 16,
   },
   leftPanel: {
-    bottom: 8,
-    left: 8,
+    bottom: 16,
+    left: 16,
   },
   rightPanel: {
-    top: 8,
-    right: 8,
+    top: 16,
+    right: 16,
   },
   bottomPanel: {
-    bottom: 8,
-    right: 8,
+    bottom: 16,
+    right: 16,
   },
   playerName: {
     fontSize: typography.fontSize.xs,

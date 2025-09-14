@@ -11,6 +11,7 @@ import { CardPlayAnimation } from './CardPlayAnimation';
 import { TeamTrickPile } from './TeamTrickPile';
 // import { CardCountBadge } from './CardCountBadge';
 import { CollapsibleGameMenu } from './CollapsibleGameMenu';
+import { EnhancedVueltasDisplay } from './EnhancedVueltasDisplay';
 import { colors, TABLE_COLORS } from '../../constants/colors';
 import { dimensions } from '../../constants/dimensions';
 import { typography } from '../../constants/typography';
@@ -446,30 +447,38 @@ export const GameTable = React.memo(function GameTable({
   // Crossfade current trick instead of hard unmounting
   const trickOpacity = useRef(new Animated.Value(1)).current;
   const prevTrickAnimatingRef = useRef<boolean>(false);
-  const suppressTrickRef = useRef<boolean>(false);
+  // Overlay container opacity (kept mounted to avoid layer churn)
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const wasAnimating = prevTrickAnimatingRef.current;
     prevTrickAnimatingRef.current = trickAnimating;
     if (trickAnimating && !wasAnimating) {
-      // Hide immediately to avoid duplicate cards (no crossfade)
+      // Fade overlay in first, then fade static trick out with small delay for continuity
+      Animated.timing(overlayOpacity, {
+        toValue: 1,
+        duration: 120,
+        easing: STANDARD_EASING,
+        useNativeDriver: true,
+      }).start();
+      Animated.timing(trickOpacity, {
+        toValue: 0,
+        duration: 120,
+        delay: 60,
+        easing: STANDARD_EASING,
+        useNativeDriver: true,
+      }).start();
+    } else if (!trickAnimating && wasAnimating) {
+      // Restore static trick immediately and fade overlay out
       trickOpacity.stopAnimation();
-      trickOpacity.setValue(0);
-      suppressTrickRef.current = true; // keep hidden until cleared
-    } else if (!trickAnimating && currentTrick.length > 0 && !pendingTrickWinner) {
-      // Only show again if previous trick has been cleared
-      if (!suppressTrickRef.current) {
-        trickOpacity.stopAnimation();
-        trickOpacity.setValue(1);
-      }
+      trickOpacity.setValue(1);
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 120,
+        easing: STANDARD_EASING,
+        useNativeDriver: true,
+      }).start();
     }
-  }, [trickAnimating, currentTrick.length, pendingTrickWinner, trickOpacity]);
-
-  // Release suppression once currentTrick is cleared (length becomes 0)
-  useEffect(() => {
-    if (suppressTrickRef.current && currentTrick.length === 0) {
-      suppressTrickRef.current = false;
-    }
-  }, [currentTrick.length]);
+  }, [trickAnimating, overlayOpacity, trickOpacity]);
 
   // Freeze trick start positions on overlay mount to avoid drift from layout updates
   const trickStartPositionsRef = useRef<Array<{ x: number; y: number }> | null>(null);
@@ -570,6 +579,8 @@ export const GameTable = React.memo(function GameTable({
     if (gamePhase === 'scoring' || gamePhase === 'gameOver' || gamePhase === 'finished') {
       return false;
     }
+    // Keep deck visible during trick animations (winner card enlargement)
+    // This preserves prior behavior and avoids the deck disappearing mid-animation
     // Never show during initial dealing animation
     if (isDealing) {
       return false;
@@ -675,7 +686,7 @@ export const GameTable = React.memo(function GameTable({
 
       {/* Top Player Cards (Teammate) */}
       {(!isDealing || dealingAnimationComplete) && layout.isReady && (
-        <View style={styles.topPlayerCardsContainer}>
+        <View style={styles.topPlayerCardsContainer} pointerEvents="none">
           {topPlayer.cards.map((card, index) => {
             // Hide card during play animation
             // For hidden hands (no id), match by index to avoid hiding all identical dummy cards
@@ -884,7 +895,7 @@ export const GameTable = React.memo(function GameTable({
 
       {/* Left Player Cards */}
       {(!isDealing || dealingAnimationComplete) && layout.isReady && (
-        <View style={styles.leftPlayerCards}>
+        <View style={styles.leftPlayerCards} pointerEvents="none">
           {leftPlayer.cards.map((card, index) => {
             const currentCard = card; // Use currentCard to avoid unused variable warning
             // Hide card during play animation - for hidden hands, match by index
@@ -1098,7 +1109,7 @@ export const GameTable = React.memo(function GameTable({
 
       {/* Right Player Cards */}
       {(!isDealing || dealingAnimationComplete) && layout.isReady && (
-        <View style={styles.rightPlayerCards}>
+        <View style={styles.rightPlayerCards} pointerEvents="none">
           {rightPlayer.cards.map((card, index) => {
             const currentCard = card; // Use currentCard to avoid unused variable warning
             // Hide card during play animation - for hidden hands, match by index
@@ -1315,7 +1326,10 @@ export const GameTable = React.memo(function GameTable({
         {/* Playing Area - Show current trick cards */}
         <View
           ref={playAreaRef}
-          style={styles.playingArea}
+          style={[
+            styles.playingArea,
+            trickAnimating && styles.playingAreaSwap,
+          ]}
           onLayout={event => {
             onBoardLayout(event);
             // Also measure for drop zone
@@ -1367,7 +1381,8 @@ export const GameTable = React.memo(function GameTable({
                     key={`trick-${play.playerId}-${('id' in play.card && (play.card as any).id) ? (play.card as any).id : `${play.card.suit}-${play.card.value}`}`}
                     card={play.card}
                     size="medium"
-                    style={[styles.trickCard, stableStyle, stableTrickDimsRef.current || {}]}
+                    fixedCardSize={stableTrickDimsRef.current || undefined}
+                    style={[styles.trickCard, stableStyle]}
                   />
                 );
               })}
@@ -1376,58 +1391,63 @@ export const GameTable = React.memo(function GameTable({
         </View>
       </View>
 
-      {/* Trick Collection Animation */}
-      {trickAnimating && pendingTrickWinner && (
-        <TrickCollectionAnimation
-          cards={pendingTrickWinner.cards}
-          winnerPosition={(() => {
-            // Determine team based on winner's player position
-            const winnerPos = playerIdToPosition[pendingTrickWinner.playerId];
-            const isTeam1 = winnerPos === 0 || winnerPos === 2; // Bottom or Top player
-            const measured = isTeam1 ? team1PileCenter : team2PileCenter;
-            if (measured) return measured;
-            // Fallback to dynamic computation based on current table layout
-            return computeTeamPileCenter(isTeam1 ? 'team1' : 'team2', layout.table);
-          })()}
-          startPositions={
-            trickStartPositionsRef.current ||
-            (currentTrick || []).map(play => {
-              const identity = getTrickIdentity(play.playerId, play.card);
-              const landing = landingAbsByCardRef.current[identity];
-              if (landing) return landing;
-              const posStyle = getTrickCardPositionWithinBoard(
-                playerIdToPosition[play.playerId] ?? 0,
-                layout.board,
-              ) as any;
-              const left = typeof posStyle.left === 'number' ? posStyle.left : 0;
-              const top = typeof posStyle.top === 'number' ? posStyle.top : 0;
-              const boardOffsetX = layout.board?.x || 0;
-              const boardOffsetY = layout.board?.y || 0;
-              return { x: boardOffsetX + left, y: boardOffsetY + top };
-            })
-          }
-          winningCardIndex={Math.max(
-            0,
-            (currentTrick || []).findIndex(p => p.playerId === pendingTrickWinner.playerId),
-          )}
-          points={pendingTrickWinner.points}
-          bonus={pendingTrickWinner.bonus}
-          showLastTrickBonus={
-            !!pendingTrickWinner.isLastTrick && (pendingTrickWinner.bonus || 0) > 0
-          }
-          onComplete={() => {
-            onCompleteTrickAnimation?.();
-            // Defensive: if there are pending draws and dealing hasn't started, request it
-            if (postTrickDealingPending && !postTrickDealingAnimating) {
-              // Parent hook will flip this flag in its rescue effect; no direct state here
-              console.log('🔁 Requested post-trick dealing after animation');
+      {/* Trick Collection Animation - overlay container kept mounted to avoid layer churn */}
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFillObject as any, { opacity: overlayOpacity }]}
+     >
+        {trickAnimating && pendingTrickWinner && (
+          <TrickCollectionAnimation
+            cards={pendingTrickWinner.cards}
+            winnerPosition={(() => {
+              // Determine team based on winner's player position
+              const winnerPos = playerIdToPosition[pendingTrickWinner.playerId];
+              const isTeam1 = winnerPos === 0 || winnerPos === 2; // Bottom or Top player
+              const measured = isTeam1 ? team1PileCenter : team2PileCenter;
+              if (measured) return measured;
+              // Fallback to dynamic computation based on current table layout
+              return computeTeamPileCenter(isTeam1 ? 'team1' : 'team2', layout.table);
+            })()}
+            startPositions={
+              trickStartPositionsRef.current ||
+              (currentTrick || []).map(play => {
+                const identity = getTrickIdentity(play.playerId, play.card);
+                const landing = landingAbsByCardRef.current[identity];
+                if (landing) return landing;
+                const posStyle = getTrickCardPositionWithinBoard(
+                  playerIdToPosition[play.playerId] ?? 0,
+                  layout.board,
+                ) as any;
+                const left = typeof posStyle.left === 'number' ? posStyle.left : 0;
+                const top = typeof posStyle.top === 'number' ? posStyle.top : 0;
+                const boardOffsetX = layout.board?.x || 0;
+                const boardOffsetY = layout.board?.y || 0;
+                return { x: boardOffsetX + left, y: boardOffsetY + top };
+              })
             }
-          }}
-          playSound={() => {
-            // Add sound effect here if needed
-          }}
-        />
-      )}
+            winningCardIndex={Math.max(
+              0,
+              (currentTrick || []).findIndex(p => p.playerId === pendingTrickWinner.playerId),
+            )}
+            points={pendingTrickWinner.points}
+            bonus={pendingTrickWinner.bonus}
+            showLastTrickBonus={
+              !!pendingTrickWinner.isLastTrick && (pendingTrickWinner.bonus || 0) > 0
+            }
+            onComplete={() => {
+              onCompleteTrickAnimation?.();
+              // Defensive: if there are pending draws and dealing hasn't started, request it
+              if (postTrickDealingPending && !postTrickDealingAnimating) {
+                // Parent hook will flip this flag in its rescue effect; no direct state here
+                console.log('🔁 Requested post-trick dealing after animation');
+              }
+            }}
+            playSound={() => {
+              // Add sound effect here if needed
+            }}
+          />
+        )}
+      </Animated.View>
 
       {/* Post-Trick Dealing Animation */}
       {postTrickDealingAnimating && layout.isReady && (
@@ -1538,12 +1558,13 @@ export const GameTable = React.memo(function GameTable({
         </View>
       )}
 
-      {/* Vueltas Indicator with Actual Points */}
+      {/* Enhanced Vueltas Score Display with Animations */}
       {isVueltas && teamScores && (
-        <View style={styles.vueltasIndicator}>
-          <Text style={styles.vueltasText}>VUELTAS</Text>
-          <Text style={styles.vueltasPointsText}>N: {teamScores?.team1 || 0} | E: {teamScores?.team2 || 0}</Text>
-        </View>
+        <EnhancedVueltasDisplay
+          team1Score={teamScores.team1}
+          team2Score={teamScores.team2}
+          visible={true}
+        />
       )}
 
       {/* Team Trick Piles (two stacks) - Hidden during dealing phase */}
@@ -1832,6 +1853,11 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
+  },
+  // Swap-time dampening: reduce heavy shadows/translucency to prevent iOS layer flash
+  playingAreaSwap: {
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
   },
   playingAreaText: {
     color: colors.gold,

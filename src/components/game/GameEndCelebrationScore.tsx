@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { colors } from '../../constants/colors';
 import { useLandscapeStyles } from '../../hooks/useLandscapeStyles';
+import { AnimatedScore } from './AnimatedScore';
 
 type GameEndCelebrationScoreProps = {
   playerScore: Animated.Value;
@@ -69,23 +70,6 @@ export const GameEndCelebrationScore = React.memo(
 
 GameEndCelebrationScore.displayName = 'GameEndCelebrationScore';
 
-// Helper component for animated score
-function AnimatedScore({ value, style }: { value: Animated.Value; style: any }) {
-  const [displayValue, setDisplayValue] = useState(0);
-
-  useEffect(() => {
-    const listener = value.addListener(({ value: v }) => {
-      setDisplayValue(Math.round(v));
-    });
-
-    return () => {
-      value.removeListener(listener);
-    };
-  }, [value]);
-
-  return <Text style={style}>{displayValue}</Text>;
-}
-
 // Helper function for color with opacity
 function colorWithOpacity(color: string, opacity: number): string {
   const hex = Math.round(opacity * 255)
@@ -98,16 +82,16 @@ const portraitStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   scoreCard: {
     backgroundColor: colors.primary,
-    paddingVertical: 20,
-    paddingHorizontal: 28,
-    borderRadius: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    minWidth: 140,
+    minWidth: 120,
     alignItems: 'center',
   },
   winnerCard: {
@@ -122,13 +106,13 @@ const portraitStyles = StyleSheet.create({
   },
   playerHeaderContainer: {
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   playerLabel: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.accent,
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
+    letterSpacing: 1,
     fontWeight: '700',
   },
   winnerLabel: {
@@ -149,7 +133,7 @@ const portraitStyles = StyleSheet.create({
     alignItems: 'center',
   },
   scoreText: {
-    fontSize: 56,
+    fontSize: 42,
     fontWeight: '900',
     color: colors.text,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
@@ -193,43 +177,73 @@ const landscapeStyles: Partial<typeof portraitStyles> = {
   container: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    marginBottom: 16,
-    marginTop: 8,
+    marginBottom: 10,
+    marginTop: 4,
   },
   scoreCard: {
     backgroundColor: colors.background,
-    paddingVertical: 16,
-    paddingHorizontal: 28,
-    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 8,
     borderWidth: 2,
     borderColor: colors.goldDark,
-    minWidth: 160,
+    minWidth: 140,
     alignItems: 'center',
   },
+  playerHeaderContainer: {
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  playerLabel: {
+    fontSize: 12,
+    color: colors.accent,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    fontWeight: '700',
+  },
   scoreText: {
-    fontSize: 48,
+    fontSize: 36,
     fontWeight: '900',
     color: colors.text,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   pointsLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: colors.textMuted,
-    marginTop: 4,
-    letterSpacing: 1,
+    marginTop: 2,
+    letterSpacing: 0.8,
     fontWeight: '600',
   },
+  winnerBadge: {
+    fontSize: 9,
+    color: colors.gold,
+    backgroundColor: colorWithOpacity(colors.goldDark, 0.2),
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 3,
+    marginTop: 2,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+  },
   scoreDivider: {
-    marginHorizontal: 16,
+    marginHorizontal: 12,
     justifyContent: 'center',
   },
+  vsContainer: {
+    alignItems: 'center',
+  },
+  vsLine: {
+    width: 1,
+    height: 20,
+    backgroundColor: colorWithOpacity(colors.goldDark, 0.3),
+  },
   versusText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.goldDark,
     fontWeight: '700',
-    marginVertical: 6,
-    letterSpacing: 1,
+    marginVertical: 4,
+    letterSpacing: 0.8,
   },
 };

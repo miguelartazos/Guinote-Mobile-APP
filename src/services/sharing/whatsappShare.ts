@@ -1,4 +1,5 @@
 import { Linking, Share } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 
 const APP_SCHEME = 'guinote';
 const WEB_URL = 'https://guinote.app';
@@ -59,8 +60,9 @@ export const shareViaOtherApps = async (roomCode: string): Promise<void> => {
   await shareRoom(roomCode);
 };
 
-export const copyRoomCode = (roomCode: string): void => {
-  // This would need react-native-clipboard
-  // For now, we'll use the share functionality
-  shareRoom(roomCode);
+export const copyRoomCode = (roomCode: string): Promise<void> => {
+  return new Promise(resolve => {
+    Clipboard.setString(roomCode);
+    resolve();
+  });
 };

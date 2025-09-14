@@ -99,6 +99,19 @@ type UseGameStateProps = {
     dealerIndex: number;
     firstPlayerIndex?: number;
   }>) | null;
+  // Online authoritative initialization: if provided, the hook will fetch a server snapshot
+  // and use it to initialize the first hand consistently across devices.
+  serverInitProvider?: (() => Promise<{
+    handsByPosition: Array<ReadonlyArray<{ id: string; suit: SpanishSuit; value: CardValue }>>;
+    deck: ReadonlyArray<{ id: string; suit: SpanishSuit; value: CardValue }>;
+    trumpCard: { id: string; suit: SpanishSuit; value: CardValue };
+    currentPlayerIndex: number;
+    dealerIndex: number;
+  }>) | null;
+  // Online players metadata by seat position (0..3). Used to mark AI seats on host.
+  onlinePlayersIsBotByPosition?: boolean[] | null;
+  // Persistence control: in online/friends mode we should not load/save local state
+  persistenceMode?: 'auto' | 'never';
 };
 
 export function useGameState({
@@ -112,6 +125,9 @@ export function useGameState({
   mockData,
   deterministicInit,
   waitForDeterministicInit,
+  serverInitProvider,
+  onlinePlayersIsBotByPosition,
+  persistenceMode = 'auto',
 }: UseGameStateProps) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
@@ -123,10 +139,10 @@ export function useGameState({
   // Mutex to prevent concurrent state updates
   const stateMutex = useRef(new StateMutex());
   const isUpdatingRef = useRef(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const winnerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const doubleTapGuardRef = useRef<NodeJS.Timeout | null>(null);
-  const playCardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const winnerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const doubleTapGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playCardTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Deadlock detector to prevent freezes - DISABLED for now
   // The 3-second timeout is too aggressive for human players who need time to think
@@ -275,8 +291,22 @@ export function useGameState({
   }, [gameState]);
 
   // Initialize game
+  const hasInitializedRef = useRef(false);
+  const initialPlayerNamesRef = useRef<string[] | undefined>(undefined);
+
   useEffect(() => {
     const initializeGame = async () => {
+      // Guard against multiple initializations within the same mount
+      if (hasInitializedRef.current) {
+        return;
+      }
+
+      // Capture initial playerNames snapshot for local/online-localized mapping once
+      if (initialPlayerNamesRef.current === undefined && playerNames && playerNames.length > 0) {
+        // Store a stable copy
+        initialPlayerNamesRef.current = [...playerNames];
+      }
+
       if (mockData) {
         // Use mock data
         const players = mockData.players.map((p, index) => ({
@@ -384,13 +414,103 @@ export function useGameState({
         return;
       }
 
+      // Authoritative server initialization for online games
+      if (serverInitProvider) {
+        try {
+          const snapshot = await serverInitProvider();
+
+          // Build players from provided playerNames in fixed seat order (0..3)
+          const names: string[] = (playerNames && playerNames.length >= 4)
+            ? [...playerNames].slice(0, 4)
+            : ['Jugador 1', 'Jugador 2', 'Jugador 3', 'Jugador 4'];
+
+          const players: Player[] = names.map((name, index) => ({
+            id: (`pos${index}`) as PlayerId,
+            name,
+            avatar: ['👤', '👧', '👨', '👴'][index % 4],
+            ranking: 1000 + index * 100,
+            teamId: (index % 2 === 0 ? 'team1' : 'team2') as TeamId,
+            isBot: Array.isArray(onlinePlayersIsBotByPosition)
+              ? !!onlinePlayersIsBotByPosition[index]
+              : false,
+          }));
+
+          // Convert server hands (by position) to a map keyed by player ids
+          const hands = new Map<PlayerId, Card[]>();
+          for (let i = 0; i < Math.min(4, snapshot.handsByPosition.length); i++) {
+            const pid = players[i].id;
+            const cards = snapshot.handsByPosition[i]?.map(c => ({
+              id: c.id as any,
+              suit: c.suit,
+              value: c.value,
+            })) || [];
+            hands.set(pid, cards as any);
+          }
+
+          const trumpCard = {
+            id: snapshot.trumpCard.id as any,
+            suit: snapshot.trumpCard.suit,
+            value: snapshot.trumpCard.value,
+          } as Card;
+
+          const deck = snapshot.deck.map(c => ({
+            id: c.id as any,
+            suit: c.suit,
+            value: c.value,
+          })) as Card[];
+
+          const newGameState: GameState = {
+            id: (gameId || `game_${Date.now()}`) as GameId,
+            phase: 'dealing',
+            players,
+            teams: [
+              { id: 'team1' as TeamId, playerIds: [players[0].id, players[2].id] as [PlayerId, PlayerId], score: 0, cardPoints: 0, cantes: [] },
+              { id: 'team2' as TeamId, playerIds: [players[1].id, players[3].id] as [PlayerId, PlayerId], score: 0, cardPoints: 0, cantes: [] },
+            ],
+            deck,
+            hands: new Map() as ReadonlyMap<PlayerId, ReadonlyArray<Card>>, // Start empty to allow dealing animation
+            pendingHands: hands as ReadonlyMap<PlayerId, ReadonlyArray<Card>>, // Use server hands
+            trumpSuit: trumpCard.suit,
+            trumpCard,
+            currentTrick: [],
+            currentPlayerIndex: Math.max(0, Math.min(3, snapshot.currentPlayerIndex | 0)),
+            dealerIndex: Math.max(0, Math.min(3, snapshot.dealerIndex | 0)),
+            trickCount: 0,
+            trickWins: new Map(),
+            collectedTricks: new Map(),
+            teamTrickPiles: new Map([
+              ['team1' as TeamId, []],
+              ['team2' as TeamId, []],
+            ]),
+            canCambiar7: true,
+            gameHistory: [],
+            isVueltas: false,
+            canDeclareVictory: false,
+            matchScore: createInitialMatchScore(),
+          };
+
+          setGameState(newGameState);
+          setIsDealingComplete(false);
+          hasInitializedRef.current = true;
+          return;
+        } catch (e) {
+          console.error('Failed to initialize from server snapshot, falling back to local init:', e);
+          // Continue to local init below
+        }
+      }
+
       // Original initialization logic
       let players: Player[];
 
-      if (playerNames && playerNames.length >= 2) {
+      const stablePlayerNames =
+        initialPlayerNamesRef.current && initialPlayerNamesRef.current.length > 0
+          ? initialPlayerNamesRef.current
+          : playerNames;
+
+      if (stablePlayerNames && stablePlayerNames.length >= 2) {
         // Local multiplayer mode
         const avatars = ['👤', '👧', '👨', '👴'];
-        players = playerNames.slice(0, 4).map((name, index) => ({
+        players = stablePlayerNames.slice(0, 4).map((name, index) => ({
           id: `player${index}` as PlayerId,
           name: name || `Jugador ${index + 1}`,
           avatar: avatars[index],
@@ -572,11 +692,14 @@ export function useGameState({
 
       setGameState(newGameState);
       setIsDealingComplete(false);
+      hasInitializedRef.current = true;
     };
 
     // Fire and forget
     initializeGame();
-  }, [playerName, gameId, mockData, difficulty, playerNames]);
+    // Intentionally exclude playerNames to avoid re-initialization loops when array identity changes
+    // Only re-init when core settings change or mockData changes
+  }, [playerName, gameId, mockData, difficulty]);
 
   // Internal function to actually play the card (after animation)
   const actuallyPlayCard = useCallback(
@@ -1109,14 +1232,17 @@ export function useGameState({
 
   const wrappedPlayCardForBot = useCallback(
     (cardId: string) => {
-      // Play locally
+      // Online/friends: delegate to server only; wait for realtime snapshot
+      if (onBotAction && isHost) {
+        try {
+          onBotAction({ type: 'play_card', cardId });
+          return;
+        } catch {}
+      }
+      // Offline/local: mutate local engine immediately
       (playCard as any)(cardId);
-      // Notify multiplayer if provided
-      try {
-        onBotAction?.({ type: 'play_card', cardId });
-      } catch {}
     },
-    [onBotAction, playCard],
+    [onBotAction, playCard, isHost],
   );
 
   const wrappedCantarForBot = useCallback(
@@ -1142,6 +1268,7 @@ export function useGameState({
   // Auto-save game state with debouncing
   useEffect(() => {
     if (!gameState || gameState.phase === 'gameOver') return;
+    if (persistenceMode === 'never') return;
 
     // Clear any existing save timeout
     if (saveTimeoutRef.current) {
@@ -1179,6 +1306,10 @@ export function useGameState({
 
   // Load saved game on mount (only once)
   useEffect(() => {
+    if (persistenceMode === 'never') {
+      setHasLoadedSavedGame(true);
+      return;
+    }
     if (!hasLoadedSavedGame && !gameState && !mockData) {
       loadGameState()
         .then(savedState => {
@@ -1402,6 +1533,231 @@ export function useGameState({
       return nextState;
     });
   }, []);
+
+  /**
+   * Apply an authoritative server snapshot.
+   * Maps seat-indexed hands to current player ids in order, and updates
+   * core turn fields. Keeps existing phase/animation flags intact.
+   */
+  const applyServerSnapshot = useCallback(
+    (snapshot: {
+      handsByPosition: Array<ReadonlyArray<{ id: string; suit: SpanishSuit; value: CardValue }>>;
+      deck: ReadonlyArray<{ id: string; suit: SpanishSuit; value: CardValue }>;
+      trumpCard: { id: string; suit: SpanishSuit; value: CardValue };
+      currentPlayerIndex: number;
+      dealerIndex: number;
+      tableCards?: Array<{ playerId: PlayerId; card: { id: string; suit: SpanishSuit; value: CardValue } }>;
+      version?: number;
+    }) => {
+      setGameState(prev => {
+        if (!prev) return prev;
+
+        const playersInSeatOrder = prev.players; // 0..3
+
+        // Build new hands map from seat-indexed snapshot
+        const newHands = new Map<PlayerId, Card[]>();
+        for (let i = 0; i < Math.min(4, snapshot.handsByPosition.length); i++) {
+          const playerId = playersInSeatOrder[i]?.id as PlayerId | undefined;
+          if (!playerId) continue;
+          const cards = (snapshot.handsByPosition[i] || []).map(c => ({
+            id: c.id as any,
+            suit: c.suit,
+            value: c.value,
+          })) as Card[];
+          newHands.set(playerId, cards);
+        }
+
+        const newDeck = snapshot.deck.map(c => ({ id: c.id as any, suit: c.suit, value: c.value })) as Card[];
+        const newTrump = {
+          id: snapshot.trumpCard.id as any,
+          suit: snapshot.trumpCard.suit,
+          value: snapshot.trumpCard.value,
+        } as Card;
+
+        // Optionally map server table cards to currentTrick
+        const mappedTrick = Array.isArray(snapshot.tableCards)
+          ? snapshot.tableCards.map(tc => ({
+              playerId: tc.playerId as PlayerId,
+              card: { id: tc.card.id as any, suit: tc.card.suit, value: tc.card.value } as Card,
+            }))
+          : prev.currentTrick;
+
+        // Diff detection
+        const prevTrickLen = (prev.currentTrick || []).length;
+        const nextTrickLen = (mappedTrick || []).length;
+
+        const tableCardAdded = nextTrickLen === prevTrickLen + 1;
+        const trickCollected = prevTrickLen > 0 && nextTrickLen === 0;
+
+        // Helper: compute added cards in hands per player (by id)
+        const computeAddedCardsByPlayer = () => {
+          const added = new Map<PlayerId, Card[]>();
+          for (const p of prev.players) {
+            const pid = p.id as PlayerId;
+            const before = new Map((prev.hands.get(pid) || []).map(c => [String(c.id), c]));
+            const after = newHands.get(pid) || [];
+            const addList: Card[] = [];
+            for (const c of after) {
+              if (!before.has(String(c.id))) {
+                addList.push(c);
+              }
+            }
+            if (addList.length > 0) added.set(pid, addList);
+          }
+          return added;
+        };
+
+        // Case 1: Trick collected → animate collection and prepare dealing overlay
+        if (trickCollected) {
+          const prevTrick = prev.currentTrick || [];
+          // Determine winner and points from last visible trick
+          let winnerId = prev.lastTrickWinner as PlayerId | undefined;
+          try {
+            if (!winnerId && prevTrick.length > 0) {
+              winnerId = calculateTrickWinner(prevTrick as any, newTrump.suit) as PlayerId;
+            }
+          } catch {}
+
+          const points = (() => {
+            try {
+              return calculateTrickPoints(prevTrick as any);
+            } catch {
+              return 0;
+            }
+          })();
+
+          // Prepare pending draws by diffing hands
+          const addedByPlayer = computeAddedCardsByPlayer();
+          const pendingDraws: Array<{ playerId: PlayerId; card: Card; source: 'deck' | 'trump' }> = [];
+
+          // Determine draw order winner → counter-clockwise
+          const winnerIndex = winnerId
+            ? prev.players.findIndex(p => p.id === winnerId)
+            : Math.max(0, Math.min(3, snapshot.currentPlayerIndex | 0));
+          const drawOrder: PlayerId[] = [];
+          let idx = winnerIndex;
+          for (let i = 0; i < 4; i++) {
+            drawOrder.push(prev.players[idx]?.id as PlayerId);
+            idx = getNextPlayerIndex(idx, 4);
+          }
+
+          // Compute how many draws came from deck vs trump
+          const addedTotal = Array.from(addedByPlayer.values()).reduce((sum, arr) => sum + arr.length, 0);
+          const deckDelta = Math.max(0, (prev.deck?.length || 0) - (newDeck?.length || 0));
+          const trumpDraws = Math.max(0, addedTotal - deckDelta);
+
+          // Assign sources in draw order; if multiple cards added to same player, preserve list order
+          const trumpRecipients = new Set<string>();
+          let trumpRemaining = trumpDraws;
+          for (const pid of drawOrder) {
+            const addList = addedByPlayer.get(pid) || [];
+            for (const c of addList) {
+              let source: 'deck' | 'trump' = 'deck';
+              if (trumpRemaining > 0) {
+                // Assign trump to the last recipients in the order if near deck exhaustion
+                source = 'trump';
+                trumpRemaining--;
+                trumpRecipients.add(String(pid));
+              }
+              pendingDraws.push({ playerId: pid, card: c, source });
+            }
+          }
+
+          const winnerTeam = winnerId
+            ? prev.teams.find(t => t.playerIds.includes(winnerId! as PlayerId))?.id
+            : undefined;
+
+          return {
+            ...prev,
+            // Defer hands/deck update until overlays commit
+            hands: prev.hands,
+            deck: prev.deck,
+            // Clear table (server already cleared) but keep trick for overlay visuals
+            currentTrick: prev.currentTrick,
+            trickAnimating: true,
+            pendingTrickWinner: winnerId
+              ? {
+                  playerId: winnerId,
+                  points,
+                  cards: prevTrick.map(t => t.card),
+                  teamId: (winnerTeam || prev.teams[0].id) as TeamId,
+                }
+              : prev.pendingTrickWinner,
+            pendingPostTrickDraws: pendingDraws.length > 0 ? pendingDraws : undefined,
+            postTrickDealingPending: pendingDraws.length > 0 ? true : prev.postTrickDealingPending,
+            // Keep turn and indices from server
+            currentPlayerIndex: Math.max(0, Math.min(3, snapshot.currentPlayerIndex | 0)),
+            dealerIndex: Math.max(0, Math.min(3, snapshot.dealerIndex | 0)),
+            trumpCard: newTrump,
+            trumpSuit: newTrump.suit,
+            lastActionTimestamp: Date.now(),
+          } as GameState;
+        }
+
+        // Case 2: A new table card was added → animate fly-from-hand
+        if (tableCardAdded) {
+          // Identify the new play by card id difference
+          const prevIds = new Set((prev.currentTrick || []).map(tc => String(tc.card.id)));
+          const newPlay = (mappedTrick || []).find(tc => !prevIds.has(String(tc.card.id)));
+          const actorId = newPlay?.playerId as PlayerId | undefined;
+
+          // Determine hand index BEFORE removal for proper start position
+          let cardIndex = 0;
+          if (actorId) {
+            const beforeHand = prev.hands.get(actorId) || [];
+            const idxInHand = beforeHand.findIndex(c => String(c.id) === String(newPlay?.card.id));
+            cardIndex = idxInHand >= 0 ? idxInHand : Math.max(0, beforeHand.length - 1);
+          }
+
+          // Schedule overlay cleanup slightly after animation duration
+          setTimeout(() => {
+            setGameState(p => (p ? { ...p, cardPlayAnimation: undefined } : p));
+          }, Math.max(320, (CARD_PLAY_DELAY || 350)));
+
+          return {
+            ...prev,
+            // Do not mutate hands immediately; buffer commits until after animation
+            hands: prev.hands,
+            currentTrick: mappedTrick,
+            cardPlayAnimation:
+              actorId && newPlay
+                ? {
+                    playerId: actorId,
+                    card: {
+                      id: newPlay.card.id as any,
+                      suit: newPlay.card.suit,
+                      value: newPlay.card.value,
+                    } as Card,
+                    cardIndex,
+                  }
+                : prev.cardPlayAnimation,
+            // Turn/indices from server
+            currentPlayerIndex: Math.max(0, Math.min(3, snapshot.currentPlayerIndex | 0)),
+            dealerIndex: Math.max(0, Math.min(3, snapshot.dealerIndex | 0)),
+            trumpCard: newTrump,
+            trumpSuit: newTrump.suit,
+            lastActionTimestamp: Date.now(),
+          } as GameState;
+        }
+
+        // Case 3: Normal commit (no animation-sensitive event) → apply server state
+        return {
+          ...prev,
+          hands: newHands,
+          deck: newDeck,
+          trumpCard: newTrump,
+          trumpSuit: newTrump.suit,
+          currentPlayerIndex: Math.max(0, Math.min(3, snapshot.currentPlayerIndex | 0)),
+          dealerIndex: Math.max(0, Math.min(3, snapshot.dealerIndex | 0)),
+          currentTrick: mappedTrick,
+          // Clear any stale play overlay
+          cardPlayAnimation: nextTrickLen === 0 ? undefined : prev.cardPlayAnimation,
+          lastActionTimestamp: Date.now(),
+        } as GameState;
+      });
+    },
+    [],
+  );
 
   // Commit a single dealt card as it lands (incremental update so hands reflect immediately)
   const onPostTrickCardLanded = useCallback(
@@ -1882,5 +2238,6 @@ export function useGameState({
     completePostTrickDealing,
     onPostTrickCardLanded,
     setGameState,
+    applyServerSnapshot,
   };
 }

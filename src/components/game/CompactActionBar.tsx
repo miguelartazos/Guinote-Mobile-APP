@@ -24,10 +24,11 @@ type CompactActionBarProps = {
   onCantar: () => void;
   onCambiar7: () => void;
   disabled: boolean;
+  isCanteProcessing?: boolean;
 };
 
 export const CompactActionBar = React.memo(
-  ({ gameState, onCantar, onCambiar7, disabled }: CompactActionBarProps) => {
+  ({ gameState, onCantar, onCambiar7, disabled, isCanteProcessing }: CompactActionBarProps) => {
     const fadeAnimCantar = useRef(new Animated.Value(0)).current;
     const fadeAnimCambiar = useRef(new Animated.Value(0)).current;
     const scaleAnimCantar = useRef(new Animated.Value(0.8)).current;
@@ -58,7 +59,8 @@ export const CompactActionBar = React.memo(
     })();
     const canteTimingOk = trickNotStarted && (isGameStart ? isFirstPlayer : lastWinnerTeamMatches);
 
-    const canPlayerCantar = cantableSuits.length > 0 && canteTimingOk && !disabled;
+    const canPlayerCantar =
+      cantableSuits.length > 0 && canteTimingOk && !disabled && !isCanteProcessing;
     const canPlayerCambiar7 =
       gameState &&
       canCambiar7(currentPlayerHand, gameState.trumpCard, gameState.deck.length) &&

@@ -695,6 +695,11 @@ export function useUnifiedRooms(): RoomState & RoomActions {
                       if (unchanged) return prev;
                       return { ...prev, room: nextRoom };
                     });
+                    // Also refresh players when room metadata changes (e.g., current_players)
+                    // This avoids missing updates if a room_players event was lost or delayed
+                    try {
+                      getRoomPlayers(roomId);
+                    } catch {}
                   }, 120);
                 };
               })(),
@@ -709,11 +714,12 @@ export function useUnifiedRooms(): RoomState & RoomActions {
               },
               (() => {
                 let t: NodeJS.Timeout | null = null;
-                return () => {
+                return (payload: any) => {
+                  // Debounce refresh to batch joins/leaves
                   if (t) clearTimeout(t);
                   t = setTimeout(() => {
                     getRoomPlayers(roomId);
-                  }, 150);
+                  }, 120);
                 };
               })(),
             )

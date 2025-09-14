@@ -44,11 +44,19 @@ export function TeamIndicator({ teams }: TeamIndicatorProps) {
     <Card style={styles.container}>
       <Text style={styles.title}>Equipos</Text>
       <View style={styles.teamsContainer}>
-        {teams[0] && renderTeam(teams[0], true)}
+        {teams[0] && (
+          <View accessibilityLabel="Equipo 1" testID="team-1">
+            {renderTeam(teams[0], true)}
+          </View>
+        )}
         <View style={styles.vsSeparator}>
           <Text style={styles.vsText}>VS</Text>
         </View>
-        {teams[1] && renderTeam(teams[1], false)}
+        {teams[1] && (
+          <View accessibilityLabel="Equipo 2" testID="team-2">
+            {renderTeam(teams[1], false)}
+          </View>
+        )}
       </View>
     </Card>
   );

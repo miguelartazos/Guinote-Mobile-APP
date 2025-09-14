@@ -8,16 +8,22 @@ import { dimensions } from '../../constants/dimensions';
 interface RoomHeaderProps {
   code: string;
   onShare: () => void;
+  onCopy: () => void;
 }
 
-export function RoomHeader({ code, onShare }: RoomHeaderProps) {
+export function RoomHeader({ code, onShare, onCopy }: RoomHeaderProps) {
   return (
     <Card elevated style={styles.container}>
       <Text style={styles.label}>Código de Sala</Text>
       <Text style={styles.code}>{code}</Text>
-      <TouchableOpacity style={styles.shareButton} onPress={onShare}>
-        <Text style={styles.shareButtonText}>📱 Compartir por WhatsApp</Text>
-      </TouchableOpacity>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.copyButton} onPress={onCopy}>
+          <Text style={styles.copyButtonText}>📋 Copiar código</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.shareButton} onPress={onShare}>
+          <Text style={styles.shareButtonText}>📱 Compartir</Text>
+        </TouchableOpacity>
+      </View>
     </Card>
   );
 }
@@ -39,6 +45,21 @@ const styles = StyleSheet.create({
     color: colors.accent,
     letterSpacing: 4,
     marginBottom: dimensions.spacing.md,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: dimensions.spacing.sm,
+  },
+  copyButton: {
+    backgroundColor: colors.secondary,
+    paddingHorizontal: dimensions.spacing.lg,
+    paddingVertical: dimensions.spacing.sm,
+    borderRadius: dimensions.borderRadius.md,
+  },
+  copyButtonText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.background,
   },
   shareButton: {
     backgroundColor: colors.accent,

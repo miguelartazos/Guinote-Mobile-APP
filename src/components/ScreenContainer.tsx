@@ -23,6 +23,8 @@ type ScreenContainerProps = ViewProps & {
   refreshing?: boolean;
   onRefresh?: () => void;
   noPadding?: boolean;
+  // When true, bypass SafeAreaView to allow full-bleed content (e.g., landscape game)
+  unsafe?: boolean;
   header?: React.ReactNode;
 };
 
@@ -36,6 +38,7 @@ export function ScreenContainer({
   refreshing,
   onRefresh,
   noPadding = false,
+  unsafe = false,
   header,
   ...props
 }: ScreenContainerProps) {
@@ -86,14 +89,22 @@ export function ScreenContainer({
     return (
       <View style={styles.gradientContainer}>
         <View style={styles.gradientOverlay} />
-        <SafeAreaView style={containerStyle} {...props}>
-          {wrappedContent}
-        </SafeAreaView>
+        {unsafe ? (
+          <View style={containerStyle} {...props}>
+            {wrappedContent}
+          </View>
+        ) : (
+          <SafeAreaView style={containerStyle} {...props}>
+            {wrappedContent}
+          </SafeAreaView>
+        )}
       </View>
     );
   }
 
-  return (
+  return unsafe ? (
+    <View style={containerStyle} {...props}>{wrappedContent}</View>
+  ) : (
     <SafeAreaView style={containerStyle} {...props}>
       {wrappedContent}
     </SafeAreaView>

@@ -21,6 +21,8 @@ type SpanishCardProps = {
   turnActive?: boolean;
   // Optional: customize turn darkening opacity (0-1). Defaults to 0.2
   turnOverlayOpacity?: number;
+  // Optional: force an exact pixel size to ensure consistency across layers
+  fixedCardSize?: { width: number; height: number };
 };
 
 export const SpanishCard = React.memo(function SpanishCard({
@@ -31,9 +33,10 @@ export const SpanishCard = React.memo(function SpanishCard({
   isDisabled = false,
   turnActive = false,
   turnOverlayOpacity,
+  fixedCardSize,
 }: SpanishCardProps) {
   const cardDimensions = getCardDimensions();
-  const cardSize = cardDimensions[size];
+  const cardSize = fixedCardSize ?? cardDimensions[size];
   const cardStyles = [styles.card, cardSize, style];
 
   if (faceDown || !card) {

@@ -251,6 +251,17 @@ jest.mock('react-native-svg', () => {
   };
 });
 
+// Mock @react-native-clipboard/clipboard
+jest.mock('@react-native-clipboard/clipboard', () => ({
+  __esModule: true,
+  default: {
+    setString: jest.fn(),
+    getString: jest.fn().mockResolvedValue(''),
+    hasString: jest.fn().mockResolvedValue(false),
+    getStringType: jest.fn().mockResolvedValue('plain-text'),
+  },
+}));
+
 // Note: Additional module mocks will be added here as needed
 // Currently we only mock the modules that are actually imported in our test files
 
