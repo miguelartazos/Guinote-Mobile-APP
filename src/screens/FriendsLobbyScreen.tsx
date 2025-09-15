@@ -8,6 +8,7 @@ import {
   ScrollView,
   Animated,
 } from 'react-native';
+import { LandscapeContainer } from '../components/layout/LandscapeContainer';
 import { useNavigation } from '@react-navigation/native';
 import type { JugarStackNavigationProp } from '../types/navigation';
 import { colors } from '../constants/colors';
@@ -44,6 +45,9 @@ export function FriendsLobbyScreen() {
 
   // Unified hooks
   const rooms = useUnifiedRooms();
+  const [rejoinable, setRejoinable] = useState<
+    Array<{ roomId: string; code: string; status: any; disconnectedAt: string; expiresAt: string }>
+  >([]);
   const { onlineFriends } = useUnifiedFriends();
 
   // Clear stored flags in development to ensure proper dev settings
@@ -54,6 +58,54 @@ export function FriendsLobbyScreen() {
       });
     }
   }, []);
+
+  // Load rejoinable rooms when screen mounts and when user changes
+  React.useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        if (isAuthenticated && userId) {
+          const list = await rooms.getRejoinableRooms?.();
+          if (isMounted && Array.isArray(list)) {
+            setRejoinable(list);
+          }
+        } else {
+          setRejoinable([]);
+        }
+      } catch {
+        setRejoinable([]);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, userId]);
+
+  const handleResume = async (
+    roomIdToResume: string,
+    code?: string,
+    status?: 'waiting' | 'playing' | 'finished' | 'abandoned' | string,
+  ) => {
+    try {
+      await rooms.resumeRoom?.(roomIdToResume);
+      if (status === 'waiting') {
+        navigation.navigate('GameRoom', {
+          roomId: roomIdToResume,
+          roomCode: code,
+        });
+      } else {
+        navigation.navigate('Game', {
+          gameMode: 'friends',
+          roomId: roomIdToResume,
+          roomCode: code,
+          players: [],
+          isHost: false,
+        });
+      }
+    } catch (e: any) {
+      Alert.alert('No se pudo reanudar', e?.message || 'Inténtalo de nuevo');
+    }
+  };
 
   const handleCreateRoom = async () => {
     if (!profile || !userId) {
@@ -354,7 +406,7 @@ export function FriendsLobbyScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <LandscapeContainer>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Jugar con Amigos</Text>
@@ -371,6 +423,36 @@ export function FriendsLobbyScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Resume Section */}
+        {isAuthenticated && rejoinable.length > 0 && (
+          <Card elevated style={styles.reanudarCard}>
+            <View style={styles.cardHeader}> 
+              <Text style={styles.cardIcon}>⏳</Text>
+              <View style={styles.cardTitleContainer}>
+                <Text style={styles.cardTitle}>Reanudar partidas (15 min)</Text>
+                <Text style={styles.cardDescription}>Vuelve a tus partidas recientes antes de que expire el tiempo</Text>
+              </View>
+            </View>
+            {rejoinable.map(item => (
+              <View key={item.roomId} style={styles.resumeRow}>
+                <View style={styles.resumeInfo}>
+                  <Text style={styles.resumeCode}>{item.code}</Text>
+                  <Text style={styles.resumeMeta}>expira a las {new Date(item.expiresAt).toLocaleTimeString()}</Text>
+                </View>
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity
+                    style={[styles.primaryActionButton, styles.mainButton]}
+                    onPress={() => handleResume(item.roomId, item.code, item.status)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.actionButtonText}>Reanudar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </Card>
+        )}
+
         {/* Three Column Layout */}
         <View style={styles.columnsContainer}>
           {/* Create Room Column */}
@@ -485,7 +567,7 @@ export function FriendsLobbyScreen() {
         visible={isCreating || isJoining}
         message={isCreating ? 'Creando sala...' : 'Uniéndose a sala...'}
       />
-    </View>
+    </LandscapeContainer>
   );
 }
 
@@ -774,5 +856,34 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  reanudarCard: {
+    marginBottom: dimensions.spacing.lg,
+    padding: dimensions.spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  resumeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: dimensions.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  resumeInfo: {
+    flexDirection: 'column',
+    flex: 1,
+    paddingRight: dimensions.spacing.md,
+  },
+  resumeCode: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+  },
+  resumeMeta: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
   },
 });

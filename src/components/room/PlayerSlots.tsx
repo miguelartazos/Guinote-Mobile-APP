@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Card } from '../ui/Card';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
@@ -13,6 +13,8 @@ interface PlayerSlotsProps {
 }
 
 export function PlayerSlots({ players, onAddAI, isHost }: PlayerSlotsProps) {
+  const { width, height } = useWindowDimensions();
+  const isTabletLike = Math.min(width, height) >= 768;
   const getTeamForPosition = (position: number): 'team1' | 'team2' => {
     // Positions 0, 2 are team1; positions 1, 3 are team2
     return position % 2 === 0 ? 'team1' : 'team2';
@@ -112,7 +114,29 @@ export function PlayerSlots({ players, onAddAI, isHost }: PlayerSlotsProps) {
           <Text style={styles.playerCountText}>{players.length}/4</Text>
         </View>
       </View>
-      <View style={styles.slots}>{[0, 1, 2, 3].map(position => renderSlot(position))}</View>
+      <View
+        style={[
+          styles.slots,
+          {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            columnGap: dimensions.spacing.md,
+            rowGap: dimensions.spacing.md,
+          },
+        ]}
+      >
+        {[0, 1, 2, 3].map(position => (
+          <View
+            key={position}
+            style={{
+              flexBasis: isTabletLike ? '48%' : '48%',
+              flexGrow: 0,
+            }}
+          >
+            {renderSlot(position)}
+          </View>
+        ))}
+      </View>
       <View style={styles.teamLegend}>
         <View style={styles.teamIndicator}>
           <View style={[styles.teamDot, { backgroundColor: colors.cantarGreen }]} />

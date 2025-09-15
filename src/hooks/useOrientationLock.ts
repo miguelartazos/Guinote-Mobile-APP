@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { featureFlags } from '../config/featureFlags';
 
 export type OrientationLock =
   | 'portrait'
@@ -11,7 +12,16 @@ let Orientation: any = null;
 
 export function useOrientationLock(lock: OrientationLock | null) {
   useEffect(() => {
-    if (!lock) return;
+    // Global policy: if forceLandscape is enabled, override to landscape
+    const policyLock: OrientationLock | null = (() => {
+      try {
+        const enforceLandscape = featureFlags.getFlag('forceLandscape');
+        if (enforceLandscape) return 'landscape';
+      } catch {}
+      return lock;
+    })();
+
+    if (!policyLock) return;
 
     try {
       if (!Orientation) {
@@ -25,7 +35,7 @@ export function useOrientationLock(lock: OrientationLock | null) {
     }
 
     try {
-      switch (lock) {
+      switch (policyLock) {
         case 'portrait':
           Orientation.lockToPortrait();
           break;

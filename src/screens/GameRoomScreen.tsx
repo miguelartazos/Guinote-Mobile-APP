@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, useWindowDimensions } from 'react-native';
+import { LandscapeContainer } from '../components/layout/LandscapeContainer';
 import { useNavigation } from '@react-navigation/native';
 import { createRealtimeClient } from '../services/realtimeClient.native';
 import type { JugarStackNavigationProp, JugarStackScreenProps } from '../types/navigation';
@@ -22,6 +23,8 @@ import { useUnifiedRooms } from '../hooks/useUnifiedRooms';
 type GameRoomScreenProps = JugarStackScreenProps<'GameRoom'>;
 
 export function GameRoomScreen({ route }: GameRoomScreenProps) {
+  const { width, height } = useWindowDimensions();
+  const isTabletLike = Math.min(width, height) >= 768;
   const navigation = useNavigation<JugarStackNavigationProp>();
   const { roomId, roomCode } = route.params;
   const { user } = useUnifiedAuth();
@@ -39,6 +42,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
     addAIPlayer,
     removeAIPlayer,
     leaveRoom,
+    softLeaveRoom,
   } = useUnifiedRooms();
 
   const [localIsReady, setLocalIsReady] = useState(false);
@@ -238,10 +242,21 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
   };
 
   const handleLeaveRoom = async () => {
-    Alert.alert('Salir de la sala', '¿Estás seguro de que quieres salir?', [
+    Alert.alert('Salir de la sala', '¿Cómo quieres salir?', [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Salir',
+        text: 'Salir y volveré (15 min)',
+        onPress: async () => {
+          try {
+            await softLeaveRoom(effectiveRoomId);
+            navigation.goBack();
+          } catch (error) {
+            Alert.alert('Error', 'No se pudo guardar tu lugar');
+          }
+        },
+      },
+      {
+        text: 'Salir definitivamente',
         style: 'destructive',
         onPress: async () => {
           try {
@@ -265,7 +280,7 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
   }, [error]);
 
   return (
-    <View style={styles.container}>
+    <LandscapeContainer>
       <View style={styles.header}>
         <TouchableOpacity
           testID="leave-room-button"
@@ -279,49 +294,53 @@ export function GameRoomScreen({ route }: GameRoomScreenProps) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <RoomHeader 
-          code={roomCode || roomId.slice(0, 6).toUpperCase()} 
-          onShare={handleShareRoom}
-          onCopy={handleCopyCode}
-        />
+        <View style={{ flexDirection: 'row', gap: dimensions.spacing.lg }}>
+          <View style={{ flex: isTabletLike ? 2 : 1 }}>
+            <RoomHeader 
+              code={roomCode || roomId.slice(0, 6).toUpperCase()} 
+              onShare={handleShareRoom}
+              onCopy={handleCopyCode}
+            />
 
-        <PlayerSlots
-          players={players}
-          onAddAI={() => {
-            // Trigger the AIPlayerManager modal
-            if (aiManagerRef.current?.openModal) {
-              aiManagerRef.current.openModal();
-            }
-          }}
-          isHost={anyMemberCanManageBots ? true : isHost}
-        />
+            <PlayerSlots
+              players={players}
+              onAddAI={() => {
+                if (aiManagerRef.current?.openModal) {
+                  aiManagerRef.current.openModal();
+                }
+              }}
+              isHost={anyMemberCanManageBots ? true : isHost}
+            />
+          </View>
 
-        <AIPlayerManager
-          ref={aiManagerRef}
-          players={players}
-          roomId={effectiveRoomId}
-          isHost={isHost}
-          onAddAI={handleAddAIPlayer}
-          onRemoveAI={handleRemoveAI}
-          onOpenModal={() => {}}
-        />
+          <View style={{ flex: 1 }}>
+            <AIPlayerManager
+              ref={aiManagerRef}
+              players={players}
+              roomId={effectiveRoomId}
+              isHost={isHost}
+              onAddAI={handleAddAIPlayer}
+              onRemoveAI={handleRemoveAI}
+              onOpenModal={() => {}}
+            />
 
-        <TeamIndicator
-          teams={[
-            { id: 'team1', name: 'Equipo 1', players: players.filter(p => p.teamId === 'team1') },
-            { id: 'team2', name: 'Equipo 2', players: players.filter(p => p.teamId === 'team2') },
-          ]}
-        />
+            <TeamIndicator
+              teams={[
+                { id: 'team1', name: 'Equipo 1', players: players.filter(p => p.teamId === 'team1') },
+                { id: 'team2', name: 'Equipo 2', players: players.filter(p => p.teamId === 'team2') },
+              ]}
+            />
 
-        <View style={styles.actions}>
-          <ReadyButton isReady={localIsReady} onToggle={handleToggleReady} />
-
-          {isHost && <StartGameButton enabled={allPlayersReady} onStart={handleStartGame} />}
+            <View style={styles.actions}>
+              <ReadyButton isReady={localIsReady} onToggle={handleToggleReady} />
+              {isHost && <StartGameButton enabled={allPlayersReady} onStart={handleStartGame} />}
+            </View>
+          </View>
         </View>
       </ScrollView>
 
       <LoadingOverlay visible={isLoading} message="Cargando sala..." />
-    </View>
+    </LandscapeContainer>
   );
 }
 

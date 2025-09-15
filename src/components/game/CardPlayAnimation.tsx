@@ -10,6 +10,7 @@ type CardPlayAnimationProps = {
   toPosition: { x: number; y: number };
   playerPosition: 'bottom' | 'left' | 'top' | 'right';
   playSound?: () => void;
+  deferStart?: boolean; // Defer start with InteractionManager (useful for opponent plays)
 };
 
 export function CardPlayAnimation({
@@ -18,6 +19,7 @@ export function CardPlayAnimation({
   toPosition,
   playerPosition,
   playSound,
+  deferStart = true,
 }: CardPlayAnimationProps) {
   // Animation values
   const position = useRef(new Animated.ValueXY(fromPosition)).current;
@@ -88,7 +90,7 @@ export function CardPlayAnimation({
     };
 
     // Defer until after interactions to reduce frame contention on low-end devices
-    const handle = (global as any)?.InteractionManager
+    const handle = deferStart && (global as any)?.InteractionManager
       ? (global as any).InteractionManager.runAfterInteractions(runAnimation)
       : null;
     if (!handle) {

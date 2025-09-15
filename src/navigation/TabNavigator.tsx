@@ -67,7 +67,8 @@ export function TabNavigator() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        // Hide bottom tabs to match new landscape home UI
+        tabBarStyle: { display: 'none' },
         tabBarActiveTintColor: colors.mediterraneanTerracotta,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarLabelStyle: styles.tabBarLabel,

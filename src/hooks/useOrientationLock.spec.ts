@@ -1,5 +1,6 @@
 import { renderHook } from '@testing-library/react-native';
 import { useOrientationLock } from './useOrientationLock';
+import { featureFlags } from '../config/featureFlags';
 
 const mockOrientation = {
   lockToPortrait: jest.fn(),
@@ -16,9 +17,17 @@ jest.mock('react-native-orientation-locker', () => ({
 describe('useOrientationLock', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Ensure forceLandscape is true by default in tests to reflect app policy
+    try {
+      featureFlags.setFlag('forceLandscape', true);
+    } catch {}
   });
 
-  test('locks to portrait when portrait is specified', () => {
+  test('locks to portrait when portrait is specified (policy disabled)', async () => {
+    // Temporarily disable policy to test portrait path
+    try {
+      await featureFlags.setFlag('forceLandscape', false);
+    } catch {}
     renderHook(() => useOrientationLock('portrait'));
     expect(mockOrientation.lockToPortrait).toHaveBeenCalledTimes(1);
   });

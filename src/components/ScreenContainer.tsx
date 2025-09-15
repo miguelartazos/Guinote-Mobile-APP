@@ -31,7 +31,7 @@ type ScreenContainerProps = ViewProps & {
 export function ScreenContainer({
   children,
   style,
-  orientation = 'portrait',
+  orientation = 'landscape',
   gradient = true,
   scrollable = false,
   keyboardAware = false,

@@ -1,24 +1,14 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  Animated,
-  Platform,
-  Vibration,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform, Vibration, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
 import { dimensions } from '../constants/dimensions';
 import type { MainTabScreenProps, JugarStackParamList } from '../types/navigation';
 import type { JugarStackNavigationProp } from '../types/navigation';
+import { ScreenContainer } from '../components/ScreenContainer';
 
-const { width: screenWidth } = Dimensions.get('window');
-const CARD_WIDTH = (screenWidth - dimensions.spacing.lg * 3) / 2;
-const CARD_HEIGHT = 120;
+// Landscape screen uses calculated sizes; no fixed Dimensions at module init
 
 type GameMode = {
   id: string;
@@ -29,42 +19,34 @@ type GameMode = {
   route: keyof JugarStackParamList;
 };
 
-const gameModes: GameMode[] = [
+const primaryModes: GameMode[] = [
   {
-    id: 'quick',
+    id: 'online-quick',
     title: 'PARTIDA RÁPIDA',
     subtitle: 'Jugar Online',
     icon: '🎯',
     color: colors.quickMatchBlue,
-    route: 'OnlineLobby',
+    route: 'QuickMatch',
   },
   {
     id: 'friends',
-    title: 'CON AMIGOS',
-    subtitle: 'Crear Sala',
+    title: 'JUGAR CON AMIGOS',
+    subtitle: 'Crear o unirse a sala',
     icon: '👥',
     color: colors.friendsGreen,
     route: 'FriendsLobby',
   },
   {
-    id: 'bot',
-    title: 'VS MÁQUINA',
-    subtitle: 'Practica con IA',
+    id: 'offline',
+    title: 'JUGAR OFFLINE',
+    subtitle: 'Contra la máquina',
     icon: '🤖',
     color: colors.botOrange,
     route: 'OfflineMode',
   },
-  {
-    id: 'local',
-    title: 'PASAR Y JUGAR',
-    subtitle: 'Multijugador Local',
-    icon: '📱',
-    color: colors.localPurple,
-    route: 'LocalMultiplayer',
-  },
 ];
 
-function GameModeCard({ mode, index }: { mode: GameMode; index: number }) {
+function TallModeCard({ mode, index, size }: { mode: GameMode; index: number; size: { width: number; height: number } }) {
   const navigation = useNavigation<JugarStackNavigationProp>();
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -72,8 +54,8 @@ function GameModeCard({ mode, index }: { mode: GameMode; index: number }) {
   React.useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 400,
-      delay: index * 100,
+      duration: 450,
+      delay: index * 120,
       useNativeDriver: true,
     }).start();
   }, [fadeAnim, index]);
@@ -83,9 +65,9 @@ function GameModeCard({ mode, index }: { mode: GameMode; index: number }) {
       Vibration.vibrate(1);
     }
     Animated.spring(scaleAnim, {
-      toValue: 0.95,
+      toValue: 0.97,
       speed: 50,
-      bounciness: 4,
+      bounciness: 6,
       useNativeDriver: true,
     }).start();
   };
@@ -93,8 +75,8 @@ function GameModeCard({ mode, index }: { mode: GameMode; index: number }) {
   const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
-      friction: 3,
-      tension: 40,
+      friction: 5,
+      tension: 50,
       useNativeDriver: true,
     }).start();
   };
@@ -106,29 +88,24 @@ function GameModeCard({ mode, index }: { mode: GameMode; index: number }) {
   return (
     <Animated.View
       style={[
-        styles.cardContainer,
-        {
-          opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }],
-        },
+        styles.tallCardContainer,
+        { width: size.width, height: size.height, opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
       ]}
     >
       <TouchableOpacity
-        style={[styles.gameCard, { backgroundColor: mode.color }]}
+        style={[styles.tallCard, { backgroundColor: mode.color }]}
         onPress={handlePress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        activeOpacity={1}
+        activeOpacity={0.95}
         accessibilityLabel={mode.title}
         accessibilityHint={`Iniciar ${mode.subtitle.toLowerCase()}`}
         accessibilityRole="button"
       >
-        <View style={styles.cardIconContainer}>
-          <Text style={styles.cardIcon}>{mode.icon}</Text>
-        </View>
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle}>{mode.title}</Text>
-          <Text style={styles.cardSubtitle}>{mode.subtitle}</Text>
+        <Text style={styles.tallCardIcon}>{mode.icon}</Text>
+        <View style={styles.tallCardTextWrap}>
+          <Text style={styles.tallCardTitle}>{mode.title}</Text>
+          <Text style={styles.tallCardSubtitle}>{mode.subtitle}</Text>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -137,158 +114,167 @@ function GameModeCard({ mode, index }: { mode: GameMode; index: number }) {
 
 export function JugarTab({ navigation: tabNavigation }: MainTabScreenProps<'Jugar'>) {
   const navigation = useNavigation<JugarStackNavigationProp>();
+  const { width, height } = useWindowDimensions();
+
+  const cardHeight = Math.max(180, Math.min(height * 0.75, 360));
+  const cardWidth = Math.max(160, Math.min(width * 0.22, 260));
 
   const handleTutorial = () => {
     navigation.navigate('TutorialSetup');
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>JUGAR</Text>
-        <Text style={styles.headerSubtitle}>Elige tu modo de juego</Text>
-      </View>
+  const goToFriends = () => {
+    // @ts-expect-error tab nav type
+    tabNavigation.navigate('Social');
+  };
 
-      {/* Main Content - 2x2 Grid */}
-      <View style={styles.content}>
-        <View style={styles.gridContainer}>
-          {gameModes.map((mode, index) => (
-            <GameModeCard key={mode.id} mode={mode} index={index} />
+  return (
+    <ScreenContainer gradient orientation="landscape" noPadding>
+      <View style={styles.landscapeRoot}>
+        <View style={styles.topBar}>
+          <View style={styles.profileCompact}>
+            <Text style={styles.profileAvatar}>👤</Text>
+            <View>
+              <Text style={styles.profileName}>Invitado</Text>
+              <Text style={styles.profileSub}>ELO 1200</Text>
+            </View>
+          </View>
+          <View style={styles.currency}>
+            <Text style={styles.currencyText}>🪙 500</Text>
+          </View>
+        </View>
+
+        <View style={styles.centerDeck}>
+          {primaryModes.map((mode, idx) => (
+            <TallModeCard key={mode.id} mode={mode} index={idx} size={{ width: cardWidth, height: cardHeight }} />
           ))}
         </View>
 
-        {/* Tutorial Button */}
-        <TouchableOpacity
-          style={styles.tutorialButton}
-          onPress={handleTutorial}
-          activeOpacity={0.8}
-          accessibilityLabel="Tutorial"
-          accessibilityHint="Aprender cómo jugar al Guiñote"
-          accessibilityRole="button"
-        >
-          <Text style={styles.tutorialIcon}>🎓</Text>
-          <Text style={styles.tutorialText}>Aprender a Jugar</Text>
-          <Text style={styles.tutorialArrow}>›</Text>
-        </TouchableOpacity>
+        <View style={styles.bottomRow}>
+          <TouchableOpacity style={styles.bottomShortcut} onPress={handleTutorial} activeOpacity={0.9}>
+            <Text style={styles.bottomEmoji}>🎓</Text>
+            <Text style={styles.bottomText}>Tutorial</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.bottomShortcut} onPress={goToFriends} activeOpacity={0.9}>
+            <Text style={styles.bottomEmoji}>👥</Text>
+            <Text style={styles.bottomText}>Amigos</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  landscapeRoot: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    paddingVertical: dimensions.spacing.lg,
     paddingHorizontal: dimensions.spacing.lg,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingVertical: dimensions.spacing.md,
   },
-  headerTitle: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.mediterraneanTerracotta,
-    letterSpacing: 1.2,
-    textAlign: 'center',
+  topBar: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  headerSubtitle: {
+  profileCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: dimensions.spacing.sm,
+  },
+  profileAvatar: {
+    fontSize: 24,
+    marginRight: dimensions.spacing.sm,
+  },
+  profileName: {
     fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+  },
+  profileSub: {
+    fontSize: typography.fontSize.xs,
     color: colors.textSecondary,
-    marginTop: dimensions.spacing.xs,
-    textAlign: 'center',
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: dimensions.spacing.lg,
-    paddingVertical: dimensions.spacing.xl,
+  currency: {
+    backgroundColor: colors.surface,
+    borderRadius: dimensions.borderRadius.lg,
+    paddingHorizontal: dimensions.spacing.md,
+    paddingVertical: dimensions.spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  gridContainer: {
+  currencyText: {
+    color: colors.text,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  centerDeck: {
     flex: 1,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignContent: 'center',
-    paddingVertical: dimensions.spacing.lg,
-  },
-  cardContainer: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-    marginBottom: dimensions.spacing.md,
-  },
-  gameCard: {
-    flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    gap: dimensions.spacing.lg,
+  },
+  tallCardContainer: {
     borderRadius: dimensions.borderRadius.lg,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-    padding: dimensions.spacing.md,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  cardIconContainer: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
+  tallCard: {
+    flex: 1,
+    borderRadius: dimensions.borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: dimensions.spacing.xl,
+    paddingHorizontal: dimensions.spacing.md,
+  },
+  tallCardIcon: {
+    fontSize: 48,
+  },
+  tallCardTextWrap: {
     alignItems: 'center',
   },
-  cardIcon: {
-    fontSize: 32,
-  },
-  cardContent: {
-    alignItems: 'center',
-    marginTop: dimensions.spacing.xs,
-  },
-  cardTitle: {
-    fontSize: typography.fontSize.sm,
+  tallCardTitle: {
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
     textAlign: 'center',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
-  cardSubtitle: {
-    fontSize: typography.fontSize.xs,
-    color: 'rgba(255, 255, 255, 0.85)',
-    marginTop: 2,
+  tallCardSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 4,
     textAlign: 'center',
   },
-  tutorialButton: {
+  bottomRow: {
+    height: 64,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: dimensions.spacing.lg,
+  },
+  bottomShortcut: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: colors.surface,
     borderRadius: dimensions.borderRadius.lg,
-    borderWidth: 2,
-    borderColor: colors.mediterraneanSand,
-    paddingVertical: dimensions.spacing.md,
     paddingHorizontal: dimensions.spacing.lg,
-    marginTop: dimensions.spacing.lg,
-    minHeight: dimensions.touchTarget.minimum,
+    paddingVertical: dimensions.spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  tutorialIcon: {
-    fontSize: 24,
-    marginRight: dimensions.spacing.md,
+  bottomEmoji: {
+    fontSize: 22,
+    marginRight: dimensions.spacing.sm,
   },
-  tutorialText: {
-    fontSize: typography.fontSize.base,
+  bottomText: {
+    color: colors.text,
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.mediterraneanSand,
-    flex: 1,
-  },
-  tutorialArrow: {
-    fontSize: 28,
-    color: colors.mediterraneanSand,
-    fontWeight: '300',
   },
 });

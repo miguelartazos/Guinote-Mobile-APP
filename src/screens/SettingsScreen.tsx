@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, Alert } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { ScreenContainer } from '../components/ScreenContainer';
+import { LandscapeContainer } from '../components/layout/LandscapeContainer';
 import { ColorButton } from '../components/game/ColorButton';
 import { colors, TABLE_COLORS } from '../constants/colors';
 import { dimensions } from '../constants/dimensions';
@@ -113,6 +114,7 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
 
   return (
     <ScreenContainer>
+      <LandscapeContainer>
       <View style={styles.container}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>Ajustes</Text>
@@ -383,6 +385,7 @@ export function SettingsScreen({ navigation: _ }: MainTabScreenProps<'Ajustes'>)
           <View style={{ height: dimensions.spacing.xxl }} />
         </ScrollView>
       </View>
+      </LandscapeContainer>
     </ScreenContainer>
   );
 }

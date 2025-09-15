@@ -22,6 +22,9 @@ export interface FeatureFlags {
   enableAnyMemberAIBots?: boolean;
   // Show online-only UI (timer, connection, floating avatars). Keep off for Offline parity
   multiplayerDecorations?: boolean;
+
+  // Orientation policy
+  forceLandscape?: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -43,6 +46,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enableFriendsAIBots: true,
   enableAnyMemberAIBots: true,
   multiplayerDecorations: false,
+  forceLandscape: true,
 };
 
 // Keep all features OFF by default - enable one at a time for testing
@@ -65,6 +69,7 @@ const DEVELOPMENT_FLAGS: FeatureFlags = {
   enableFriendsAIBots: true,
   enableAnyMemberAIBots: true,
   multiplayerDecorations: false,
+  forceLandscape: true,
 };
 
 class FeatureFlagManager {

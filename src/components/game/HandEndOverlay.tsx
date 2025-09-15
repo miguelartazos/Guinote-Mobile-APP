@@ -418,6 +418,17 @@ export function HandEndOverlay({
                 <Text style={[styles.messageText, styles.vueltasText]}>
                   Ningún equipo alcanzó 101 puntos
                 </Text>
+                <View style={styles.vueltasScoreContainer}>
+                  <View style={styles.vueltasScoreItem}>
+                    <Text style={styles.vueltasScoreLabel}>Nosotros</Text>
+                    <Text style={styles.vueltasScoreValue}>{team1Score}</Text>
+                  </View>
+                  <Text style={styles.vueltasScoreSeparator}>-</Text>
+                  <View style={styles.vueltasScoreItem}>
+                    <Text style={styles.vueltasScoreLabel}>Ellos</Text>
+                    <Text style={styles.vueltasScoreValue}>{team2Score}</Text>
+                  </View>
+                </View>
                 <Text style={styles.vueltasStarting}>¡Comenzando vueltas!</Text>
               </View>
             ) : null}
@@ -628,7 +639,7 @@ const styles = StyleSheet.create({
   },
   idasScoreInfo: {
     fontSize: 18,
-    color: colors.goldMedium,
+    color: colors.gold,
     fontWeight: '600',
   },
   idasScoreInfoSmall: {
@@ -827,5 +838,39 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     textAlign: 'center',
+  },
+  // Vueltas score display styles
+  vueltasScoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+    paddingHorizontal: 20,
+  },
+  vueltasScoreItem: {
+    alignItems: 'center',
+    marginHorizontal: 15,
+  },
+  vueltasScoreLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  vueltasScoreValue: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: colors.gold,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  vueltasScoreSeparator: {
+    fontSize: 24,
+    color: colors.goldDark,
+    fontWeight: '700',
+    marginHorizontal: 5,
   },
 });

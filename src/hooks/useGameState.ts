@@ -494,8 +494,9 @@ export function useGameState({
           hasInitializedRef.current = true;
           return;
         } catch (e) {
-          console.error('Failed to initialize from server snapshot, falling back to local init:', e);
-          // Continue to local init below
+          console.error('Failed to initialize from server snapshot; not falling back to local init in online mode:', e);
+          // In online mode, avoid creating a divergent local game. Wait for realtime or retry later.
+          return;
         }
       }
 
@@ -1721,13 +1722,19 @@ export function useGameState({
             setGameState(p => (p ? { ...p, cardPlayAnimation: undefined } : p));
           }, Math.max(320, (CARD_PLAY_DELAY || 350)));
 
+          // Guard against duplicate overlay when same card already animating
+          const dupOverlay =
+            prev.cardPlayAnimation &&
+            String(prev.cardPlayAnimation.card?.id) === String(newPlay?.card.id) &&
+            prev.cardPlayAnimation.playerId === actorId;
+
           return {
             ...prev,
-            // Do not mutate hands immediately; buffer commits until after animation
-            hands: prev.hands,
+            // Apply authoritative hands immediately so the played card disappears from hand
+            hands: newHands,
             currentTrick: mappedTrick,
             cardPlayAnimation:
-              actorId && newPlay
+              !dupOverlay && actorId && newPlay
                 ? {
                     playerId: actorId,
                     card: {

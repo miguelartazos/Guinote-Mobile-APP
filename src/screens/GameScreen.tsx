@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, StyleSheet, StatusBar, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, StatusBar, Text, TouchableOpacity, Alert, AppState, AppStateStatus } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { GameTable } from '../components/game/GameTable';
 import { GameEndCelebration } from '../components/game/GameEndCelebration';
@@ -13,6 +13,7 @@ import { Toast, toastManager } from '../components/ui/Toast';
 import { CanteAnimation } from '../components/game/CanteAnimation';
 import { Cambiar7Animation } from '../components/game/Cambiar7Animation';
 import { ScreenContainer } from '../components/ScreenContainer';
+import { LandscapeContainer } from '../components/layout/LandscapeContainer';
 // import { ConnectionStatus } from '../components/game/ConnectionStatus';
 import { GameErrorBoundary } from '../components/game/GameErrorBoundary';
 // import { VoiceMessaging } from '../components/game/VoiceMessaging'; // Disabled until online works
@@ -28,6 +29,7 @@ import { useFeatureFlag } from '../config/featureFlags';
 import type { JugarStackScreenProps } from '../types/navigation';
 import { useGameState } from '../hooks/useGameState';
 import { useUnifiedAuth } from '../hooks/useUnifiedAuth';
+import { useUnifiedRooms } from '../hooks/useUnifiedRooms';
 import { canCantar, shouldStartVueltas, determineVueltasWinner } from '../utils/gameLogic';
 import {
   detectNewCante,
@@ -121,6 +123,26 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       }
     },
   });
+
+  // Mark soft-disconnect on background to preserve seat for 15 minutes
+  const { softLeaveRoom } = useUnifiedRooms();
+  React.useEffect(() => {
+    if (!isOnline || !roomId) return;
+    const onChange = (next: AppStateStatus) => {
+      if (next !== 'active') {
+        try {
+          softLeaveRoom(String(roomId)).catch(() => {});
+        } catch {}
+      }
+    };
+    const sub = AppState.addEventListener('change', onChange);
+    return () => {
+      try {
+        // @ts-ignore - RN new API returns subscription with remove()
+        sub?.remove?.();
+      } catch {}
+    };
+  }, [isOnline, roomId, softLeaveRoom]);
 
   // Buffer for latest server snapshot to apply after animations complete
   const bufferedApplyRef = React.useRef<null | (() => void)>(null);
@@ -387,6 +409,41 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         if (version <= lastAppliedServerVersionRef.current) return;
         lastAppliedServerVersionRef.current = version;
 
+        // Cross-device action overlays from last_action
+        try {
+          const la: any = (row as any)?.last_action;
+          if (la && typeof la.type === 'string') {
+            if (la.type === 'declare_cante') {
+              const actorSeat = Number.isFinite(la.player) ? (la.player as number) : currentPlayerIndex;
+              const displayIndex = (actorSeat - (mySeatIndex | 0) + 4) % 4;
+              const pts = la.points ? Number(la.points) : (trumpSuit && la.suit === trumpSuit ? 40 : 20);
+              const playerName = gameState?.players?.[actorSeat]?.name || 'Jugador';
+              const playerPosition = getPlayerPositionForIndex(displayIndex);
+              setCanteAnimation({
+                active: true,
+                canteType: pts === 40 ? 'cuarenta' : 'veinte',
+                playerPosition,
+                playerName,
+              });
+              playCardSound?.();
+            } else if (la.type === 'exchange_seven') {
+              const actorSeat = Number.isFinite(la.player) ? (la.player as number) : currentPlayerIndex;
+              const displayIndex = (actorSeat - (mySeatIndex | 0) + 4) % 4;
+              const trumpSuitNow = (row as any)?.trump_suit || (trumpRaw?.suit) || 'oros';
+              const playerName = gameState?.players?.[actorSeat]?.name || 'Jugador';
+              // Approximate swap animation for peers (exact previous trump unknown on client)
+              setCambiar7Animation({
+                active: true,
+                playerCard: { id: `${trumpSuitNow}_7`, suit: trumpSuitNow as any, value: 7 } as any,
+                trumpCard: trumpCard as any,
+                playerName,
+                playerIndex: displayIndex,
+              });
+              playCardSound?.();
+            }
+          }
+        } catch {}
+
         const applyNow = () =>
           applyServerSnapshot({
             handsByPosition,
@@ -398,6 +455,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             version,
             lastAction: (row as any)?.last_action || null,
             phase: (row as any)?.phase || null,
+            teamScores: Array.isArray((row as any)?.team_scores)
+              ? (row as any).team_scores as any
+              : undefined,
+            cantesByTeam: Array.isArray((row as any)?.cantes)
+              ? (row as any).cantes as any
+              : undefined,
           });
 
         applyOrBuffer(applyNow);
@@ -497,6 +560,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
           version,
           lastAction: (row as any)?.last_action || null,
           phase: (row as any)?.phase || null,
+          teamScores: Array.isArray((row as any)?.team_scores)
+            ? (row as any).team_scores as any
+            : undefined,
+          cantesByTeam: Array.isArray((row as any)?.cantes)
+            ? (row as any).cantes as any
+            : undefined,
         });
       } catch {}
     }, 1500);
@@ -1124,9 +1193,9 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
   // without violating the rules of hooks.
   if (!gameState) {
     return (
-      <ScreenContainer orientation="landscape" unsafe noPadding style={styles.loadingContainer}>
+      <LandscapeContainer>
         <Text style={styles.loadingText}>Preparando mesa...</Text>
-      </ScreenContainer>
+      </LandscapeContainer>
     );
   }
 
@@ -1174,6 +1243,42 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       // Online authoritative: call RPC; do not update local state directly
       // Pass last known version when available to enable optimistic concurrency
       const expectedVersion = (gameState as any)?.version as number | undefined;
+      // Optimistic local overlay: schedule a transient animation so the card leaves the hand immediately
+      try {
+        const current = gameState;
+        if (current) {
+          const actor = current.players[current.currentPlayerIndex];
+          const playerHandNow = current.hands.get(actor.id) || [];
+          const cardIdxNow = playerHandNow.findIndex(c => c.id === cardToPlay.id);
+          if (cardIdxNow >= 0) {
+            (gameStateHook as any).setGameState((prev: any) => {
+              if (!prev) return prev;
+              // Avoid duplicating overlay if one already exists for same card
+              const sameOverlay = prev.cardPlayAnimation && String(prev.cardPlayAnimation.card?.id) === String(cardToPlay.id);
+              if (sameOverlay) return prev;
+              return {
+                ...prev,
+                // Immediately hide from local hand by removing it; server snapshot will reconcile
+                hands: (() => {
+                  const nh = new Map(prev.hands);
+                  const ph = [...(nh.get(actor.id) || [])];
+                  const idx = ph.findIndex((c: any) => String(c.id) === String(cardToPlay.id));
+                  if (idx >= 0) {
+                    ph.splice(idx, 1);
+                    nh.set(actor.id, ph);
+                  }
+                  return nh;
+                })(),
+                cardPlayAnimation: {
+                  playerId: actor.id,
+                  card: { id: cardToPlay.id, suit: cardToPlay.suit, value: cardToPlay.value },
+                  cardIndex: cardIdxNow,
+                },
+              };
+            });
+          }
+        }
+      } catch {}
       playCardRpc(roomId!, cardToPlay.id, expectedVersion)
         .catch(err => {
           // On version conflict or failure, we rely on next snapshot; keep UX responsive
@@ -1484,7 +1589,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
       const isVueltasTransition = false; // pendingVueltas no longer used
 
       return (
-        <ScreenContainer orientation="landscape" unsafe noPadding style={styles.gameContainer}>
+        <LandscapeContainer>
           <GameEndCelebration
             isWinner={isVueltasTransition ? false : playerWon} // No winner yet for vueltas
             finalScore={{
@@ -1544,12 +1649,12 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             gameState={gameState}
             playerTeamIndex={playerTeam?.id === team1.id ? 0 : 1}
           />
-        </ScreenContainer>
+        </LandscapeContainer>
       );
     }
 
     return (
-      <ScreenContainer orientation="landscape" unsafe noPadding style={styles.gameOverContainer}>
+      <LandscapeContainer>
         <StatusBar hidden />
         <Text style={[styles.gameOverTitle, playerWon ? styles.victoryTitle : styles.defeatTitle]}>
           {playerWon ? '¡VICTORIA!' : 'DERROTA'}
@@ -1594,7 +1699,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             <Text style={styles.exitButtonText}>SALIR</Text>
           </TouchableOpacity>
         </View>
-      </ScreenContainer>
+      </LandscapeContainer>
     );
   }
 
@@ -1606,7 +1711,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
         navigation.goBack();
       }}
     >
-      <ScreenContainer orientation="landscape" unsafe noPadding style={styles.gameContainer}>
+      <LandscapeContainer>
         <StatusBar hidden />
 
         {/* Connection status for online games */}
@@ -1987,7 +2092,7 @@ export function GameScreen({ navigation, route }: JugarStackScreenProps<'Game'>)
             onHide={() => setToastConfig(null)}
           />
         )}
-      </ScreenContainer>
+      </LandscapeContainer>
     </GameErrorBoundary>
   );
 }

@@ -117,19 +117,19 @@ export const DraggableCard = React.memo(function DraggableCard({
             shouldPlay = true;
             // Haptic feedback for successful drop
             haptics.medium();
-            // Snap to center of drop zone
+            // Trigger play immediately so the hand hides the card and the flying overlay starts
+            onCardPlay(index);
+            // Snap back to original position quietly (hand will re-render without this card)
             Animated.parallel([
               Animated.spring(translateX, {
-                toValue: dropZoneBounds.x + dropZoneBounds.width / 2 - absoluteX,
+                toValue: 0,
                 ...SPRING_CONFIG,
               }),
               Animated.spring(translateY, {
-                toValue: dropZoneBounds.y + dropZoneBounds.height / 2 - absoluteY,
+                toValue: 0,
                 ...SPRING_CONFIG,
               }),
-            ]).start(() => {
-              onCardPlay(index);
-            });
+            ]).start();
           }
         }
 

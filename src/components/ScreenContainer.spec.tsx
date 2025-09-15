@@ -78,7 +78,7 @@ describe('ScreenContainer', () => {
     );
   });
 
-  test('calls useOrientationLock with default portrait orientation', () => {
+  test('calls useOrientationLock with default landscape orientation', () => {
     const { useOrientationLock } = require('../hooks/useOrientationLock');
 
     render(
@@ -87,7 +87,7 @@ describe('ScreenContainer', () => {
       </ScreenContainer>,
     );
 
-    expect(useOrientationLock).toHaveBeenCalledWith('portrait');
+    expect(useOrientationLock).toHaveBeenCalledWith('landscape');
   });
 
   test('calls useOrientationLock with specified orientation', () => {

@@ -53,6 +53,9 @@ export interface RoomActions {
   createFriendsRoom(hostId: string): Promise<Room>;
   joinRoomByCode(code: string, userId: string): Promise<Room>;
   leaveRoom(roomId: string): Promise<void>;
+  softLeaveRoom(roomId: string): Promise<void>;
+  resumeRoom(roomId: string): Promise<void>;
+  getRejoinableRooms(): Promise<Array<{ roomId: string; code: string; status: RoomStatus; disconnectedAt: string; expiresAt: string }>>;
   addAIPlayer(roomId: string, config: AIConfig): Promise<void>;
   removeAIPlayer(roomId: string, playerIdOrPosition: string | number): Promise<void>;
   subscribeToRoom(roomId: string): () => void;
@@ -556,6 +559,109 @@ export function useUnifiedRooms(): RoomState & RoomActions {
   );
 
   /**
+   * Soft-leave the room (mark disconnected; keep seat for 15 minutes)
+   */
+  const softLeaveRoom = useCallback(
+    async (roomId: string): Promise<void> => {
+      if (!enableMultiplayer) return;
+      try {
+        const client = await createRealtimeClient();
+        if (!client) throw new Error('Failed to create realtime client');
+
+        // Ensure session is valid
+        const { data: refreshData } = await client.auth.refreshSession();
+        if (!refreshData?.session) {
+          const { data: sessionData } = await client.auth.getSession();
+          if (!sessionData?.session) throw new Error('Not authenticated. Please sign in again.');
+        }
+
+        const { data, error } = await (client as any).rpc('soft_leave_room', { p_room_id: roomId });
+        if (error) throw error;
+        if (!data?.success) {
+          throw new Error((data && (data as any).error) || 'Failed to soft-leave room');
+        }
+
+        // Keep local room but mark player list empty to avoid stale UI
+        setState(prev => ({ ...prev, players: prev.players.map(p => ({ ...p, connectionStatus: 'disconnected' })) }));
+      } catch (error) {
+        console.error('[useUnifiedRooms] Failed to soft-leave room:', error);
+        throw error;
+      }
+    },
+    [enableMultiplayer],
+  );
+
+  /**
+   * Resume a room within the 15-minute window
+   */
+  const resumeRoom = useCallback(
+    async (roomId: string): Promise<void> => {
+      if (!enableMultiplayer) return;
+      try {
+        const client = await createRealtimeClient();
+        if (!client) throw new Error('Failed to create realtime client');
+
+        // Ensure session is valid
+        const { data: refreshData } = await client.auth.refreshSession();
+        if (!refreshData?.session) {
+          const { data: sessionData } = await client.auth.getSession();
+          if (!sessionData?.session) throw new Error('Not authenticated. Please sign in again.');
+        }
+
+        const { data, error } = await (client as any).rpc('resume_room', { p_room_id: roomId });
+        if (error) throw error;
+        if (!data?.success) {
+          throw new Error((data && (data as any).error) || 'Failed to resume room');
+        }
+
+        // Refresh players after resuming
+        try {
+          await getRoomPlayers(roomId);
+        } catch {}
+      } catch (error) {
+        console.error('[useUnifiedRooms] Failed to resume room:', error);
+        throw error;
+      }
+    },
+    [enableMultiplayer, getRoomPlayers],
+  );
+
+  /**
+   * List rejoinable rooms for the current user
+   */
+  const getRejoinableRooms = useCallback(
+    async (): Promise<Array<{ roomId: string; code: string; status: RoomStatus; disconnectedAt: string; expiresAt: string }>> => {
+      if (!enableMultiplayer) return [];
+      try {
+        const client = await createRealtimeClient();
+        if (!client) return [];
+
+        // Ensure session is valid
+        const { data: refreshData } = await client.auth.refreshSession();
+        if (!refreshData?.session) {
+          const { data: sessionData } = await client.auth.getSession();
+          if (!sessionData?.session) return [];
+        }
+
+        const { data, error } = await (client as any).rpc('get_rejoinable_rooms');
+        if (error) throw error;
+        const list = Array.isArray(data) ? data : [];
+        return list.map((row: any) => ({
+          roomId: row.room_id as string,
+          code: row.code as string,
+          status: row.status as RoomStatus,
+          disconnectedAt: row.disconnected_at as string,
+          expiresAt: row.expires_at as string,
+        }));
+      } catch (error) {
+        console.error('[useUnifiedRooms] Failed to get rejoinable rooms:', error);
+        return [];
+      }
+    },
+    [enableMultiplayer],
+  );
+
+  /**
    * Add an AI player to the room
    */
   const addAIPlayer = useCallback(
@@ -889,6 +995,9 @@ export function useUnifiedRooms(): RoomState & RoomActions {
         throw new Error('Multiplayer is disabled');
       },
       leaveRoom: async () => {},
+      softLeaveRoom: async () => {},
+      resumeRoom: async () => {},
+      getRejoinableRooms: async () => [],
       addAIPlayer: async () => {
         throw new Error('Multiplayer is disabled');
       },
@@ -906,6 +1015,9 @@ export function useUnifiedRooms(): RoomState & RoomActions {
     createFriendsRoom,
     joinRoomByCode,
     leaveRoom,
+    softLeaveRoom,
+    resumeRoom,
+    getRejoinableRooms,
     addAIPlayer,
     removeAIPlayer,
     subscribeToRoom,

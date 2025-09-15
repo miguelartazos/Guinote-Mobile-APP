@@ -9,8 +9,8 @@ appId: com.guinote2
 # Wait for main screen
 - assertVisible: 'Jugar'
 
-# Navigate to friends
-- tapOn: 'Amigos'
+# Navigate to Social tab
+- tapOn: 'SOCIAL'
 
 # Handle possible login requirement
 - runFlow:
@@ -20,25 +20,20 @@ appId: com.guinote2
       - tapOn: 'Cancelar'
       - pressKey: back
 
-# If logged in, continue with friend flow
+# If logged in, continue with friend flow (new Social screen)
 - runFlow:
     when:
-      visible: 'Mis Amigos'
+      visible: 'AMIGOS'
     commands:
-      # Search for a friend
-      - tapOn: 'Buscar Amigos'
+      # Switch to Buscar tab
+      - tapOn: 'Buscar'
 
-      # Enter friend code
-      - inputText: 'TEST123'
+      # Enter search query and use search button
+      - inputText: 'Carlos'
+      - tapOn: '🔎'
 
-      # Send friend request
-      - tapOn: 'Enviar Solicitud'
-
-      # Verify request sent
-      - assertVisible: 'Solicitud enviada'
-
-      # Go to pending requests
-      - tapOn: 'Solicitudes Pendientes'
+      # Switch to Solicitud tab
+      - tapOn: 'Solicitud'
 
       # Check if we have incoming requests
       - runFlow:
@@ -46,7 +41,7 @@ appId: com.guinote2
             visible: 'Aceptar'
           commands:
             - tapOn: 'Aceptar'
-            - assertVisible: 'Amigo añadido'
+            - assertVisible: 'AMIGOS'
 
       # Go back to friends list
       - tapOn: 'Todos los Amigos'

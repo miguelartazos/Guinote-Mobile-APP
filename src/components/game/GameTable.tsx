@@ -697,7 +697,7 @@ export const GameTable = React.memo(function GameTable({
                 (cardPlayAnimation.card as any).id === (card as any).id) ||
                 index === cardPlayAnimation.cardIndex);
 
-            // If card is animating to table, render nearly-invisible placeholder to maintain spacing
+            // If card is animating to table, render fully hidden placeholder to maintain spacing
             if (isAnimating) {
               const cardDims = getCardDimensions();
               return (
@@ -706,7 +706,7 @@ export const GameTable = React.memo(function GameTable({
                   style={{
                     width: cardDims.small.width,
                     height: cardDims.small.height,
-                    opacity: 0.01, // Nearly invisible to prevent GPU layer switching
+                    opacity: 0, // Fully hidden to avoid double-paint
                   }}
                 />
               );
@@ -906,7 +906,7 @@ export const GameTable = React.memo(function GameTable({
                 (cardPlayAnimation.card as any).id === (card as any).id) ||
                 index === cardPlayAnimation.cardIndex);
 
-            // If card is animating to table, render nearly-invisible placeholder to maintain spacing
+            // If card is animating to table, render fully hidden placeholder to maintain spacing
             if (isAnimating) {
               const dims = getCardDimensions().small;
               return (
@@ -915,7 +915,7 @@ export const GameTable = React.memo(function GameTable({
                   style={{
                     width: dims.width,
                     height: dims.height,
-                    opacity: 0.01, // Nearly invisible to prevent GPU layer switching
+                    opacity: 0, // Fully hidden to avoid double-paint
                   }}
                 />
               );
@@ -1120,7 +1120,7 @@ export const GameTable = React.memo(function GameTable({
                 (cardPlayAnimation.card as any).id === (card as any).id) ||
                 index === cardPlayAnimation.cardIndex);
 
-            // If card is animating to table, render nearly-invisible placeholder to maintain spacing
+            // If card is animating to table, render fully hidden placeholder to maintain spacing
             if (isAnimating) {
               const dims = getCardDimensions().small;
               return (
@@ -1129,7 +1129,7 @@ export const GameTable = React.memo(function GameTable({
                   style={{
                     width: dims.width,
                     height: dims.height,
-                    opacity: 0.01, // Nearly invisible to prevent GPU layer switching
+                    opacity: 0, // Fully hidden to avoid double-paint
                   }}
                 />
               );
@@ -1348,6 +1348,15 @@ export const GameTable = React.memo(function GameTable({
             >
               {currentTrick.map((play, index) => {
                 const position = playerIdToPosition[play.playerId] ?? 0;
+                // Suppress static trick card for the one currently flying to avoid duplication
+                if (
+                  cardPlayAnimation &&
+                  cardPlayAnimation.playerId === play.playerId &&
+                  ((('id' in cardPlayAnimation.card && 'id' in play.card && (cardPlayAnimation.card as any).id === (play.card as any).id)) ||
+                    (cardPlayAnimation.card.suit === play.card.suit && cardPlayAnimation.card.value === play.card.value))
+                ) {
+                  return null;
+                }
                 // Keep static trick card always rendered. Flying copy draws above, avoiding gaps.
                 // Use frozen absolute positions to avoid micro-shifts
                 let abs = trickStaticAbsPositionsRef.current[index];
@@ -1536,6 +1545,8 @@ export const GameTable = React.memo(function GameTable({
           playSound={() => {
             // Card sound is played in GameScreen handleCardPlay
           }}
+          // Do not defer the local player's overlay; start immediately to avoid perceived duplication
+          deferStart={playerIdToPosition[cardPlayAnimation.playerId] !== 0}
         />
       )}
 
@@ -1589,7 +1600,29 @@ export const GameTable = React.memo(function GameTable({
       {/* Bottom Player Hand - Only render when not dealing */}
       {(!isDealing || dealingAnimationComplete) && layout.isReady && (
         <View style={[styles.bottomPlayerHand, landscape && styles.bottomPlayerHandLandscape]}>
-          {bottomPlayer.cards.map((card, index) => {
+          {(() => {
+            // Build a derived list that hides the animating card during its flight
+            const isBottomAnimating = !!cardPlayAnimation && cardPlayAnimation.playerId === bottomPlayer.id;
+            const hiddenCardId = isBottomAnimating && (cardPlayAnimation.card as any)?.id ? String((cardPlayAnimation.card as any).id) : null;
+            const hiddenByIndex = isBottomAnimating && typeof cardPlayAnimation.cardIndex === 'number' ? cardPlayAnimation.cardIndex : -1;
+            const hiddenSuit = isBottomAnimating ? cardPlayAnimation.card.suit : null;
+            const hiddenValue = isBottomAnimating ? cardPlayAnimation.card.value : null;
+            const visibleCards = isBottomAnimating
+              ? bottomPlayer.cards.filter((c, idx) => {
+                  if (hiddenCardId && 'id' in c && (c as any).id) {
+                    return String((c as any).id) !== hiddenCardId;
+                  }
+                  if (hiddenByIndex >= 0) {
+                    return idx !== hiddenByIndex;
+                  }
+                  if (hiddenSuit && hiddenValue) {
+                    return !(c.suit === hiddenSuit && c.value === hiddenValue);
+                  }
+                  return true;
+                })
+              : bottomPlayer.cards;
+
+            return visibleCards.map((card, index) => {
             // Get card key and dimensions first (needed for placeholder)
             const cardKey = getCardKey(card, index, 'bottom', bottomPlayer.isHidden);
             const cardDimensions = getCardDimensions();
@@ -1601,31 +1634,8 @@ export const GameTable = React.memo(function GameTable({
               card.suit === hideCardFromHand.suit &&
               card.value === hideCardFromHand.value;
 
-            // Hide card during play animation - prefer ID comparison
-            const isAnimating =
-              cardPlayAnimation?.playerId === bottomPlayer.id &&
-              (('id' in cardPlayAnimation.card &&
-                'id' in card &&
-                cardPlayAnimation.card.id === card.id) ||
-                (cardPlayAnimation.card.suit === card.suit &&
-                  cardPlayAnimation.card.value === card.value) ||
-                index === cardPlayAnimation.cardIndex);
-
             if (shouldHide) return null;
 
-            // If card is animating to table, render nearly-invisible placeholder to maintain spacing
-            if (isAnimating) {
-              return (
-                <View
-                  key={cardKey}
-                  style={{
-                    width: cardDimensions.large.width,
-                    height: cardDimensions.large.height,
-                    opacity: 0.01, // Nearly invisible to prevent GPU layer switching
-                  }}
-                />
-              );
-            }
             const isValidCard = !validCardIndices || validCardIndices.includes(index);
             const isPlayerTurn = currentPlayerIndex === 0;
             const targetPosition = getPlayerCardPosition(
@@ -1710,7 +1720,13 @@ export const GameTable = React.memo(function GameTable({
                   onCardPlay={stableOnCardPlay}
                   onReorder={onCardReorder ? stableOnReorder : undefined}
                   dropZoneBounds={dropZoneBounds || undefined}
-                  isEnabled={!isDealingBlocked && !!dropZoneBounds && isPlayerTurn && isValidCard}
+                  isEnabled={
+                    !isDealingBlocked &&
+                    !!dropZoneBounds &&
+                    isPlayerTurn &&
+                    isValidCard &&
+                    !cardPlayAnimation // disable input while a play animation is active
+                  }
                   isPlayerTurn={isPlayerTurn}
                   cardSize="large"
                   totalCards={bottomPlayer.cards.length}
@@ -1719,7 +1735,8 @@ export const GameTable = React.memo(function GameTable({
                 />
               </Animated.View>
             );
-          })}
+            });
+          })()}
         </View>
       )}
 
